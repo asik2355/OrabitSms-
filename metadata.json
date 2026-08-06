@@ -1,0 +1,6 @@
+{
+  "name": "ORABIT SMS Portal",
+  "description": "Official ORABIT SMS portal with authentication, real-time OTP routing stream, virtual number provisioning, and API dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
