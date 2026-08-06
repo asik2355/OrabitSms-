@@ -27,11 +27,15 @@ import {
 interface UserProfileViewProps {
   userProfile: UserProfile;
   onUpdateProfile: (updated: UserProfile) => void;
+  currency?: "BDT" | "USD";
+  usdExchangeRate?: number;
 }
 
 export const UserProfileView: React.FC<UserProfileViewProps> = ({
   userProfile,
   onUpdateProfile,
+  currency = "BDT",
+  usdExchangeRate = 100,
 }) => {
   // Split fullName into first and last name if possible
   const nameParts = (userProfile.fullName || "Alif Sheikh").split(" ");
@@ -124,19 +128,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     <div className="space-y-6 animate-in fade-in duration-300 pb-12">
       {/* PROFILE TOP HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-800 border border-slate-800 shadow-xl">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <User className="w-5 h-5" />
-            </div>
-            <h1 className="text-xl font-black text-white tracking-tight">Profile</h1>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <User className="w-5 h-5" />
           </div>
-          <p className="text-xs text-slate-400 pl-11">
-            Manage personal info, security and API keys.
-          </p>
+          <h1 className="text-xl font-black text-white tracking-tight">Account Settings</h1>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto pl-11 sm:pl-0">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             ACTIVE ACCOUNT
@@ -184,37 +183,33 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         {/* Highlight Lifetime Earning Box */}
         <div className="p-4 rounded-xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-slate-900 border border-amber-500/30 space-y-1 shadow-inner">
-          <div className="text-[10px] font-bold tracking-wider text-amber-400 uppercase">
-            LIFETIME EARNING
+          <div className="text-[10px] font-bold tracking-wider text-amber-400 uppercase flex items-center justify-between">
+            <span>LIFETIME EARNING</span>
+            <span className="text-[10px] font-mono text-slate-400 font-normal">
+              CURRENCY: <strong className="text-amber-300">{currency}</strong>
+            </span>
           </div>
           <div className="text-2xl font-black text-white font-mono flex items-baseline gap-1.5">
-            <span className="text-xs text-slate-400 font-sans">USD</span>
-            <span>{lifetimeEarning.toFixed(2)}</span>
+            <span className="text-amber-400 font-sans font-bold text-xl">
+              {currency === "BDT" ? "৳" : "$"}
+            </span>
+            <span>
+              {currency === "BDT"
+                ? (userProfile.balance > 0 ? userProfile.balance : 2299.00).toFixed(2)
+                : ((userProfile.balance > 0 ? userProfile.balance : 2299.00) / usdExchangeRate).toFixed(2)}
+            </span>
+            <span className="text-xs text-slate-400 font-sans font-bold ml-1">
+              {currency}
+            </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+        <div className="text-xs">
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
             <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider">
               MEMBER SINCE
             </span>
             <div className="text-white font-bold">{memberSince}</div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1 flex items-center justify-between">
-            <div>
-              <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider">
-                PUBLIC UID
-              </span>
-              <div className="text-emerald-400 font-mono font-bold">{publicUid}</div>
-            </div>
-            <button
-              onClick={() => handleCopy(publicUid, "uid")}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all"
-              title="Copy UID"
-            >
-              {copiedUid ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            </button>
           </div>
         </div>
       </div>
@@ -226,9 +221,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <User className="w-4.5 h-4.5 text-emerald-400" />
             <span>Personal Information</span>
           </div>
-          <span className="text-xs font-mono bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
-            {publicUid}
-          </span>
         </div>
 
         <form onSubmit={handleSaveChangesClick} className="space-y-4 text-xs">

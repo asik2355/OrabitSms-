@@ -412,18 +412,26 @@ export default function App() {
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-md shadow-cyan-500/10">
-              <Zap className="w-5 h-5 animate-pulse text-cyan-400" />
+          {/* ANIMATED HIGH-TECH LOGO */}
+          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setActiveTab("dashboard")}>
+            <div className="relative flex items-center justify-center">
+              {/* Spinning animated glow ring */}
+              <div className="absolute -inset-1.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-emerald-400 to-indigo-500 opacity-75 blur-md group-hover:opacity-100 transition-all duration-500 animate-pulse" />
+              <div className="relative w-10 h-10 rounded-xl bg-[#090D1A] border border-cyan-400/50 flex items-center justify-center shadow-lg shadow-cyan-500/20 overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.25),transparent_70%)] animate-ping" style={{ animationDuration: '3s' }} />
+                <Zap className="w-5 h-5 text-cyan-300 fill-cyan-400/30 animate-bounce relative z-10" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
+              </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-white text-base tracking-tight uppercase">
-                  ORABIT<span className="text-cyan-400">SMS</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-lg tracking-tight uppercase bg-gradient-to-r from-cyan-300 via-emerald-400 to-indigo-300 bg-clip-text text-transparent group-hover:from-emerald-300 group-hover:to-cyan-300 transition-all">
+                  ORABIT<span className="text-cyan-400 font-extrabold">SMS</span>
                 </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                Powered by Zenex Core Routing • <strong className="text-slate-200">{domainName}</strong>
+              <p className="text-[10px] font-mono text-slate-400 hidden sm:block tracking-wide">
+                Zenex Core Routing • <strong className="text-cyan-300">{domainName}</strong>
               </p>
             </div>
           </div>
@@ -492,13 +500,16 @@ export default function App() {
           {/* Drawer Content Panel */}
           <div className="relative w-72 max-w-[85vw] h-full bg-[#141822] text-slate-200 z-50 shadow-2xl overflow-y-auto flex flex-col p-4 space-y-4 font-sans border-r border-slate-800/80 animate-in slide-in-from-left duration-200">
             {/* Header / Logo */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center font-black text-slate-950 text-sm shadow-md">
-                  V
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 opacity-75 blur-sm animate-pulse" />
+                  <div className="relative w-9 h-9 rounded-xl bg-[#090D1A] border border-emerald-400/50 flex items-center justify-center shadow-md">
+                    <Zap className="w-5 h-5 text-emerald-300 fill-emerald-400/30 animate-bounce" />
+                  </div>
                 </div>
-                <span className="font-extrabold text-white text-lg tracking-tight">
-                  ORABIT SMS<span className="text-emerald-400">.</span>
+                <span className="font-black text-lg tracking-tight uppercase bg-gradient-to-r from-emerald-300 via-cyan-300 to-indigo-300 bg-clip-text text-transparent">
+                  ORABIT SMS<span className="text-emerald-400 animate-pulse">.</span>
                 </span>
               </div>
               <button
@@ -640,79 +651,79 @@ export default function App() {
 
       {/* BODY MAIN CONTENT LAYOUT */}
       <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-5">
-        {/* WELCOME BANNER & ANNOUNCEMENT */}
-        <div className="space-y-4">
-
-          {/* Official Launch Announcement Banner (Matching Screenshot 3) */}
-          <div className="group p-4 rounded-2xl bg-amber-950/25 border border-amber-500/35 hover:border-amber-500/50 text-amber-200/90 text-xs space-y-2 relative overflow-hidden shadow-lg transition-all duration-300">
-            <div className="flex items-start gap-3">
-              <Bell className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 group-hover:rotate-12 transition-transform duration-300" />
-              <div className="space-y-1.5">
-                <h3 className="font-bold text-amber-300 text-sm flex items-center gap-2">
-                  <span>Welcome to ORABIT SMS – Official !</span>
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                </h3>
-                <p className="leading-relaxed opacity-90">
-                  With Higher Number Availability, Fast OTP Delivery For Facebook, Instagram, WhatsApp, Telegram, And Many Other Services, Super-Fast Payouts Within 12–24 Hours.
-                </p>
-                <p className="leading-relaxed opacity-80 text-[11px]">
-                  OrabitSms Uses a Fixed Rate Of 1 USD = 100 BDT. Payments Are Accepted In USDT (BNB SMART CHAIN, Binance) Nased On Current Market Rates.
-                </p>
-                <div className="pt-1 flex flex-wrap items-center gap-2 text-emerald-400 font-mono text-[11px]">
-                  <span>Join Our Official Telegram Channel For Live Updates:</span>
-                  <a
-                    href="https://t.me/OrabitSms"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-white font-bold flex items-center gap-1 text-emerald-300 hover:scale-105 transition-transform"
-                  >
-                    @OrabitSms <ExternalLink className="w-3 h-3 inline" />
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* TOP METRICS CARDS WITH ANIMATIONS */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/40 space-y-2 relative shadow-md hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-              <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-                <span className="group-hover:text-emerald-300 transition-colors">TODAY REVENUE</span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all">
-                  <Zap className="w-4 h-4 animate-pulse" />
-                </div>
-              </div>
-              <div className="text-2xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">$0.00</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Earnings from successful OTPs</div>
-            </div>
-
-            <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-blue-500/40 space-y-2 relative shadow-md hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-              <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-                <span className="group-hover:text-blue-300 transition-colors">TODAY OTPS</span>
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-500/20 transition-all">
-                  <MessageSquare className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-2xl font-black text-white font-mono group-hover:text-blue-300 transition-colors">6</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Total successful verifications</div>
-            </div>
-
-            <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/40 space-y-2 relative shadow-md hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-              <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-                <span className="group-hover:text-purple-300 transition-colors">YESTERDAY REVENUE</span>
-                <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/20 transition-all">
-                  <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-                </div>
-              </div>
-              <div className="text-2xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">$0.24</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Previous day performance</div>
-            </div>
-          </div>
-        </div>
-
         {/* TAB 1: DASHBOARD & ANALYTICS */}
         {activeTab === "dashboard" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-6">
+            {/* WELCOME BANNER & ANNOUNCEMENT */}
+            <div className="space-y-4">
+              {/* Official Launch Announcement Banner (Matching Screenshot 3) */}
+              <div className="group p-4 rounded-2xl bg-amber-950/25 border border-amber-500/35 hover:border-amber-500/50 text-amber-200/90 text-xs space-y-2 relative overflow-hidden shadow-lg transition-all duration-300">
+                <div className="flex items-start gap-3">
+                  <Bell className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 group-hover:rotate-12 transition-transform duration-300" />
+                  <div className="space-y-1.5">
+                    <h3 className="font-bold text-amber-300 text-sm flex items-center gap-2">
+                      <span>Welcome to ORABIT SMS – Official !</span>
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                    </h3>
+                    <p className="leading-relaxed opacity-90">
+                      With Higher Number Availability, Fast OTP Delivery For Facebook, Instagram, WhatsApp, Telegram, And Many Other Services, Super-Fast Payouts Within 12–24 Hours.
+                    </p>
+                    <p className="leading-relaxed opacity-80 text-[11px]">
+                      OrabitSms Uses a Fixed Rate Of 1 USD = 100 BDT. Payments Are Accepted In USDT (BNB SMART CHAIN, Binance) Nased On Current Market Rates.
+                    </p>
+                    <div className="pt-1 flex flex-wrap items-center gap-2 text-emerald-400 font-mono text-[11px]">
+                      <span>Join Our Official Telegram Channel For Live Updates:</span>
+                      <a
+                        href="https://t.me/OrabitSms"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline hover:text-white font-bold flex items-center gap-1 text-emerald-300 hover:scale-105 transition-transform"
+                      >
+                        @OrabitSms <ExternalLink className="w-3 h-3 inline" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TOP METRICS CARDS WITH ANIMATIONS */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/40 space-y-2 relative shadow-md hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
+                    <span className="group-hover:text-emerald-300 transition-colors">TODAY REVENUE</span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all">
+                      <Zap className="w-4 h-4 animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">$0.00</div>
+                  <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Earnings from successful OTPs</div>
+                </div>
+
+                <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-blue-500/40 space-y-2 relative shadow-md hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
+                    <span className="group-hover:text-blue-300 transition-colors">TODAY OTPS</span>
+                    <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-500/20 transition-all">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-white font-mono group-hover:text-blue-300 transition-colors">6</div>
+                  <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Total successful verifications</div>
+                </div>
+
+                <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/40 space-y-2 relative shadow-md hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
+                    <span className="group-hover:text-purple-300 transition-colors">YESTERDAY REVENUE</span>
+                    <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/20 transition-all">
+                      <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">$0.24</div>
+                  <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Previous day performance</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Top Performers Table & Traffic Chart */}
             <div className="lg:col-span-2 space-y-6">
               {/* 1. Your Top Performers Table (Moved to Top with Animation & Crown Icon) */}
@@ -906,6 +917,7 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
         )}
 
         {/* TAB 2: LIVE SMS TRAFFIC CONSOLE (Matching Screenshot 5) */}
@@ -1255,6 +1267,8 @@ checkZenexLiveFeed("Telegram");`}
           <UserProfileView
             userProfile={userProfile}
             onUpdateProfile={(updated) => setUserProfile(updated)}
+            currency={currency}
+            usdExchangeRate={usdExchangeRate}
           />
         )}
       </div>
