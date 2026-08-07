@@ -391,60 +391,90 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       {/* CARD 5: API KEYS */}
       <div className="p-5 sm:p-6 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-lg space-y-4">
-        <div className="flex items-center gap-2 font-bold text-base text-white border-b border-slate-800 pb-3">
-          <Key className="w-4.5 h-4.5 text-emerald-400" />
-          <span>API Keys</span>
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2 font-bold text-base text-white">
+            <span className="font-mono font-black text-rose-400 text-sm">&lt;/&gt;</span>
+            <span>API Keys</span>
+          </div>
+          {/* Admin / Team Lead quick toggle for testing or status badge */}
+          <button
+            onClick={() => onUpdateProfile({ ...userProfile, apiEnabled: !userProfile.apiEnabled })}
+            className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border font-bold transition-all ${
+              userProfile.apiEnabled
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700"
+            }`}
+            title="Click to toggle API access (Team Lead / Admin control)"
+          >
+            {userProfile.apiEnabled ? "● API ACCESS: ENABLED" : "○ API ACCESS: DISABLED"}
+          </button>
         </div>
 
-        <div className="space-y-3">
-          {/* API Key Box */}
-          <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded-xl px-4 py-3">
-            <span className="font-mono text-sm text-emerald-400 font-bold tracking-widest flex-1 select-all">
-              {showApiKey ? apiKey : apiKey.replace(/./g, "•")}
-            </span>
-            <div className="flex items-center gap-2">
+        {userProfile.apiEnabled ? (
+          <div className="space-y-3">
+            {/* Active API Key Box */}
+            <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded-xl px-4 py-3">
+              <span className="font-mono text-sm text-emerald-400 font-bold tracking-widest flex-1 select-all">
+                {showApiKey ? apiKey : apiKey.replace(/./g, "•")}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+                  title={showApiKey ? "Hide Key" : "Show Key"}
+                >
+                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => handleCopy(apiKey, "key")}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+                  title="Copy API Key"
+                >
+                  {copiedKey ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-slate-400 font-mono">
+              Created {apiKeyCreated}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-                title={showApiKey ? "Hide Key" : "Show Key"}
+                onClick={handleRegenerateApiKey}
+                className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95"
               >
-                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Regenerate</span>
               </button>
               <button
-                onClick={() => handleCopy(apiKey, "key")}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-                title="Copy API Key"
+                onClick={handleRevokeApiKey}
+                className="py-2.5 px-4 rounded-xl bg-rose-950/40 border border-rose-500/40 hover:bg-rose-900/50 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95"
               >
-                {copiedKey ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Revoke</span>
               </button>
             </div>
-          </div>
 
-          <div className="text-[11px] text-slate-400 font-mono">
-            Created {apiKeyCreated}
+            <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+              Use this key in the Authorization header for API access. Keep it secret — regenerating invalidates the old key.
+            </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <button
-              onClick={handleRegenerateApiKey}
-              className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Regenerate</span>
-            </button>
-            <button
-              onClick={handleRevokeApiKey}
-              className="py-2.5 px-4 rounded-xl bg-rose-950/40 border border-rose-500/40 hover:bg-rose-900/50 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Revoke</span>
-            </button>
+        ) : (
+          /* Locked / Disabled API Key Screen Matching Screenshot */
+          <div className="p-6 sm:p-8 rounded-2xl bg-[#171711]/90 border border-dashed border-amber-500/30 flex flex-col items-center justify-center text-center space-y-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Lock className="w-6 h-6 text-amber-400" />
+            </div>
+            <h3 className="font-bold text-white text-base sm:text-lg tracking-tight">
+              API Key Generation Disabled
+            </h3>
+            <p className="text-slate-400 text-xs sm:text-sm max-w-md leading-relaxed">
+              You are not enabled to generate an API key. Please{" "}
+              <strong className="text-slate-200 font-semibold">contact your Team Lead</strong> to request access.
+            </p>
           </div>
-
-          <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-            Use this key in the Authorization header for API access. Keep it secret — regenerating invalidates the old key.
-          </p>
-        </div>
+        )}
       </div>
 
       {/* OTP PROMPT MODAL FOR SAVING CHANGES */}

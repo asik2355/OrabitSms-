@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { OrabitAuthScreen, UserProfile } from "./components/OrabitAuthScreen";
 import { UserProfileView } from "./components/UserProfileView";
+import { OrabitLogo } from "./components/OrabitLogo";
 import {
   Search,
   RefreshCw,
@@ -20,6 +21,7 @@ import {
   TrendingUp,
   Globe,
   DollarSign,
+  Wallet,
   MessageSquare,
   Sparkles,
   Code2,
@@ -400,45 +402,28 @@ export default function App() {
       theme === "light" ? "bg-slate-100 text-slate-900" : "bg-[#0d1117] text-slate-100"
     }`}>
       {/* GLOBAL TOP NAVIGATION BAR */}
-      <header className={`sticky top-0 z-40 border-b backdrop-blur-md px-3 sm:px-6 py-3 flex items-center justify-between shadow-xl transition-colors duration-200 ${
+      <header className={`sticky top-0 z-40 border-b backdrop-blur-md px-2.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between shadow-xl transition-colors duration-200 ${
         theme === "light" ? "bg-white/95 border-slate-200 text-slate-900" : "bg-slate-900/95 border-slate-800/90 text-slate-100"
       }`}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0 mr-3 sm:mr-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-all active:scale-95"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-all active:scale-95"
             title="Toggle Menu"
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          {/* ANIMATED HIGH-TECH LOGO */}
-          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setActiveTab("dashboard")}>
-            <div className="relative flex items-center justify-center">
-              {/* Spinning animated glow ring */}
-              <div className="absolute -inset-1.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-emerald-400 to-indigo-500 opacity-75 blur-md group-hover:opacity-100 transition-all duration-500 animate-pulse" />
-              <div className="relative w-10 h-10 rounded-xl bg-[#090D1A] border border-cyan-400/50 flex items-center justify-center shadow-lg shadow-cyan-500/20 overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.25),transparent_70%)] animate-ping" style={{ animationDuration: '3s' }} />
-                <Zap className="w-5 h-5 text-cyan-300 fill-cyan-400/30 animate-bounce relative z-10" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-lg tracking-tight uppercase bg-gradient-to-r from-cyan-300 via-emerald-400 to-indigo-300 bg-clip-text text-transparent group-hover:from-emerald-300 group-hover:to-cyan-300 transition-all">
-                  ORABIT<span className="text-cyan-400 font-extrabold">SMS</span>
-                </span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-              </div>
-              <p className="text-[10px] font-mono text-slate-400 hidden sm:block tracking-wide">
-                Zenex Core Routing • <strong className="text-cyan-300">{domainName}</strong>
-              </p>
-            </div>
-          </div>
+          {/* NEW HIGH-TECH ORBITAL LOGO */}
+          <OrabitLogo
+            size="md"
+            showSubtitle={false}
+            onClick={() => setActiveTab("dashboard")}
+          />
         </div>
 
         {/* Header Right Actions */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
           {/* Live Search */}
           <div className="relative hidden md:block">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -461,15 +446,15 @@ export default function App() {
           <button
             onClick={() => setCurrencyModalOpen(true)}
             title="Click to select currency (BDT ৳ / USD $)"
-            className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-emerald-950/50 hover:border-emerald-400 hover:bg-emerald-900/60 active:scale-95 transition-all cursor-pointer group"
+            className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 font-bold text-xs px-2 sm:px-3 py-1.5 rounded-xl flex items-center gap-1 sm:gap-1.5 shadow-sm shadow-emerald-950/50 hover:border-emerald-400 hover:bg-emerald-900/60 active:scale-95 transition-all cursor-pointer group"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>
+            <Wallet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="font-mono">
               {currency === "BDT"
                 ? `৳${userProfile.balance.toFixed(2)}`
                 : `$${(userProfile.balance / usdExchangeRate).toFixed(2)}`}
             </span>
-            <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-300 font-mono uppercase">
+            <span className="text-[10px] bg-emerald-500/20 px-1 sm:px-1.5 py-0.5 rounded text-emerald-300 font-mono uppercase">
               {currency}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-emerald-400/70 group-hover:text-emerald-300 transition-transform" />
@@ -501,17 +486,7 @@ export default function App() {
           <div className="relative w-72 max-w-[85vw] h-full bg-[#141822] text-slate-200 z-50 shadow-2xl overflow-y-auto flex flex-col p-4 space-y-4 font-sans border-r border-slate-800/80 animate-in slide-in-from-left duration-200">
             {/* Header / Logo */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
-              <div className="flex items-center gap-2.5">
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 opacity-75 blur-sm animate-pulse" />
-                  <div className="relative w-9 h-9 rounded-xl bg-[#090D1A] border border-emerald-400/50 flex items-center justify-center shadow-md">
-                    <Zap className="w-5 h-5 text-emerald-300 fill-emerald-400/30 animate-bounce" />
-                  </div>
-                </div>
-                <span className="font-black text-lg tracking-tight uppercase bg-gradient-to-r from-emerald-300 via-cyan-300 to-indigo-300 bg-clip-text text-transparent">
-                  ORABIT SMS<span className="text-emerald-400 animate-pulse">.</span>
-                </span>
-              </div>
+              <OrabitLogo size="sm" showSubtitle={false} />
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
@@ -695,7 +670,9 @@ export default function App() {
                       <Zap className="w-4 h-4 animate-pulse" />
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">$0.00</div>
+                  <div className="text-2xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">
+                    {currency === "BDT" ? "৳0.00" : "$0.00"}
+                  </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Earnings from successful OTPs</div>
                 </div>
 
@@ -717,7 +694,9 @@ export default function App() {
                       <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">$0.24</div>
+                  <div className="text-2xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
+                    {currency === "BDT" ? `৳${(0.24 * usdExchangeRate).toFixed(2)}` : "$0.24"}
+                  </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Previous day performance</div>
                 </div>
               </div>

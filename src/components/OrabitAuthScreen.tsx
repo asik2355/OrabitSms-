@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { supabase } from "../lib/supabase";
+import { OrabitLogo } from "./OrabitLogo";
 import {
   User,
   Phone,
@@ -356,24 +357,12 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       {/* ==================== MAIN CONTAINER ==================== */}
       <div className="relative z-10 w-full max-w-[500px] py-4">
         {/* Logo Section */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-3.5 mb-2 animate-logo-glow">
-            {/* Logo Icon with Glowing Ring */}
-            <div className="relative flex items-center justify-center">
-              <div className="absolute -inset-2 rounded-2xl bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#06B6D4] opacity-80 blur-lg animate-pulse" />
-              <div className="w-[52px] h-[52px] rounded-[16px] bg-[#090D24] border border-indigo-400/50 flex items-center justify-center shadow-[0_0_25px_rgba(99,102,241,0.5)] relative z-10 overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.3),transparent_70%)] animate-ping" style={{ animationDuration: '4s' }} />
-                <Zap className="w-7 h-7 text-[#818CF8] fill-[#818CF8]/30 animate-bounce relative z-10" />
-              </div>
-            </div>
-            <span className="text-[28px] sm:text-[32px] font-black tracking-wider bg-gradient-to-r from-[#818CF8] via-[#A78BFA] to-[#67E8F9] bg-clip-text text-transparent animate-gradient-shift">
-              ORABIT SMS
-            </span>
-          </div>
-          <p className="text-[10px] sm:text-[11px] text-[#818CF8]/80 uppercase tracking-[4px] font-semibold flex items-center justify-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Enterprise Messaging Platform</span>
-          </p>
+        <div className="flex flex-col items-center justify-center text-center mb-6">
+          <OrabitLogo
+            size="lg"
+            showSubtitle={false}
+            className="justify-center"
+          />
         </div>
 
         {/* Card - High Performance Mobile Optimized Background */}
