@@ -45,6 +45,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   // Form State
   const [firstName, setFirstName] = useState(defaultFirstName);
   const [lastName, setLastName] = useState(defaultLastName);
+  const [mobileNumber, setMobileNumber] = useState(userProfile.mobileNumber || "0175257721");
   const [bio, setBio] = useState("");
   const [country, setCountry] = useState(userProfile.country || "Bangladesh");
   const [city, setCity] = useState(userProfile.city || "Dhaka");
@@ -52,6 +53,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Security Toggles
   const [twoFactorPayments, setTwoFactorPayments] = useState(false);
+
+  // Change Password State
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMsg, setPasswordMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // API Key State
   const [apiKey, setApiKey] = useState("MHF5UTYD3L7");
@@ -62,8 +70,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Status & Feedback
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [otpModalOpen, setOtpModalOpen] = useState(false);
-  const [otpInput, setOtpInput] = useState("");
 
   const publicUid = "M4Q91X5HKW3";
   const memberSince = "Jul 2026";
@@ -100,28 +106,40 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   const handleSaveChangesClick = (e: React.FormEvent) => {
     e.preventDefault();
-    setOtpModalOpen(true);
-  };
-
-  const handleVerifyOtp = () => {
-    if (!otpInput || otpInput.length < 4) {
-      alert("Please enter a valid OTP code.");
-      return;
-    }
-    setOtpModalOpen(false);
-    setOtpInput("");
-
-    // Update parent user profile
+    // Update parent user profile directly without OTP
     const updatedFull = `${firstName} ${lastName}`.trim();
     onUpdateProfile({
       ...userProfile,
       fullName: updatedFull,
+      mobileNumber: mobileNumber,
       country: country,
       telegram: telegramUsername,
     });
 
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 4000);
+  };
+
+  const handleChangePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      setPasswordMsg({ type: "error", text: "Please enter your current password." });
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMsg({ type: "error", text: "New password must be at least 6 characters long." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ type: "error", text: "New password and Confirm password do not match!" });
+      return;
+    }
+
+    setPasswordMsg({ type: "success", text: "Password changed successfully!" });
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setTimeout(() => setPasswordMsg(null), 4000);
   };
 
   return (
@@ -260,20 +278,21 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 type="text"
                 readOnly
                 value={userProfile.email}
-                className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 px-3.5 py-2.5 rounded-xl cursor-not-allowed font-medium"
+                className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 px-3.5 py-2.5 rounded-xl cursor-not-allowed font-medium select-none"
               />
             </div>
 
-            {/* PHONE (READ-ONLY) */}
+            {/* PHONE NUMBER */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                PHONE (READ-ONLY)
+                PHONE NUMBER
               </label>
               <input
                 type="text"
-                readOnly
-                value={userProfile.mobileNumber || "0175257721"}
-                className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 px-3.5 py-2.5 rounded-xl cursor-not-allowed font-medium"
+                value={mobileNumber}
+                onChange={(e) => setMobileNumber(e.target.value)}
+                placeholder="0175257721"
+                className="w-full bg-slate-950 border border-slate-800 text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500 transition-all font-medium"
               />
             </div>
           </div>
@@ -347,10 +366,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2"
+              className="px-5 py-2.5 rounded-xl bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Save Changes (OTP)</span>
+              <span>Save Changes</span>
             </button>
           </div>
         </form>
@@ -375,7 +394,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </div>
             <button
               onClick={() => setTwoFactorPayments(!twoFactorPayments)}
-              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
                 twoFactorPayments ? "bg-emerald-500" : "bg-slate-800"
               }`}
             >
@@ -385,6 +404,100 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 }`}
               />
             </button>
+          </div>
+
+          {/* Change Password Section (Right under 2 STEP Payments) */}
+          <div className="border-t border-slate-800/80 pt-3 space-y-3">
+            <div
+              onClick={() => setShowChangePassword(!showChangePassword)}
+              className="flex items-center justify-between cursor-pointer group"
+            >
+              <div className="space-y-0.5">
+                <div className="font-bold text-white flex items-center gap-2 group-hover:text-emerald-400 transition-colors">
+                  <Key className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Change Password</span>
+                </div>
+                <p className="text-[11px] text-slate-400">Update your account login password</p>
+              </div>
+              <button
+                type="button"
+                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all cursor-pointer"
+              >
+                {showChangePassword ? "Close" : "Change"}
+              </button>
+            </div>
+
+            {/* Change Password Input Fields */}
+            {showChangePassword && (
+              <form onSubmit={handleChangePasswordSubmit} className="pt-2 border-t border-slate-800/60 space-y-3 animate-in fade-in duration-200">
+                {passwordMsg && (
+                  <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                    passwordMsg.type === "success"
+                      ? "bg-emerald-950/80 border-emerald-500/40 text-emerald-300"
+                      : "bg-rose-950/80 border-rose-500/40 text-rose-300"
+                  }`}>
+                    {passwordMsg.type === "success" ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
+                    <span>{passwordMsg.text}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Key className="w-3.5 h-3.5" />
+                    <span>Update Password</span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       </div>
@@ -476,47 +589,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         )}
       </div>
-
-      {/* OTP PROMPT MODAL FOR SAVING CHANGES */}
-      {otpModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-[#141822] border border-slate-700 text-slate-200 p-5 space-y-4 shadow-2xl">
-            <div className="space-y-1">
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
-                <Lock className="w-4 h-4 text-emerald-400" />
-                <span>Security Verification OTP</span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                An OTP code has been sent to your registered email/phone. Enter it below to save changes.
-              </p>
-            </div>
-
-            <input
-              type="text"
-              maxLength={6}
-              value={otpInput}
-              onChange={(e) => setOtpInput(e.target.value)}
-              placeholder="Enter 6-digit OTP (e.g. 123456)"
-              className="w-full bg-slate-950 border border-slate-700 text-white font-mono text-center tracking-widest text-lg py-2.5 rounded-xl focus:outline-none focus:border-emerald-500"
-            />
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setOtpModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleVerifyOtp}
-                className="flex-1 py-2.5 rounded-xl bg-[#2EE59D] text-slate-950 font-bold text-xs hover:bg-emerald-400 shadow-md"
-              >
-                Verify & Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
