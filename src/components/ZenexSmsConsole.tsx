@@ -745,19 +745,19 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
             </div>
 
             {/* Top Apps Legend List with Service Logos (1 item per line) */}
-            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
               {appStats.map((item, idx) => (
                 <div
                   key={idx}
-                  className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between hover:border-slate-700/80 transition-all shadow-sm"
+                  className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between hover:border-slate-700/80 transition-all shadow-sm text-xs"
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2">
                     <ServiceLogo name={item.name} className="w-5 h-5 shrink-0" />
-                    <span className="font-bold text-slate-200 text-xs sm:text-sm tracking-wide uppercase">{item.name}</span>
+                    <span className="font-bold text-slate-200 text-xs tracking-wide uppercase">{item.name}</span>
                   </div>
-                  <div className="flex items-center gap-2 font-mono">
-                    <span className="font-extrabold text-amber-400 text-xs sm:text-sm">{item.count}</span>
-                    <span className="text-slate-500 text-xs font-medium">({item.percent})</span>
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <span className="font-extrabold text-amber-400 text-xs">{item.count}</span>
+                    <span className="text-slate-500 text-[10px] font-medium">({item.percent})</span>
                   </div>
                 </div>
               ))}
@@ -765,43 +765,43 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
           </div>
 
           {/* Live Console Stream Card */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 shadow-xl">
             {/* Card Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-amber-400 font-extrabold font-mono text-base">&gt;_</span>
-                <h2 className="font-bold text-sm sm:text-base text-white font-mono">Realtime SMS Stream</h2>
+                <span className="text-amber-400 font-extrabold font-mono text-sm sm:text-base">&gt;_</span>
+                <h2 className="font-bold text-xs sm:text-sm text-white font-mono">Realtime SMS Stream</h2>
               </div>
-              <span className="text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 LIVE
               </span>
             </div>
 
             {/* Search Filter & Countdown Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="sm:col-span-2 relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-3 h-3 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter logs (sender, operator, country...)"
-                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-amber-400 transition-all placeholder:text-slate-500"
+                  placeholder="Filter logs..."
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-[11px] font-mono text-white focus:outline-none focus:border-amber-400 transition-all placeholder:text-slate-500"
                 />
               </div>
 
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400 text-[11px]">Next update:</span>
-                <span className="text-amber-400 font-bold flex items-center gap-1.5 text-xs">
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 flex items-center justify-between text-[11px] font-mono">
+                <span className="text-slate-400 text-[10px]">Next update:</span>
+                <span className="text-amber-400 font-bold flex items-center gap-1 text-[11px]">
                   <span>{autoSyncSeconds}s</span>
-                  <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-400" />
                 </span>
               </div>
             </div>
 
             {/* SMS Stream Cards with Service Logo and Compact Fine Typography */}
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {filteredMessages.map((msg, idx) => {
                 let displayMsg = msg.rawMessage || "";
                 if (!displayMsg.includes("***") && !displayMsg.includes("*****")) {
@@ -812,36 +812,36 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
                 return (
                   <div
                     key={`${msg.id}-${idx}`}
-                    className="p-3 rounded-xl bg-slate-950/90 border border-slate-800/80 border-l-4 border-l-amber-400 hover:border-slate-700 transition-all space-y-2 shadow-sm"
+                    className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800/80 border-l-4 border-l-amber-400 hover:border-slate-700 transition-all space-y-1.5 shadow-sm"
                   >
                     {/* Top Row: Timestamp on left, Service Logo + Service Name & Carrier pill on right */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[11px] text-slate-400">{msg.time}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-500/40 px-2 py-0.5 rounded text-blue-400 font-extrabold text-[11px] uppercase tracking-wide">
-                          <ServiceLogo name={msg.service} className="w-3.5 h-3.5" />
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="font-mono text-[10px] text-slate-400">{msg.time}</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-500/40 px-1.5 py-0.5 rounded text-blue-400 font-bold text-[10px] uppercase tracking-wider">
+                          <ServiceLogo name={msg.service} className="w-4 h-4 shrink-0" />
                           <span>{msg.service}</span>
                         </div>
-                        <span className="inline-block bg-slate-800/90 border border-slate-700/80 text-slate-200 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                        <span className="inline-block bg-slate-800/90 border border-slate-700/80 text-slate-300 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
                           {msg.operator}
                         </span>
                       </div>
                     </div>
 
                     {/* Middle Row: Country in Emerald :: Masked Phone Number */}
-                    <div className="flex items-center gap-2 font-mono">
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs uppercase tracking-wider bg-emerald-950/50 border border-emerald-500/30 px-2 py-0.5 rounded">
-                        <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <div className="flex items-center gap-1 text-emerald-400 font-bold text-[10px] uppercase tracking-wider bg-emerald-950/50 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                        <Globe className="w-3 h-3 text-emerald-400" />
                         <span>{msg.country}</span>
                       </div>
-                      <span className="text-slate-600 font-bold text-xs">::</span>
-                      <span className="text-slate-100 font-bold text-xs sm:text-sm tracking-wider">{msg.number}</span>
+                      <span className="text-slate-600 font-bold text-[10px] me-0.5">::</span>
+                      <span className="text-slate-100 font-bold text-xs tracking-wider">{msg.number}</span>
                     </div>
 
                     {/* Bottom Row: Yellow Arrow ➜ SMS Message Payload */}
-                    <div className="font-mono text-xs text-slate-300 leading-normal flex items-start gap-1.5 pt-0.5">
-                      <span className="text-amber-400 font-black text-xs shrink-0 select-none pt-0.5">➜</span>
-                      <span className="break-all text-[11px] sm:text-xs">&lt;#&gt; {bodyContent}</span>
+                    <div className="font-mono text-[10px] sm:text-[11px] text-slate-300 leading-snug flex items-start gap-1 pt-0.5">
+                      <span className="text-amber-400 font-black text-[10px] shrink-0 select-none pt-0.5">➜</span>
+                      <span className="break-all text-[10px] sm:text-[11px]">&lt;#&gt; {bodyContent}</span>
                     </div>
                   </div>
                 );
