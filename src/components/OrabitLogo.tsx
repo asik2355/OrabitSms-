@@ -112,7 +112,7 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
               cx="85"
               cy="35"
               r="4.5"
-              fill="#34D399"
+              fill="#38BDF8"
               filter="url(#glowEffect)"
             />
 
@@ -138,10 +138,6 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
               filter="url(#glowEffect)"
             />
           </svg>
-
-          {/* Active Status Pulse Dot */}
-          <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#090D1A] animate-ping" />
-          <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#090D1A]" />
         </div>
       </div>
 

@@ -25,6 +25,7 @@ import {
   Terminal,
   Play,
   Filter,
+  LayoutGrid,
 } from "lucide-react";
 import {
   AreaChart,
@@ -709,7 +710,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-sm sm:text-base text-white">
-                <span className="text-base sm:text-lg">📱</span>
+                <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                  <LayoutGrid className="w-4 h-4" />
+                </div>
                 <span>Top Apps Distribution</span>
               </div>
               <span className="text-xs text-slate-400 font-mono">Live Activity</span>
@@ -720,7 +723,14 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={appStats} margin={{ top: 15, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#64748b"
+                    fontSize={9}
+                    tickLine={false}
+                    interval={0}
+                    tick={{ fill: "#94a3b8", fontSize: 9 }}
+                  />
                   <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
@@ -734,20 +744,20 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
               </ResponsiveContainer>
             </div>
 
-            {/* Top Apps Legend List with Service Logos */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80">
+            {/* Top Apps Legend List with Service Logos (1 item per line) */}
+            <div className="space-y-2 pt-2 border-t border-slate-800/80">
               {appStats.map((item, idx) => (
                 <div
                   key={idx}
-                  className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between text-xs"
+                  className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between hover:border-slate-700/80 transition-all shadow-sm"
                 >
-                  <div className="flex items-center gap-2">
-                    <ServiceLogo name={item.name} className="w-5 h-5" />
-                    <span className="font-bold text-slate-200 text-xs">{item.name}</span>
+                  <div className="flex items-center gap-2.5">
+                    <ServiceLogo name={item.name} className="w-5 h-5 shrink-0" />
+                    <span className="font-bold text-slate-200 text-xs sm:text-sm tracking-wide uppercase">{item.name}</span>
                   </div>
                   <div className="flex items-center gap-2 font-mono">
-                    <span className="font-bold text-amber-400 text-xs">{item.count}</span>
-                    <span className="text-slate-500 text-[10px] font-semibold">({item.percent})</span>
+                    <span className="font-extrabold text-amber-400 text-xs sm:text-sm">{item.count}</span>
+                    <span className="text-slate-500 text-xs font-medium">({item.percent})</span>
                   </div>
                 </div>
               ))}
@@ -804,24 +814,25 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
                     key={`${msg.id}-${idx}`}
                     className="p-3 rounded-xl bg-slate-950/90 border border-slate-800/80 border-l-4 border-l-amber-400 hover:border-slate-700 transition-all space-y-2 shadow-sm"
                   >
-                    {/* Top Row: Timestamp on left, Carrier pill + Country on right */}
+                    {/* Top Row: Timestamp on left, Service Logo + Service Name & Carrier pill on right */}
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-[11px] text-slate-400">{msg.time}</span>
                       <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-500/40 px-2 py-0.5 rounded text-blue-400 font-extrabold text-[11px] uppercase tracking-wide">
+                          <ServiceLogo name={msg.service} className="w-3.5 h-3.5" />
+                          <span>{msg.service}</span>
+                        </div>
                         <span className="inline-block bg-slate-800/90 border border-slate-700/80 text-slate-200 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                           {msg.operator}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {msg.country}
                         </span>
                       </div>
                     </div>
 
-                    {/* Middle Row: Service Logo + Service Name in Blue Badge :: Masked Phone Number */}
+                    {/* Middle Row: Country in Emerald :: Masked Phone Number */}
                     <div className="flex items-center gap-2 font-mono">
-                      <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-500/40 px-2 py-0.5 rounded-md text-blue-400 font-extrabold text-xs uppercase tracking-wide">
-                        <ServiceLogo name={msg.service} className="w-4 h-4" />
-                        <span>{msg.service}</span>
+                      <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs uppercase tracking-wider bg-emerald-950/50 border border-emerald-500/30 px-2 py-0.5 rounded">
+                        <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{msg.country}</span>
                       </div>
                       <span className="text-slate-600 font-bold text-xs">::</span>
                       <span className="text-slate-100 font-bold text-xs sm:text-sm tracking-wider">{msg.number}</span>

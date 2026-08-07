@@ -49,8 +49,12 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
     return (
       <div className={`shrink-0 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center p-0.5 sm:p-1 shadow-sm ${className}`} style={customStyle}>
         <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="10" fill="#00A2FF" />
-          <path d="M7 8h2v8H7V8zm3 0h2v3.5L14 8h2l-2.5 4L16 16h-2l-2-3.5V16h-2V8zm7 4c0-2.2 1.2-4 3-4s3 1.8 3 4-1.2 4-3 4-3-1.8-3-4z" fill="white" />
+          {/* Blue outer speech bubble */}
+          <path d="M12 2.2C6.59 2.2 2.2 6.59 2.2 12c0 2.18.7 4.2 1.9 5.84L2.6 21.4a.5.5 0 0 0 .63.63l3.56-1.58A9.74 9.74 0 0 0 12 21.8c5.41 0 9.8-4.39 9.8-9.8S17.41 2.2 12 2.2z" fill="#1D68EC" />
+          {/* White inner bubble fill */}
+          <path d="M12 4C7.58 4 4 7.58 4 12c0 1.83.61 3.52 1.65 4.88L4.5 19.5l2.97-1.32A7.94 7.94 0 0 0 12 20c4.42 0 8-3.58 8-8s-3.58-8-8-8z" fill="#FFFFFF" />
+          {/* Imo text in blue */}
+          <text x="12" y="14.2" textAnchor="middle" fill="#1D68EC" fontSize="7.5" fontWeight="900" fontFamily="Arial, Helvetica, sans-serif" letterSpacing="-0.2px">imo</text>
         </svg>
       </div>
     );
