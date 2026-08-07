@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { OrabitAuthScreen, UserProfile } from "./components/OrabitAuthScreen";
 import { UserProfileView } from "./components/UserProfileView";
+import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
 import { OrabitLogo } from "./components/OrabitLogo";
 import { ServiceLogo } from "./components/ServiceLogo";
 import {
@@ -271,7 +272,7 @@ export default function App() {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(INITIAL_FEEDS);
@@ -300,10 +301,26 @@ export default function App() {
   // API Tester & Key
   const [apiKey, setApiKey] = useState("ZX_DEMO_KEY_8923741");
 
-  // Currency preference state
-  const [currency, setCurrency] = useState<"BDT" | "USD">("BDT");
+  // Currency preference state (Default: USD)
+  const [currency, setCurrency] = useState<"BDT" | "USD">( () => {
+    try {
+      const saved = localStorage.getItem("orabit_currency");
+      if (saved === "BDT" || saved === "USD") return saved;
+    } catch (e) {
+      console.error(e);
+    }
+    return "USD";
+  });
   const usdExchangeRate = 100; // Fixed rate: 1 USD = 100 BDT
   const [currencyModalOpen, setCurrencyModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("orabit_currency", currency);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [currency]);
 
   // UTC Clock
   const [utcTime, setUtcTime] = useState("");
@@ -322,7 +339,7 @@ export default function App() {
   }, [userProfile]);
 
   // Navigate to tab with browser URL history update
-  const navigateToTab = (tab: "dashboard" | "console" | "getnum" | "api" | "domain" | "profile") => {
+  const navigateToTab = (tab: "dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment") => {
     setActiveTab(tab);
     try {
       if (userProfile) {
@@ -343,6 +360,7 @@ export default function App() {
         const path = window.location.pathname.toLowerCase();
         if (userProfile) {
           if (path === "/profile") setActiveTab("profile");
+          else if (path === "/payment" || path === "/wallet") setActiveTab("payment");
           else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
           else if (path === "/console") setActiveTab("console");
           else if (path === "/api" || path === "/apidocs") setActiveTab("api");
@@ -595,8 +613,8 @@ export default function App() {
 
           {/* Account Balance */}
           <button
-            onClick={() => setCurrencyModalOpen(true)}
-            title="Click to select currency (BDT ৳ / USD $)"
+            onClick={() => navigateToTab("payment")}
+            title="Click to view Wallet & Payouts"
             className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 font-bold text-xs px-2 sm:px-3 py-1.5 rounded-xl flex items-center gap-1 sm:gap-1.5 shadow-sm shadow-emerald-950/50 hover:border-emerald-400 hover:bg-emerald-900/60 active:scale-95 transition-all cursor-pointer group"
           >
             <Wallet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -605,10 +623,9 @@ export default function App() {
                 ? `৳${userProfile.balance.toFixed(2)}`
                 : `$${(userProfile.balance / usdExchangeRate).toFixed(2)}`}
             </span>
-            <span className="text-[10px] bg-emerald-500/20 px-1 sm:px-1.5 py-0.5 rounded text-emerald-300 font-mono uppercase">
-              {currency}
+            <span className="text-[10px] bg-emerald-500/20 px-1 sm:px-1.5 py-0.5 rounded text-emerald-300 font-mono uppercase font-bold flex items-center gap-0.5">
+              <span>{currency}</span>
             </span>
-            <ChevronDown className="w-3.5 h-3.5 text-emerald-400/70 group-hover:text-emerald-300 transition-transform" />
           </button>
 
           {/* User Profile Badge (Clicking opens Profile view) */}
@@ -724,13 +741,33 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  alert(`Current Balance: ৳${userProfile.balance.toFixed(2)}`);
+                  navigateToTab("payment");
                   setSidebarOpen(false);
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800/50 hover:text-white transition-all"
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === "payment"
+                    ? "bg-[#2EE59D] text-slate-950 font-bold"
+                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                }`}
               >
                 <CreditCard className="w-4 h-4 text-slate-400" />
                 <span>Payment</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCurrencyModalOpen(true);
+                  setSidebarOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800/50 hover:text-white transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                  <span>Currency</span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  {currency === "USD" ? "USD ($)" : "BDT (৳)"}
+                </span>
               </button>
 
               <button
@@ -1480,6 +1517,16 @@ checkZenexLiveFeed("Telegram");`}
           <UserProfileView
             userProfile={userProfile}
             onUpdateProfile={(updated) => setUserProfile(updated)}
+            currency={currency}
+            usdExchangeRate={usdExchangeRate}
+          />
+        )}
+
+        {/* TAB 7: PAYMENT & WALLET */}
+        {activeTab === "payment" && (
+          <OrabitPaymentWallet
+            userProfile={userProfile}
+            onUpdateBalance={(newBal) => setUserProfile({ ...userProfile, balance: newBal })}
             currency={currency}
             usdExchangeRate={usdExchangeRate}
           />
