@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { ServiceLogo } from "./ServiceLogo";
 import {
   Search,
   RefreshCw,
@@ -28,6 +29,11 @@ import {
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -91,87 +97,99 @@ const GLOBAL_TRENDING = [
 const MOCK_LIVE_MESSAGES: SmsMessage[] = [
   {
     id: "msg-1",
-    time: "09:25:24 PM",
-    operator: "Airtel",
-    country: "MADAGASCAR",
-    countryIso: "mg",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-600",
-    number: "261344342XXX",
-    otpCode: "H29Q+Fsn4Sr",
-    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
-  },
-  {
-    id: "msg-2",
-    time: "09:25:24 PM",
-    operator: "Telenor",
-    country: "MONTENEGRO",
-    countryIso: "me",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-600",
-    number: "38267126XXX",
-    otpCode: "Laz+nxCarLW",
-    rawMessage: "<#> ******** is your Facebook code Laz+nxCarLW",
-  },
-  {
-    id: "msg-3",
-    time: "09:25:09 PM",
-    operator: "Airtel",
-    country: "MADAGASCAR",
-    countryIso: "mg",
+    time: "02:45:41 PM",
+    operator: "Mobile",
+    country: "GUINEA",
+    countryIso: "gn",
     service: "INSTAGRAM",
-    serviceColor: "bg-pink-600",
-    number: "261344849XXX",
-    otpCode: "SIYRxKrru1t",
+    serviceColor: "bg-pink-950/80 text-pink-400 border-pink-500/30",
+    number: "224677698XXX",
+    otpCode: "*** ***",
     rawMessage: "<#> *** *** is your Instagram code. Don't share it. SIYRxKrru1t",
   },
   {
-    id: "msg-4",
-    time: "09:25:09 PM",
+    id: "msg-2",
+    time: "02:45:31 PM",
     operator: "Airtel",
     country: "MADAGASCAR",
     countryIso: "mg",
     service: "FACEBOOK",
-    serviceColor: "bg-blue-600",
-    number: "261344296XXX",
-    otpCode: "H29Q+Fsn4Sr",
-    rawMessage: "<#> ***** ny kaody Facebook-nao H29Q+Fsn4Sr",
+    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    number: "261388296XXX",
+    otpCode: "*****",
+    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
+  },
+  {
+    id: "msg-3",
+    time: "02:45:26 PM",
+    operator: "Airtel",
+    country: "MADAGASCAR",
+    countryIso: "mg",
+    service: "FACEBOOK",
+    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    number: "261388222XXX",
+    otpCode: "FB-*****",
+    rawMessage: "<#> FB-***** is your Facebook confirmation code m.facebook.com #*****",
+  },
+  {
+    id: "msg-4",
+    time: "02:45:26 PM",
+    operator: "Zain",
+    country: "SAUDI ARABIA",
+    countryIso: "sa",
+    service: "WHATSAPP",
+    serviceColor: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30",
+    number: "966582926XXX",
+    otpCode: "***-***",
+    rawMessage: "<#> Your WhatsApp code: ***-*** Don't share this code with others 4sgLq1p5sV6",
   },
   {
     id: "msg-5",
-    time: "09:25:09 PM",
+    time: "02:45:16 PM",
     operator: "Airtel",
     country: "MADAGASCAR",
     countryIso: "mg",
     service: "FACEBOOK",
-    serviceColor: "bg-blue-600",
-    number: "261344205XXX",
-    otpCode: "H29Q+Fsn4Sr",
+    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    number: "261344563XXX",
+    otpCode: "*****",
     rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
   },
   {
     id: "msg-6",
-    time: "09:25:09 PM",
+    time: "02:44:56 PM",
     operator: "Airtel",
     country: "MADAGASCAR",
     countryIso: "mg",
-    service: "WHATSAPP",
-    serviceColor: "bg-emerald-600",
-    number: "261344441XXX",
-    otpCode: "492-810",
-    rawMessage: "Your WhatsApp code is: 492-810. You can also tap on the link to verify.",
+    service: "FACEBOOK",
+    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    number: "261344865XXX",
+    otpCode: "*****",
+    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
   },
   {
     id: "msg-7",
-    time: "09:25:09 PM",
+    time: "02:44:56 PM",
+    operator: "Babilon-M",
+    country: "TAJIKISTAN",
+    countryIso: "tj",
+    service: "FACEBOOK",
+    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    number: "992778178XXX",
+    otpCode: "*****",
+    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
+  },
+  {
+    id: "msg-8",
+    time: "02:44:51 PM",
     operator: "Airtel",
     country: "MADAGASCAR",
     countryIso: "mg",
-    service: "TELEGRAM",
-    serviceColor: "bg-sky-600",
-    number: "261344479XXX",
-    otpCode: "71932",
-    rawMessage: "Telegram code: 71932. Do not share this code with anyone.",
+    service: "FACEBOOK",
+    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    number: "261344202XXX",
+    otpCode: "*****",
+    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
   },
 ];
 
@@ -257,29 +275,41 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
     const timer = setInterval(() => {
       setAutoSyncSeconds((prev) => {
         if (prev <= 1) {
-          // Add a new simulated live OTP message randomly
-          const randomServices = [
-            { name: "FACEBOOK", color: "bg-blue-600", text: "is your Facebook code" },
-            { name: "INSTAGRAM", color: "bg-pink-600", text: "is your Instagram code. Don't share it." },
-            { name: "WHATSAPP", color: "bg-emerald-600", text: "WhatsApp code:" },
-            { name: "TELEGRAM", color: "bg-sky-600", text: "Telegram code:" },
+          const serviceTemplates = [
+            { name: "INSTAGRAM", color: "bg-pink-950/80 text-pink-400 border-pink-500/30", raw: "<#> *** *** is your Instagram code. Don't share it. SIYRxKrru1t" },
+            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> ***** is your Facebook code H29Q+Fsn4Sr" },
+            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> FB-***** is your Facebook confirmation code m.facebook.com #*****" },
+            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "<#> Your WhatsApp code: ***-*** Don't share this code with others 4sgLq1p5sV6" },
+            { name: "TELEGRAM", color: "bg-sky-950/80 text-sky-400 border-sky-500/30", raw: "<#> Telegram code: ***** Do not share this code with anyone." },
+            { name: "IMO", color: "bg-cyan-950/80 text-cyan-400 border-cyan-500/30", raw: "<#> IMO verification code: *****. Keep it private." },
           ];
-          const s = randomServices[Math.floor(Math.random() * randomServices.length)];
-          const randCode = Math.floor(100000 + Math.random() * 900000).toString();
-          const randNum = "26134" + Math.floor(100000 + Math.random() * 900000) + "XXX";
+
+          const locations = [
+            { country: "GUINEA", iso: "gn", operators: ["Mobile", "Orange"], prefix: "224" },
+            { country: "MADAGASCAR", iso: "mg", operators: ["Airtel", "Telma"], prefix: "261" },
+            { country: "SAUDI ARABIA", iso: "sa", operators: ["Zain", "STC"], prefix: "966" },
+            { country: "TAJIKISTAN", iso: "tj", operators: ["Babilon-M", "Tcell"], prefix: "992" },
+            { country: "BANGLADESH", iso: "bd", operators: ["Grameenphone", "Robi"], prefix: "880" },
+            { country: "MONTENEGRO", iso: "me", operators: ["Telenor", "One"], prefix: "382" },
+          ];
+
+          const s = serviceTemplates[Math.floor(Math.random() * serviceTemplates.length)];
+          const loc = locations[Math.floor(Math.random() * locations.length)];
+          const op = loc.operators[Math.floor(Math.random() * loc.operators.length)];
+          const randNum = loc.prefix + Math.floor(100000 + Math.random() * 900000) + "XXX";
           const nowTime = new Date().toLocaleTimeString("en-US", { hour12: true });
 
           const newMsg: SmsMessage = {
-            id: "msg-" + Date.now(),
+            id: "msg-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9),
             time: nowTime,
-            operator: Math.random() > 0.5 ? "Airtel" : "Telenor",
-            country: Math.random() > 0.5 ? "MADAGASCAR" : "MONTENEGRO",
-            countryIso: "mg",
+            operator: op,
+            country: loc.country,
+            countryIso: loc.iso,
             service: s.name,
             serviceColor: s.color,
             number: randNum,
-            otpCode: randCode,
-            rawMessage: `<#> ${randCode} ${s.text}`,
+            otpCode: "*****",
+            rawMessage: s.raw,
           };
 
           setMessages((prev) => [newMsg, ...prev.slice(0, 15)]);
@@ -335,6 +365,70 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
     if (feedFilter === "ALL") return true;
     return f.status === feedFilter;
   });
+
+  const appStats = React.useMemo(() => {
+    if (!messages || messages.length === 0) {
+      return [
+        { name: "FACEBOOK", count: 41, percent: "82%", color: "#3b82f6" },
+        { name: "Facebook", count: 4, percent: "8%", color: "#a855f7" },
+        { name: "WhatsApp", count: 4, percent: "8%", color: "#eab308" },
+        { name: "IMO", count: 1, percent: "2%", color: "#10b981" },
+      ];
+    }
+    const counts: Record<string, number> = {};
+    messages.forEach((m) => {
+      const s = m.service || "OTHER";
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    const total = messages.length;
+    const colors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
+    const list = Object.entries(counts).map(([name, count], idx) => ({
+      name,
+      count,
+      percent: Math.round((count / total) * 100) + "%",
+      color: colors[idx % colors.length],
+    }));
+    list.sort((a, b) => b.count - a.count);
+    return list.length > 0 ? list : [
+      { name: "FACEBOOK", count: 41, percent: "82%", color: "#3b82f6" },
+      { name: "Facebook", count: 4, percent: "8%", color: "#a855f7" },
+      { name: "WhatsApp", count: 4, percent: "8%", color: "#eab308" },
+      { name: "IMO", count: 1, percent: "2%", color: "#10b981" },
+    ];
+  }, [messages]);
+
+  const carrierStats = React.useMemo(() => {
+    if (!messages || messages.length === 0) {
+      return [
+        { name: "Airtel", count: 40, percent: "80%", color: "#10b981" },
+        { name: "Zain", count: 4, percent: "8%", color: "#3b82f6" },
+        { name: "Orange (Airtel)", count: 2, percent: "4%", color: "#a855f7" },
+        { name: "Togo Cellulaire (Togocel)", count: 2, percent: "4%", color: "#eab308" },
+        { name: "Mobile", count: 1, percent: "2%", color: "#ef4444" },
+      ];
+    }
+    const counts: Record<string, number> = {};
+    messages.forEach((m) => {
+      const op = m.operator || "Other";
+      counts[op] = (counts[op] || 0) + 1;
+    });
+    const total = messages.length;
+    const colors = ["#10b981", "#3b82f6", "#a855f7", "#eab308", "#ef4444", "#64748b"];
+    const list = Object.entries(counts).map(([name, count], idx) => ({
+      name,
+      count,
+      percent: Math.round((count / total) * 100) + "%",
+      color: colors[idx % colors.length],
+    }));
+    list.sort((a, b) => b.count - a.count);
+    return list.length > 0 ? list : [
+      { name: "Airtel", count: 40, percent: "80%", color: "#10b981" },
+      { name: "Zain", count: 4, percent: "8%", color: "#3b82f6" },
+      { name: "Orange (Airtel)", count: 2, percent: "4%", color: "#a855f7" },
+      { name: "Togo Cellulaire (Togocel)", count: 2, percent: "4%", color: "#eab308" },
+      { name: "Mobile", count: 1, percent: "2%", color: "#ef4444" },
+    ];
+  }, [messages]);
 
   return (
     <div className="w-full bg-[#0d1117] text-slate-100 font-sans min-h-screen p-3 md:p-6 border border-slate-800 rounded-2xl shadow-2xl flex flex-col space-y-6">
@@ -521,33 +615,27 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
                   <tbody className="divide-y divide-slate-800/60">
                     <tr className="hover:bg-slate-800/40">
                       <td className="py-3 px-3 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                          🟢
-                        </div>
-                        <span className="font-semibold text-slate-100">WhatsApp</span>
+                        <ServiceLogo name="WhatsApp" size={32} className="w-8 h-8" />
+                        <span className="font-bold text-slate-100 text-sm">WhatsApp</span>
                       </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-200">6</td>
-                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold">$0.00</td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">6</td>
+                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">$0.00</td>
                     </tr>
                     <tr className="hover:bg-slate-800/40">
                       <td className="py-3 px-3 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                          💬
-                        </div>
-                        <span className="font-semibold text-slate-100">Facebook</span>
+                        <ServiceLogo name="Facebook" size={32} className="w-8 h-8" />
+                        <span className="font-bold text-slate-100 text-sm">Facebook</span>
                       </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-200">14</td>
-                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold">$0.12</td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">14</td>
+                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">$0.12</td>
                     </tr>
                     <tr className="hover:bg-slate-800/40">
                       <td className="py-3 px-3 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
-                          ✈️
-                        </div>
-                        <span className="font-semibold text-slate-100">Telegram</span>
+                        <ServiceLogo name="Telegram" size={32} className="w-8 h-8" />
+                        <span className="font-bold text-slate-100 text-sm">Telegram</span>
                       </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-200">8</td>
-                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold">$0.08</td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">8</td>
+                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">$0.08</td>
                     </tr>
                   </tbody>
                 </table>
@@ -578,8 +666,8 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
                       <span className="w-5 h-5 rounded-full bg-slate-800 text-[11px] font-mono font-bold flex items-center justify-center text-slate-300">
                         {item.id}
                       </span>
-                      <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                        <span>{item.icon}</span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2.5">
+                        <ServiceLogo name={item.name} className="w-7 h-7 sm:w-8 sm:h-8" />
                         <span>{item.name}</span>
                       </span>
                     </div>
@@ -603,84 +691,157 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
         </div>
       )}
 
-      {/* LIVE SMS TRAFFIC CONSOLE TAB (Matching Screenshot 5) */}
+      {/* LIVE SMS TRAFFIC CONSOLE TAB (Matching Screenshots 1 & 2) */}
       {activeTab === "console" && (
-        <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-6">
+          {/* Page Title & Subtitle Header */}
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-emerald-400" />
-              <h2 className="font-bold text-sm text-white">Realtime SMS & OTP Stream Feed</h2>
-              <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-0.5 rounded-full font-mono">
-                {filteredMessages.length} Messages
-              </span>
+              <span className="text-amber-400 font-extrabold font-mono text-xl sm:text-2xl">&gt;_</span>
+              <h1 className="font-extrabold text-xl sm:text-2xl text-white tracking-tight">Live Console</h1>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 font-sans">
+              Streaming OTP messages with carrier and app distribution charts.
+            </p>
+          </div>
+
+          {/* Top Apps Section */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm sm:text-base text-white">
+                <span className="text-base sm:text-lg">📱</span>
+                <span>Top Apps Distribution</span>
+              </div>
+              <span className="text-xs text-slate-400 font-mono">Live Activity</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => copyToClipboard(JSON.stringify(messages, null, 2), "console-json")}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all"
-              >
-                {copiedText === "console-json" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedText === "console-json" ? "JSON Copied!" : "Export Console Logs"}</span>
-              </button>
+            {/* Vertical Bar Chart */}
+            <div className="h-44 w-full pt-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={appStats} margin={{ top: 15, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                  <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
+                  />
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                    {appStats.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Top Apps Legend List with Service Logos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80">
+              {appStats.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between text-xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <ServiceLogo name={item.name} className="w-5 h-5" />
+                    <span className="font-bold text-slate-200 text-xs">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono">
+                    <span className="font-bold text-amber-400 text-xs">{item.count}</span>
+                    <span className="text-slate-500 text-[10px] font-semibold">({item.percent})</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* SMS Live Message Cards Stream */}
-          <div className="space-y-3">
-            {filteredMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className="p-4 rounded-2xl bg-slate-900 border border-slate-800/80 hover:border-slate-700 transition-all space-y-2.5"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2 font-mono text-slate-400">
-                    <span className="text-amber-400 font-bold">{msg.time}</span>
-                    <span>•</span>
-                    <span className="text-slate-200">{msg.operator}</span>
-                    <span>•</span>
-                    <span className="text-emerald-400 flex items-center gap-1">
-                      🌍 {msg.country}
-                    </span>
-                  </div>
-
-                  <span className={`text-[10px] font-bold text-white px-2.5 py-0.5 rounded-md uppercase tracking-wider ${msg.serviceColor}`}>
-                    {msg.service}
-                  </span>
-                </div>
-
-                {/* Number & OTP Code Info Line */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm font-bold text-white tracking-wider">
-                      {msg.number}
-                    </span>
-                    <button
-                      onClick={() => copyToClipboard(msg.number, msg.id + "-num")}
-                      className="text-[11px] bg-slate-800 hover:bg-slate-700 text-blue-400 px-2 py-0.5 rounded font-mono flex items-center gap-1"
-                    >
-                      {copiedText === msg.id + "-num" ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-
-                  <div className="bg-slate-950 px-3 py-1 rounded-lg border border-slate-800 text-emerald-400 font-mono text-xs font-bold">
-                    OTP: {msg.otpCode}
-                  </div>
-                </div>
-
-                {/* SMS Raw Payload Body */}
-                <div className="p-3 bg-slate-950 border border-slate-800/80 rounded-xl font-mono text-xs text-slate-300 leading-relaxed flex items-center justify-between">
-                  <span>{msg.rawMessage}</span>
-                  <button
-                    onClick={() => copyToClipboard(msg.rawMessage, msg.id + "-raw")}
-                    className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                    title="Copy SMS text"
-                  >
-                    {copiedText === msg.id + "-raw" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
+          {/* Live Console Stream Card */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl">
+            {/* Card Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400 font-extrabold font-mono text-base">&gt;_</span>
+                <h2 className="font-bold text-sm sm:text-base text-white font-mono">Realtime SMS Stream</h2>
               </div>
-            ))}
+              <span className="text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1.5 shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                LIVE
+              </span>
+            </div>
+
+            {/* Search Filter & Countdown Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter logs (sender, operator, country...)"
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-amber-400 transition-all placeholder:text-slate-500"
+                />
+              </div>
+
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-400 text-[11px]">Next update:</span>
+                <span className="text-amber-400 font-bold flex items-center gap-1.5 text-xs">
+                  <span>{autoSyncSeconds}s</span>
+                  <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
+                </span>
+              </div>
+            </div>
+
+            {/* SMS Stream Cards with Service Logo and Compact Fine Typography */}
+            <div className="space-y-2.5">
+              {filteredMessages.map((msg, idx) => {
+                let displayMsg = msg.rawMessage || "";
+                if (!displayMsg.includes("***") && !displayMsg.includes("*****")) {
+                  displayMsg = displayMsg.replace(/\b\d{4,8}\b/g, "*****");
+                }
+                const bodyContent = displayMsg.replace(/^(<#>|↳\s*<#>)\s*/, "");
+
+                return (
+                  <div
+                    key={`${msg.id}-${idx}`}
+                    className="p-3 rounded-xl bg-slate-950/90 border border-slate-800/80 border-l-4 border-l-amber-400 hover:border-slate-700 transition-all space-y-2 shadow-sm"
+                  >
+                    {/* Top Row: Timestamp on left, Carrier pill + Country on right */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] text-slate-400">{msg.time}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block bg-slate-800/90 border border-slate-700/80 text-slate-200 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                          {msg.operator}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {msg.country}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Middle Row: Service Logo + Service Name in Blue Badge :: Masked Phone Number */}
+                    <div className="flex items-center gap-2 font-mono">
+                      <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-500/40 px-2 py-0.5 rounded-md text-blue-400 font-extrabold text-xs uppercase tracking-wide">
+                        <ServiceLogo name={msg.service} className="w-4 h-4" />
+                        <span>{msg.service}</span>
+                      </div>
+                      <span className="text-slate-600 font-bold text-xs">::</span>
+                      <span className="text-slate-100 font-bold text-xs sm:text-sm tracking-wider">{msg.number}</span>
+                    </div>
+
+                    {/* Bottom Row: Yellow Arrow ➜ SMS Message Payload */}
+                    <div className="font-mono text-xs text-slate-300 leading-normal flex items-start gap-1.5 pt-0.5">
+                      <span className="text-amber-400 font-black text-xs shrink-0 select-none pt-0.5">➜</span>
+                      <span className="break-all text-[11px] sm:text-xs">&lt;#&gt; {bodyContent}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Card Footer */}
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-2 border-t border-slate-800/60">
+              <span>Last Updated: 10:51:35</span>
+              <span>Logs: {filteredMessages.length} (Max 50)</span>
+            </div>
           </div>
         </div>
       )}
