@@ -239,7 +239,20 @@ const INITIAL_FEEDS: FeedNumber[] = [
 
 export default function App() {
   const [domainName, setDomainName] = useState("orabitsms.site");
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  
+  // Persistent User Profile from LocalStorage
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem("orabit_user_profile");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to load user profile from storage", e);
+    }
+    return null;
+  });
+
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
@@ -277,21 +290,64 @@ export default function App() {
   // UTC Clock
   const [utcTime, setUtcTime] = useState("");
 
-  // URL Route sync for /dashboard and /login
+  // Save profile state to localStorage whenever it updates
   useEffect(() => {
     try {
       if (userProfile) {
-        if (window.location.pathname !== "/dashboard") {
-          window.history.pushState({}, "", "/dashboard");
-        }
+        localStorage.setItem("orabit_user_profile", JSON.stringify(userProfile));
       } else {
-        if (window.location.pathname !== "/login" && window.location.pathname !== "/") {
-          window.history.pushState({}, "", "/login");
+        localStorage.removeItem("orabit_user_profile");
+      }
+    } catch (e) {
+      console.error("Failed to save user profile to storage", e);
+    }
+  }, [userProfile]);
+
+  // Navigate to tab with browser URL history update
+  const navigateToTab = (tab: "dashboard" | "console" | "getnum" | "api" | "domain" | "profile") => {
+    setActiveTab(tab);
+    try {
+      if (userProfile) {
+        const path = tab === "dashboard" ? "/dashboard" : `/${tab}`;
+        if (window.location.pathname !== path) {
+          window.history.pushState({ tab }, "", path);
         }
       }
     } catch {
-      // Ignore location state errors in isolated sandbox
+      // Ignore location history errors in isolated frames
     }
+  };
+
+  // Sync route on mount and window popstate (browser back/forward or direct link access)
+  useEffect(() => {
+    const syncRouteFromPath = () => {
+      try {
+        const path = window.location.pathname.toLowerCase();
+        if (userProfile) {
+          if (path === "/profile") setActiveTab("profile");
+          else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
+          else if (path === "/console") setActiveTab("console");
+          else if (path === "/api" || path === "/apidocs") setActiveTab("api");
+          else if (path === "/domain") setActiveTab("domain");
+          else {
+            setActiveTab("dashboard");
+            if (path !== "/dashboard") {
+              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+            }
+          }
+        } else {
+          if (path !== "/login" && path !== "/") {
+            window.history.replaceState({}, "", "/login");
+          }
+        }
+      } catch {
+        // Ignore iframe location errors
+      }
+    };
+
+    syncRouteFromPath();
+    window.addEventListener("popstate", syncRouteFromPath);
+    return () => window.removeEventListener("popstate", syncRouteFromPath);
   }, [userProfile]);
 
   useEffect(() => {
@@ -463,7 +519,7 @@ export default function App() {
           {/* User Profile Badge (Clicking opens Profile view) */}
           <div className="flex items-center gap-2">
             <div
-              onClick={() => setActiveTab("profile")}
+              onClick={() => navigateToTab("profile")}
               title={`${userProfile.fullName} (${userProfile.email}) - View Profile`}
               className="w-8.5 h-8.5 rounded-full bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center font-bold text-xs text-white border border-cyan-400/80 shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-all hover:ring-2 hover:ring-cyan-400/50"
             >
@@ -499,7 +555,7 @@ export default function App() {
             <div>
               <button
                 onClick={() => {
-                  setActiveTab("dashboard");
+                  navigateToTab("dashboard");
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all shadow-md ${
@@ -521,7 +577,7 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  setActiveTab("getnum");
+                  navigateToTab("getnum");
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
@@ -536,7 +592,7 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  setActiveTab("console");
+                  navigateToTab("console");
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
@@ -558,7 +614,7 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  setActiveTab("profile");
+                  navigateToTab("profile");
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
@@ -585,6 +641,12 @@ export default function App() {
               <button
                 onClick={() => {
                   if (window.confirm("Do you want to log out of your account?")) {
+                    try {
+                      localStorage.removeItem("orabit_user_profile");
+                      window.history.pushState({}, "", "/login");
+                    } catch (e) {
+                      console.error(e);
+                    }
                     setUserProfile(null);
                   }
                   setSidebarOpen(false);
