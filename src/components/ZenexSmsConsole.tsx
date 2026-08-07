@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ServiceLogo } from "./ServiceLogo";
+import { OrabitApiDoc } from "./OrabitApiDoc";
 import {
   Search,
   RefreshCw,
@@ -1010,71 +1011,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
         </div>
       )}
 
-      {/* ZENEX CORE API V4.0 TAB */}
+      {/* ORABITSMS API DOCUMENTATION TAB */}
       {activeTab === "api" && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-            <h2 className="font-extrabold text-base text-white flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-emerald-400" />
-              <span>ZENEX CORE API DOCUMENTATION - V4.0</span>
-            </h2>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Base URL: <code className="bg-slate-950 px-2 py-0.5 rounded text-emerald-400 font-mono">https://api.zenexnetwork.com</code> | Auth Header: <code className="bg-slate-950 px-2 py-0.5 rounded text-amber-400 font-mono">mapikey: YOUR_API_KEY</code>
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-              <span className="text-xs font-bold text-emerald-400 font-mono">1. POST /v1/getnum</span>
-              <p className="text-xs text-slate-400">Instantly provisions virtual numbers with custom range filters.</p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-              <span className="text-xs font-bold text-emerald-400 font-mono">2. GET /v1/numsuccess/info</span>
-              <p className="text-xs text-slate-400">Polls incoming OTP messages cache-free (suggested polling rate: 3-5s).</p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-              <span className="text-xs font-bold text-emerald-400 font-mono">3. GET /v1/active-ranges</span>
-              <p className="text-xs text-slate-400">Exports global live routing matrix and hit rates for active services.</p>
-            </div>
-          </div>
-
-          {/* Node.js Code Sample */}
-          <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 font-mono text-xs">
-            <div className="flex justify-between items-center text-slate-400">
-              <span>Node.js Integration Code Example</span>
-              <button
-                onClick={() =>
-                  copyToClipboard(
-                    `const axios = require('axios');\n\nasync function checkZenexLiveFeed(targetService) {\n  try {\n    const response = await axios.get("https://api.zenexnetwork.com/v1/active-ranges", {\n      headers: { 'mapikey': '${apiKey}' }\n    });\n    console.log(response.data);\n  } catch (error) { console.error("API Error"); }\n}`,
-                    "api-code"
-                  )
-                }
-                className="hover:text-white flex items-center gap-1 text-[11px]"
-              >
-                {copiedText === "api-code" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedText === "api-code" ? "Copied" : "Copy Code"}</span>
-              </button>
-            </div>
-
-            <pre className="p-4 rounded-xl bg-slate-900 text-emerald-300 overflow-x-auto leading-relaxed">
-{`const axios = require('axios');
-
-async function checkZenexLiveFeed(targetService) {
-    try {
-        const response = await axios.get("https://api.zenexnetwork.com/v1/active-ranges", {
-            headers: { 'mapikey': '${apiKey}' }
-        });
-        const activeRoutes = response.data.data.active_ranges;
-        const matchedRoutes = activeRoutes.filter(route => route.service === targetService);
-        if (matchedRoutes.length > 0) {
-            matchedRoutes.forEach(r => console.log(\`[Route: \${r.range}] -> \${r.hits} Success Hits\`));
-        }
-    } catch (error) { console.error("API Error"); }
-}
-checkZenexLiveFeed("Telegram");`}
-            </pre>
-          </div>
-        </div>
+        <OrabitApiDoc apiKey={apiKey} />
       )}
     </div>
   );

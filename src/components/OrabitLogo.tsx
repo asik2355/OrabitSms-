@@ -18,16 +18,16 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
   // Sizing mappings
   const iconSizes = {
     xs: "w-6 h-6 rounded-lg",
-    sm: "w-9 h-9 rounded-2xl",
-    md: "w-11 h-11 sm:w-12 sm:h-12 rounded-2xl",
-    lg: "w-16 h-16 rounded-2xl",
+    sm: "w-8 h-8 rounded-xl",
+    md: "w-10 h-10 sm:w-11 sm:h-11 rounded-2xl",
+    lg: "w-14 h-14 sm:w-16 sm:h-16 rounded-2xl",
   };
 
   const textSizes = {
-    xs: "text-sm font-mono font-extrabold",
-    sm: "text-lg",
-    md: "text-xl sm:text-2xl",
-    lg: "text-2xl sm:text-4xl",
+    xs: "text-xs sm:text-sm font-mono font-extrabold tracking-tight",
+    sm: "text-sm sm:text-lg font-black tracking-tight",
+    md: "text-base sm:text-xl font-black tracking-tight",
+    lg: "text-xl sm:text-3xl font-black tracking-tight",
   };
 
   const subTextSizes = {

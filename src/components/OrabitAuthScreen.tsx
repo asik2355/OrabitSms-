@@ -784,8 +784,8 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span className="text-slate-400 font-medium text-xs">
-            2026 All rights Reserved.
+          <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent font-extrabold tracking-wide uppercase text-xs">
+            All rights Reserved.
           </span>
         </div>
       </footer>

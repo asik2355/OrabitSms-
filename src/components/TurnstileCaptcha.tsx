@@ -81,7 +81,7 @@ export const TurnstileCaptcha: React.FC<TurnstileCaptchaProps> = ({
               if (onExpire) onExpire();
             }
           },
-          theme: theme,
+          theme: theme as "light" | "dark" | "auto",
         });
         widgetIdRef.current = id;
         setIsLoaded(true);
