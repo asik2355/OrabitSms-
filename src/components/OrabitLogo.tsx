@@ -1,7 +1,7 @@
 import React from "react";
 
 interface OrabitLogoProps {
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   showSubtitle?: boolean;
   subtitleText?: string;
   onClick?: () => void;
@@ -17,18 +17,21 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
 }) => {
   // Sizing mappings
   const iconSizes = {
-    sm: "w-8 h-8",
-    md: "w-10 h-10",
-    lg: "w-14 h-14",
+    xs: "w-5 h-5 rounded-lg",
+    sm: "w-8 h-8 rounded-2xl",
+    md: "w-10 h-10 rounded-2xl",
+    lg: "w-14 h-14 rounded-2xl",
   };
 
   const textSizes = {
+    xs: "text-xs font-mono font-extrabold",
     sm: "text-base",
     md: "text-lg sm:text-xl",
     lg: "text-2xl sm:text-3xl",
   };
 
   const subTextSizes = {
+    xs: "text-[8px]",
     sm: "text-[9px]",
     md: "text-[10px]",
     lg: "text-xs",
@@ -37,7 +40,7 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`inline-flex items-center gap-3 group select-none ${
+      className={`inline-flex items-center ${size === "xs" ? "gap-1.5" : "gap-3"} group select-none ${
         onClick ? "cursor-pointer" : ""
       } ${className}`}
     >
@@ -45,12 +48,12 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
       <div className="relative flex items-center justify-center">
         {/* Soft Ambient Neon Glow Behind */}
         <div
-          className={`absolute -inset-2 rounded-2xl bg-gradient-to-tr from-cyan-500 via-emerald-400 to-indigo-500 opacity-70 blur-lg group-hover:opacity-100 transition-all duration-500 animate-pulse`}
+          className={`absolute -inset-1.5 rounded-2xl bg-gradient-to-tr from-cyan-500 via-emerald-400 to-indigo-500 opacity-70 blur-md group-hover:opacity-100 transition-all duration-500 animate-pulse`}
         />
 
         {/* Outer Orbital Ring Container */}
         <div
-          className={`relative ${iconSizes[size]} rounded-2xl bg-[#090D1A] border border-cyan-400/40 p-1 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.3)] overflow-hidden group-hover:border-emerald-400/80 transition-all duration-300`}
+          className={`relative ${iconSizes[size]} bg-[#090D1A] border border-cyan-400/40 p-0.5 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)] overflow-hidden group-hover:border-emerald-400/80 transition-all duration-300`}
         >
           {/* Subtle Radial Mesh */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.25),transparent_70%)]" />

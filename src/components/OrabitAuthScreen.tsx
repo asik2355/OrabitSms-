@@ -732,21 +732,16 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
 
       {/* Footer text */}
       <footer className="mt-6 mb-2 text-center text-xs font-mono relative z-10 flex justify-center">
-        <div className="inline-flex items-center gap-2.5 py-2 px-4 rounded-full bg-[#0b0f19]/90 border border-slate-800/90 backdrop-blur-md shadow-2xl transition-all hover:border-emerald-500/40">
-          <div className="w-5 h-5 rounded-lg bg-gradient-to-tr from-[#2EE59D] to-cyan-400 p-0.5 shadow-sm flex items-center justify-center">
-            <div className="w-full h-full bg-[#0d121f] rounded-[6px] flex items-center justify-center">
-              <Zap className="w-3 h-3 text-[#2EE59D] animate-pulse" />
-            </div>
-          </div>
-          <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent font-extrabold tracking-wide animate-pulse">
-            OrabitSMS Official
+        <div className="inline-flex items-center gap-2 sm:gap-2.5 py-1.5 px-3 sm:px-4 rounded-full bg-[#0b0f19]/90 border border-slate-800/90 backdrop-blur-md shadow-2xl transition-all hover:border-emerald-500/40 max-w-full overflow-x-auto whitespace-nowrap">
+          <OrabitLogo size="xs" showSubtitle={false} />
+          <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent font-extrabold tracking-wide uppercase text-xs">
+            Official
           </span>
-          <span className="text-slate-600">•</span>
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-2 w-2 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span className="text-slate-400 font-medium">
+          <span className="text-slate-400 font-medium text-xs">
             2026 All rights Reserved.
           </span>
         </div>
