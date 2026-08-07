@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { OrabitLogo } from "./OrabitLogo";
+import { TurnstileCaptcha } from "./TurnstileCaptcha";
 import {
   User,
   Phone,
@@ -62,6 +63,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
   // Login Only State
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+
+  // Captcha State
+  const [captchaToken, setCaptchaToken] = useState<string>("");
+  const captchaRef = useRef<{ reset: () => void } | null>(null);
 
   // Feedback State
   const [alert, setAlert] = useState<{ message: string; type: "error" | "success" } | null>(null);
@@ -157,6 +162,11 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
+    if (!captchaToken) {
+      showAlert("Please complete the Captcha security check to register.", "error");
+      return;
+    }
+
     setErrors({});
     setIsSubmitting(true);
 
@@ -180,6 +190,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           email: emailAddress.trim(),
           password: password,
           options: {
+            captchaToken: captchaToken,
             data: {
               fullName: fullName.trim(),
               mobileNumber: cleanMobile,
@@ -197,6 +208,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       } catch (err) {
         console.warn("Supabase registration warning:", err);
       }
+
+      // Reset captcha token after attempt
+      captchaRef.current?.reset();
+      setCaptchaToken("");
 
       try {
         const stored = localStorage.getItem("orabit_registered_users");
@@ -234,6 +249,11 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
+    if (!captchaToken) {
+      showAlert("Please complete the Captcha security check to log in.", "error");
+      return;
+    }
+
     setIsSubmitting(true);
 
     let loggedInUser: UserProfile | null = null;
@@ -244,6 +264,9 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim(),
         password: loginPassword,
+        options: {
+          captchaToken: captchaToken,
+        },
       });
 
       if (data?.user && !error) {
@@ -266,6 +289,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     } catch (err) {
       console.warn("Supabase login attempt:", err);
     }
+
+    // Reset captcha token after attempt
+    captchaRef.current?.reset();
+    setCaptchaToken("");
 
     // 2. Check local registered accounts if Supabase didn't authenticate
     if (!loggedInUser) {
@@ -627,6 +654,14 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                 </div>
               </div>
 
+              {/* Security Verification Captcha */}
+              <TurnstileCaptcha
+                widgetRef={captchaRef}
+                onVerify={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken("")}
+                onError={() => setCaptchaToken("")}
+              />
+
               {/* Submit Button */}
               <button
                 type="submit"
@@ -684,6 +719,14 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Security Verification Captcha */}
+              <TurnstileCaptcha
+                widgetRef={captchaRef}
+                onVerify={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken("")}
+                onError={() => setCaptchaToken("")}
+              />
 
               {/* Sign In Button */}
               <button
