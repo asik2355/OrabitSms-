@@ -569,6 +569,29 @@ export default function App() {
     );
   }
 
+  // Fullscreen standalone Logout screen without Top Navigation Bar or Menu Button
+  if (activeTab === "logout") {
+    return (
+      <div className="min-h-screen w-full bg-[#0a0d18] text-slate-100 flex items-center justify-center p-4 selection:bg-emerald-500 selection:text-slate-950">
+        <LogoutPage
+          userProfile={userProfile}
+          onConfirmLogout={() => {
+            try {
+              localStorage.removeItem("orabit_user_profile");
+              window.history.pushState({}, "", "/login");
+            } catch (e) {
+              console.error(e);
+            }
+            setUserProfile(null);
+          }}
+          onCancel={() => navigateToTab("dashboard")}
+          currency={currency}
+          usdExchangeRate={usdExchangeRate}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen w-full font-sans flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950 transition-colors duration-200 ${
       theme === "light" ? "bg-slate-100 text-slate-900" : "bg-[#0d1117] text-slate-100"

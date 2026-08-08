@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "motion/react";
-import { LogOut, ArrowLeft, AlertOctagon } from "lucide-react";
+import { LogOut, ArrowLeft, AlertTriangle } from "lucide-react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { OrabitLogo } from "./OrabitLogo";
 
@@ -27,67 +27,68 @@ export const LogoutPage: React.FC<LogoutPageProps> = ({
       : "৳0.00";
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center p-4 sm:p-6 my-auto">
+    <div className="w-full flex items-center justify-center min-h-screen p-4 py-8">
       <motion.div
-        initial={{ opacity: 0, y: 15, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.25, ease: "easeOut" }}
-        className="max-w-lg w-full bg-[#111524] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden text-center space-y-6 z-10"
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="max-w-[420px] w-full bg-[#0e121f] border border-slate-800/80 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden text-center space-y-5 z-10"
       >
-        {/* Animated Background Glowing Auras */}
-        <div className="absolute -top-28 left-1/2 -translate-x-1/2 w-64 h-64 bg-gradient-to-tr from-rose-500/20 via-pink-500/10 to-amber-500/20 rounded-full blur-3xl pointer-events-none animate-pulse" />
-        <div className="absolute -bottom-28 right-1/2 translate-x-1/2 w-64 h-64 bg-gradient-to-tr from-cyan-500/10 via-indigo-500/10 to-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+        {/* Subtle Background Glow */}
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header Badge & Logo */}
-        <div className="relative pt-1 flex flex-col items-center justify-center gap-3">
+        {/* Top Header Logo */}
+        <div className="flex items-center justify-center pt-1">
           <OrabitLogo size="md" showSubtitle={false} />
+        </div>
 
-          {/* Animated Glowing Logout Icon Badge */}
-          <div className="relative mt-2 w-20 h-20 flex items-center justify-center">
-            {/* Rotating Colorful Aura Ring */}
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 p-[2px] opacity-80 shadow-lg shadow-rose-500/20 animate-[spin_10s_linear_infinite]" />
+        {/* Circular Logout Badge with Rainbow Gradient Ring */}
+        <div className="relative pt-2 flex items-center justify-center">
+          <div className="relative w-20 h-20 flex items-center justify-center">
+            {/* Gradient Border Ring */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 p-[2.5px] opacity-90 shadow-lg shadow-rose-500/10" />
 
-            {/* Inner Circle Container */}
-            <div className="relative w-[74px] h-[74px] rounded-full bg-[#0b0e1a] border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-inner">
-              <LogOut className="w-8 h-8 text-rose-400 animate-pulse" />
+            {/* Inner Dark Circle */}
+            <div className="relative w-[72px] h-[72px] rounded-full bg-[#0a0d17] flex items-center justify-center text-rose-500">
+              <LogOut className="w-8 h-8 text-rose-500" />
             </div>
           </div>
         </div>
 
-        {/* Main Title & Description */}
-        <div className="space-y-1.5">
+        {/* Title & Subtitle */}
+        <div className="space-y-1">
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Sign out?
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 font-medium max-w-sm mx-auto">
+          <p className="text-xs sm:text-sm text-slate-400 font-medium max-w-xs mx-auto leading-relaxed">
             You are about to end your active session on ORABIT.
           </p>
         </div>
 
-        {/* User Card - SHOWING ONLY NAME & BALANCE (NO EMAIL AS REQUESTED!) */}
-        <div className="p-4 rounded-2xl bg-[#090b14] border border-slate-800/90 text-left flex items-center justify-between gap-4 shadow-xl relative overflow-hidden">
-          <div className="flex items-center gap-3.5 min-w-0">
+        {/* Account Box - Showing Name & Balance ONLY (No Email) */}
+        <div className="p-4 rounded-2xl bg-[#080a13] border border-slate-800/90 text-left flex items-center justify-between gap-3 shadow-inner">
+          <div className="flex items-center gap-3 min-w-0">
             {/* User Avatar Badge */}
             <div className="relative shrink-0">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center font-bold text-sm text-white border border-cyan-400/50 shadow-md">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-extrabold text-sm text-white border border-blue-400/40 shadow-md">
                 {userProfile?.fullName ? userProfile.fullName.substring(0, 2).toUpperCase() : "OR"}
               </div>
-              <span className="w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#090b14] absolute -bottom-0.5 -right-0.5 shadow" />
+              <span className="w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#080a13] absolute -bottom-0.5 -right-0.5" />
             </div>
 
-            {/* User Name ONLY (NO EMAIL) */}
+            {/* Account Holder Name */}
             <div className="space-y-0.5 min-w-0">
               <div className="text-[10px] font-mono uppercase font-bold text-slate-500 tracking-wider">
                 Account Holder
               </div>
-              <div className="font-black text-base sm:text-lg text-white truncate max-w-[170px] sm:max-w-[210px]">
+              <div className="font-extrabold text-base text-white truncate max-w-[150px] sm:max-w-[180px]">
                 {userProfile?.fullName || "Orabit User"}
               </div>
             </div>
           </div>
 
-          {/* User Balance Badge */}
-          <div className="text-right shrink-0 bg-emerald-950/70 border border-emerald-500/30 px-3 py-1.5 rounded-xl">
+          {/* Balance */}
+          <div className="text-right shrink-0 bg-emerald-950/50 border border-emerald-500/30 px-3 py-1.5 rounded-xl">
             <div className="text-[9px] text-emerald-400/80 font-bold uppercase tracking-wider">
               Balance
             </div>
@@ -97,20 +98,20 @@ export const LogoutPage: React.FC<LogoutPageProps> = ({
           </div>
         </div>
 
-        {/* Notice Info Box */}
-        <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-400 flex items-center gap-2.5 text-left">
-          <AlertOctagon className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>
+        {/* Warning Info Box */}
+        <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-center gap-3 text-left">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="leading-normal">
             Signing out will safely end your current session on this device.
           </span>
         </div>
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        {/* Action Buttons (Stacked Vertically like Screenshot) */}
+        <div className="space-y-2.5 pt-1">
           <button
             type="button"
             onClick={onConfirmLogout}
-            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-600/20 active:scale-95 transition-all cursor-pointer border border-rose-500/50"
+            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 active:scale-[0.98] transition-all cursor-pointer border border-rose-500/40"
           >
             <LogOut className="w-4 h-4 text-white" />
             <span>Yes, sign me out</span>
@@ -119,7 +120,7 @@ export const LogoutPage: React.FC<LogoutPageProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="w-full py-3.5 px-4 rounded-2xl bg-slate-800/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-md"
+            className="w-full py-3.5 px-4 rounded-2xl bg-[#0a0d17] hover:bg-slate-800/80 text-slate-300 hover:text-white border border-slate-800 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4 text-slate-400" />
             <span>Cancel</span>
@@ -129,3 +130,4 @@ export const LogoutPage: React.FC<LogoutPageProps> = ({
     </div>
   );
 };
+
