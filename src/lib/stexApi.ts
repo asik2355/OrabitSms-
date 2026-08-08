@@ -79,6 +79,64 @@ export function extractOtpFromMessage(rawText: string): string {
 }
 
 /**
+ * Maps a phone number or range prefix to real country, operator and iso
+ */
+export function getCountryAndOperatorFromRange(range: string): { country: string; operator: string; iso: string } {
+  if (!range) return { country: "GLOBAL", operator: "GSM CORE", iso: "un" };
+  const clean = range.replace(/\D/g, "");
+
+  if (clean.startsWith("382")) return { country: "MONTENEGRO", operator: "TELENOR", iso: "me" };
+  if (clean.startsWith("224")) return { country: "GUINEA", operator: "ORANGE", iso: "gn" };
+  if (clean.startsWith("992")) return { country: "TAJIKISTAN", operator: "BABILON-M", iso: "tj" };
+  if (clean.startsWith("880")) return { country: "BANGLADESH", operator: "ROBI", iso: "bd" };
+  if (clean.startsWith("261")) return { country: "MADAGASCAR", operator: "AIRTEL", iso: "mg" };
+  if (clean.startsWith("225")) return { country: "IVORY COAST", operator: "ORANGE", iso: "ci" };
+  if (clean.startsWith("228")) return { country: "TOGO", operator: "TOGOCOM", iso: "tg" };
+  if (clean.startsWith("229")) return { country: "BENIN", operator: "MTN", iso: "bj" };
+  if (clean.startsWith("237")) return { country: "CAMEROON", operator: "ORANGE", iso: "cm" };
+  if (clean.startsWith("233")) return { country: "GHANA", operator: "MTN", iso: "gh" };
+  if (clean.startsWith("380")) return { country: "UKRAINE", operator: "KYIVSTAR", iso: "ua" };
+  if (clean.startsWith("966")) return { country: "SAUDI ARABIA", operator: "STC", iso: "sa" };
+  if (clean.startsWith("996")) return { country: "KYRGYZSTAN", operator: "MEGACOM", iso: "kg" };
+  if (clean.startsWith("257")) return { country: "BURUNDI", operator: "LUMITEL", iso: "bi" };
+  if (clean.startsWith("254")) return { country: "KENYA", operator: "SAFARICOM", iso: "ke" };
+  if (clean.startsWith("387")) return { country: "BOSNIA", operator: "BH TELECOM", iso: "ba" };
+  if (clean.startsWith("216")) return { country: "TUNISIA", operator: "OOREDOO", iso: "tn" };
+  if (clean.startsWith("959")) return { country: "MYANMAR", operator: "MPT", iso: "mm" };
+  if (clean.startsWith("232")) return { country: "SIERRA LEONE", operator: "AFRICELL", iso: "sl" };
+  if (clean.startsWith("236")) return { country: "CENTRAL AFRICA", operator: "TELECEL", iso: "cf" };
+  if (clean.startsWith("223")) return { country: "MALI", operator: "MALITEL", iso: "ml" };
+  if (clean.startsWith("962")) return { country: "JORDAN", operator: "ZAIN", iso: "jo" };
+  if (clean.startsWith("964")) return { country: "IRAQ", operator: "ASIACELL", iso: "iq" };
+  if (clean.startsWith("642")) return { country: "NEW ZEALAND", operator: "SPARK", iso: "nz" };
+
+  return { country: "GLOBAL", operator: "GSM CORE", iso: "un" };
+}
+
+/**
+ * Masks OTP codes inside raw SMS messages with asterisks for security in console stream
+ */
+export function maskMessageOtp(raw: string): string {
+  if (!raw) return "";
+
+  // If already contains asterisks or masked pattern, return as is
+  if (raw.includes("*****") || raw.includes("***-***")) return raw;
+
+  let masked = raw;
+
+  // 1. Hyphenated 6 digits e.g. "212-123" -> "***-***"
+  masked = masked.replace(/\b\d{3}-\d{3}\b/g, "***-***");
+
+  // 2. Prefixed codes e.g. "G-123456" -> "G-*****", "FB-78291" -> "FB-*****"
+  masked = masked.replace(/\b([A-Z]{1,3}-)\d{4,8}\b/gi, "$1*****");
+
+  // 3. Standalone 4 to 8 digit numbers -> "*****"
+  masked = masked.replace(/\b\d{4,8}\b/g, "*****");
+
+  return masked;
+}
+
+/**
  * Request a phone number from Stex SMS API
  */
 export async function requestStexNumber(params: {

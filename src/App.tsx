@@ -5,6 +5,8 @@ import {
   fetchStexOtps,
   fetchStexConsole,
   extractOtpFromMessage,
+  getCountryAndOperatorFromRange,
+  maskMessageOtp,
   DEFAULT_STEX_API_KEY,
 } from "./lib/stexApi";
 import { OrabitAuthScreen, UserProfile } from "./components/OrabitAuthScreen";
@@ -152,104 +154,7 @@ const GLOBAL_TRENDING = [
   { id: 10, name: "fairpari", color: "#f59e0b", icon: "🎲", hits: "410" },
 ];
 
-const INITIAL_MESSAGES: SmsMessage[] = [
-  {
-    id: "msg-1",
-    time: "02:45:41 PM",
-    operator: "Mobile",
-    country: "GUINEA",
-    countryIso: "gn",
-    service: "INSTAGRAM",
-    serviceColor: "bg-pink-950/80 text-pink-400 border-pink-500/30",
-    number: "224677698XXX",
-    otpCode: "*** ***",
-    rawMessage: "<#> *** *** is your Instagram code. Don't share it. SIYRxKrru1t",
-  },
-  {
-    id: "msg-2",
-    time: "02:45:31 PM",
-    operator: "Airtel",
-    country: "MADAGASCAR",
-    countryIso: "mg",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
-    number: "261388296XXX",
-    otpCode: "*****",
-    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
-  },
-  {
-    id: "msg-3",
-    time: "02:45:26 PM",
-    operator: "Airtel",
-    country: "MADAGASCAR",
-    countryIso: "mg",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
-    number: "261388222XXX",
-    otpCode: "FB-*****",
-    rawMessage: "<#> FB-***** is your Facebook confirmation code m.facebook.com #*****",
-  },
-  {
-    id: "msg-4",
-    time: "02:45:26 PM",
-    operator: "Zain",
-    country: "SAUDI ARABIA",
-    countryIso: "sa",
-    service: "WHATSAPP",
-    serviceColor: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30",
-    number: "966582926XXX",
-    otpCode: "***-***",
-    rawMessage: "<#> Your WhatsApp code: ***-*** Don't share this code with others 4sgLq1p5sV6",
-  },
-  {
-    id: "msg-5",
-    time: "02:45:16 PM",
-    operator: "Airtel",
-    country: "MADAGASCAR",
-    countryIso: "mg",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
-    number: "261344563XXX",
-    otpCode: "*****",
-    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
-  },
-  {
-    id: "msg-6",
-    time: "02:44:56 PM",
-    operator: "Airtel",
-    country: "MADAGASCAR",
-    countryIso: "mg",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
-    number: "261344865XXX",
-    otpCode: "*****",
-    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
-  },
-  {
-    id: "msg-7",
-    time: "02:44:56 PM",
-    operator: "Babilon-M",
-    country: "TAJIKISTAN",
-    countryIso: "tj",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
-    number: "992778178XXX",
-    otpCode: "*****",
-    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
-  },
-  {
-    id: "msg-8",
-    time: "02:44:51 PM",
-    operator: "Airtel",
-    country: "MADAGASCAR",
-    countryIso: "mg",
-    service: "FACEBOOK",
-    serviceColor: "bg-blue-950/80 text-blue-400 border-blue-500/30",
-    number: "261344202XXX",
-    otpCode: "*****",
-    rawMessage: "<#> ***** is your Facebook code H29Q+Fsn4Sr",
-  },
-];
+const INITIAL_MESSAGES: SmsMessage[] = [];
 
 const INITIAL_FEEDS: FeedNumber[] = [];
 
@@ -395,69 +300,59 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Live Auto Sync Loop - Simulates incoming global OTP traffic in real-time
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setAutoSyncSeconds((prev) => {
-        if (prev <= 1) {
-          const serviceTemplates = [
-            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW" },
-            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "212-123 is your WhatsApp code" },
-            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others 4sgLq1p5sV6" },
-            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr" },
-            { name: "INSTAGRAM", color: "bg-pink-950/80 text-pink-400 border-pink-500/30", raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t" },
-            { name: "TELEGRAM", color: "bg-sky-950/80 text-sky-400 border-sky-500/30", raw: "<#> Telegram code: 849-201 Do not share this code with anyone." },
-            { name: "IMO", color: "bg-cyan-950/80 text-cyan-400 border-cyan-500/30", raw: "<#> IMO verification code: 593-102. Keep it private." },
-          ];
-
-          const locations = [
-            { country: "GUINEA", iso: "gn", operators: ["Mobile", "Orange"], prefix: "224" },
-            { country: "MADAGASCAR", iso: "mg", operators: ["Airtel", "Telma"], prefix: "261" },
-            { country: "SAUDI ARABIA", iso: "sa", operators: ["Zain", "STC"], prefix: "966" },
-            { country: "TAJIKISTAN", iso: "tj", operators: ["Babilon-M", "Tcell"], prefix: "992" },
-            { country: "BANGLADESH", iso: "bd", operators: ["Grameenphone", "Robi"], prefix: "880" },
-            { country: "MONTENEGRO", iso: "me", operators: ["Telenor", "One"], prefix: "382" },
-          ];
-
-          const s = serviceTemplates[Math.floor(Math.random() * serviceTemplates.length)];
-          const loc = locations[Math.floor(Math.random() * locations.length)];
-          const op = loc.operators[Math.floor(Math.random() * loc.operators.length)];
-          const randNum = loc.prefix + Math.floor(100000 + Math.random() * 900000) + "XXX";
-          const nowTime = new Date().toLocaleTimeString("en-US", { hour12: true });
-
-          const newMsg: SmsMessage = {
-            id: "msg-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9),
-            time: nowTime,
-            operator: op,
-            country: loc.country,
-            countryIso: loc.iso,
-            service: s.name,
-            serviceColor: s.color,
-            number: randNum,
-            otpCode: extractOtpFromText(s.raw),
-            rawMessage: s.raw,
-          };
-
-          setMessages((prev) => [newMsg, ...prev.slice(0, 19)]);
-          return 5;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Stex SMS Real-Time OTP Listener (every 5s)
+  // Stex SMS Real-Time Traffic & Console Listener (100% REAL TRAFFIC ONLY)
   useEffect(() => {
     const activeKey = apiKey || DEFAULT_STEX_API_KEY;
-    const pollOtps = async () => {
-      try {
-        const res = await fetchStexOtps(activeKey);
-        if (res.meta && res.meta.code === 200 && res.data && res.data.otps && res.data.otps.length > 0) {
-          const fetchedOtps = res.data.otps;
 
-          // 1. Update matching provisioned numbers in feedNumbers
+    const pollConsoleAndOtps = async () => {
+      try {
+        // 1. Fetch Real Console Hits
+        const consoleRes = await fetchStexConsole(activeKey);
+        if (consoleRes.meta && consoleRes.meta.code === 200 && consoleRes.data && consoleRes.data.hits) {
+          const hits = consoleRes.data.hits;
+          const liveConsoleMsgs: SmsMessage[] = hits.map((h, idx) => {
+            const formattedTime = new Date(Number(h.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
+            const extracted = extractOtpFromMessage(h.message);
+            const serviceUpper = (h.sid || "SERVICE").toUpperCase();
+
+            let serviceColor = "bg-blue-950/80 text-blue-400 border-blue-500/30";
+            if (serviceUpper.includes("WHATSAPP")) serviceColor = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
+            else if (serviceUpper.includes("INSTAGRAM")) serviceColor = "bg-pink-950/80 text-pink-400 border-pink-500/30";
+            else if (serviceUpper.includes("TELEGRAM")) serviceColor = "bg-sky-950/80 text-sky-400 border-sky-500/30";
+            else if (serviceUpper.includes("IMO")) serviceColor = "bg-cyan-950/80 text-cyan-400 border-cyan-500/30";
+
+            const locInfo = getCountryAndOperatorFromRange(h.range);
+
+            return {
+              id: `hit-${h.range}-${h.time}-${idx}`,
+              time: formattedTime,
+              operator: locInfo.operator,
+              country: locInfo.country,
+              countryIso: locInfo.iso,
+              service: serviceUpper,
+              serviceColor,
+              number: h.range,
+              otpCode: extracted,
+              rawMessage: maskMessageOtp(h.message),
+            };
+          });
+
+          setMessages((prevMsgs) => {
+            const existingIds = new Set(prevMsgs.map((m) => m.id));
+            const fresh = liveConsoleMsgs.filter((m) => !existingIds.has(m.id));
+            if (fresh.length > 0) {
+              return [...fresh, ...prevMsgs].slice(0, 50);
+            }
+            if (prevMsgs.length === 0) return liveConsoleMsgs.slice(0, 50);
+            return prevMsgs;
+          });
+        }
+
+        // 2. Fetch User OTPs
+        const otpRes = await fetchStexOtps(activeKey);
+        if (otpRes.meta && otpRes.meta.code === 200 && otpRes.data && otpRes.data.otps) {
+          const fetchedOtps = otpRes.data.otps;
+
           setFeedNumbers((prevFeed) => {
             let updated = false;
             const newFeed = prevFeed.map((item) => {
@@ -483,8 +378,7 @@ export default function App() {
             return updated ? newFeed : prevFeed;
           });
 
-          // 2. Add real OTP entries to live messages stream
-          const stexMsgs: SmsMessage[] = fetchedOtps.map((o, idx) => {
+          const realUserOtps: SmsMessage[] = fetchedOtps.map((o, idx) => {
             const extracted = extractOtpFromMessage(o.message);
             const formattedTime = new Date(Number(o.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
 
@@ -508,88 +402,47 @@ export default function App() {
               serviceColor = "bg-cyan-950/80 text-cyan-400 border-cyan-500/30";
             }
 
+            const locInfo = getCountryAndOperatorFromRange(o.number);
+
             return {
               id: `otp-${o.otp_id || idx}-${o.time}`,
               time: formattedTime,
-              operator: "GSM Core",
-              country: "Global",
-              countryIso: "un",
+              operator: locInfo.operator,
+              country: locInfo.country,
+              countryIso: locInfo.iso,
               service: detectedService,
               serviceColor,
               number: o.number,
               otpCode: extracted,
-              rawMessage: o.message,
+              rawMessage: maskMessageOtp(o.message),
             };
           });
 
           setMessages((prevMsgs) => {
             const existingIds = new Set(prevMsgs.map((m) => m.id));
-            const fresh = stexMsgs.filter((m) => !existingIds.has(m.id));
+            const fresh = realUserOtps.filter((m) => !existingIds.has(m.id));
             if (fresh.length > 0) {
-              return [...fresh, ...prevMsgs].slice(0, 30);
+              return [...fresh, ...prevMsgs].slice(0, 50);
             }
             return prevMsgs;
           });
         }
       } catch (err) {
-        console.error("Error polling Stex OTPs:", err);
+        console.error("Error polling real traffic:", err);
       }
     };
 
-    pollOtps();
-    const interval = setInterval(pollOtps, 5000);
-    return () => clearInterval(interval);
-  }, [apiKey]);
+    pollConsoleAndOtps();
+    const interval = setInterval(pollConsoleAndOtps, 5000);
 
-  // Stex SMS Live Console Traffic Listener (every 8s)
-  useEffect(() => {
-    const activeKey = apiKey || DEFAULT_STEX_API_KEY;
-    const pollConsole = async () => {
-      try {
-        const res = await fetchStexConsole(activeKey);
-        if (res.meta && res.meta.code === 200 && res.data && res.data.hits && res.data.hits.length > 0) {
-          const hits = res.data.hits;
-          const liveMsgs: SmsMessage[] = hits.map((h, idx) => {
-            const formattedTime = new Date(Number(h.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
-            const extracted = extractOtpFromMessage(h.message);
-            const serviceUpper = (h.sid || "SERVICE").toUpperCase();
+    const countdownTimer = setInterval(() => {
+      setAutoSyncSeconds((prev) => (prev <= 1 ? 5 : prev - 1));
+    }, 1000);
 
-            let serviceColor = "bg-blue-950/80 text-blue-400 border-blue-500/30";
-            if (serviceUpper.includes("WHATSAPP")) serviceColor = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
-            else if (serviceUpper.includes("INSTAGRAM")) serviceColor = "bg-pink-950/80 text-pink-400 border-pink-500/30";
-            else if (serviceUpper.includes("TELEGRAM")) serviceColor = "bg-sky-950/80 text-sky-400 border-sky-500/30";
-
-            return {
-              id: `hit-${h.range}-${h.time}-${idx}`,
-              time: formattedTime,
-              operator: "GSM Traffic",
-              country: "Global",
-              countryIso: "un",
-              service: serviceUpper,
-              serviceColor,
-              number: h.range,
-              otpCode: extracted,
-              rawMessage: h.message,
-            };
-          });
-
-          setMessages((prevMsgs) => {
-            const existingIds = new Set(prevMsgs.map((m) => m.id));
-            const fresh = liveMsgs.filter((m) => !existingIds.has(m.id));
-            if (fresh.length > 0) {
-              return [...fresh, ...prevMsgs].slice(0, 30);
-            }
-            return prevMsgs;
-          });
-        }
-      } catch (err) {
-        console.error("Error polling Stex console:", err);
-      }
+    return () => {
+      clearInterval(interval);
+      clearInterval(countdownTimer);
     };
-
-    pollConsole();
-    const interval = setInterval(pollConsole, 8000);
-    return () => clearInterval(interval);
   }, [apiKey]);
 
   const copyToClipboard = (text: string, label: string) => {
