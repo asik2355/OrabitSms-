@@ -446,9 +446,9 @@ export default function App() {
             const existingIds = new Set(prevMsgs.map((m) => m.id));
             const fresh = liveConsoleMsgs.filter((m) => !existingIds.has(m.id));
             if (fresh.length > 0) {
-              return [...fresh, ...prevMsgs].slice(0, 50);
+              return [...fresh, ...prevMsgs].slice(0, 300);
             }
-            if (prevMsgs.length === 0) return liveConsoleMsgs.slice(0, 50);
+            if (prevMsgs.length === 0) return liveConsoleMsgs.slice(0, 300);
             return prevMsgs;
           });
         }
@@ -1368,7 +1368,7 @@ export default function App() {
 
               {/* SMS Stream Cards with Service Logo and Compact Fine Typography */}
               <div className="space-y-2">
-                {filteredMessages.map((msg, idx) => {
+                {filteredMessages.slice(0, 50).map((msg, idx) => {
                   let displayMsg = msg.rawMessage || "";
                   if (!displayMsg.includes("***") && !displayMsg.includes("*****")) {
                     displayMsg = displayMsg.replace(/\b\d{4,8}\b/g, "*****");
@@ -1431,7 +1431,7 @@ export default function App() {
               {/* Card Footer */}
               <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-2 border-t border-slate-800/60">
                 <span>Last Updated: {utcTime ? utcTime.substring(0, 8) : "10:51:35"}</span>
-                <span>Logs: {filteredMessages.length} (Max 50)</span>
+                <span>Logs: {Math.min(filteredMessages.length, 50)} (Max 50)</span>
               </div>
             </div>
           </div>
