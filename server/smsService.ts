@@ -180,33 +180,18 @@ export async function getNumberFromApis(
     console.log("Zenex API request skipped/failed:", (e as Error).message);
   }
 
-  // Fallback: Smart Generator matching specified Range format
-  let fullDigits = cleanPrefix;
-  const targetLen = Math.max(12, cleanPrefix.length + 4);
-  while (fullDigits.length < targetLen) {
-    fullDigits += Math.floor(Math.random() * 10).toString();
-  }
-  const formatted = noPlus ? fullDigits : `+${fullDigits}`;
-  const info = detectCountryOperator(fullDigits);
-
-  return {
-    number: formatted,
-    provider: "CORE",
-    country: info.country,
-    operator: info.operator,
-    service: "INSTAGRAM",
-  };
+  throw new Error("Out of stock or Range unavailable on API");
 }
 
 export async function fetchOtpForNumber(num: string): Promise<OtpResult> {
   const cleanNum = num.replace(/\+/g, "").trim();
 
-  // Try Zenex /v1/numsuccess/info
+  // Try Stex /success-otp
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${ZENEX_URL}/v1/numsuccess/info`, {
-      headers: { "mapikey": ZENEX_KEY },
+    const res = await fetch(`${STEX_URL}/success-otp`, {
+      headers: { "mauthapi": STEX_KEY },
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -215,13 +200,12 @@ export async function fetchOtpForNumber(num: string): Promise<OtpResult> {
       const data: any = await res.json();
       const otps = data?.data?.otps || [];
       const found = otps.find((item: any) => String(item.number).includes(cleanNum) || cleanNum.includes(String(item.number)));
-      if (found && (found.otp || found.message)) {
-        const raw = found.message || found.otp;
-        const code = extractOtpCode(raw);
+      if (found && found.message) {
+        const code = extractOtpCode(found.message);
         return {
-          service: found.service || "INSTAGRAM",
+          service: "WHATSAPP",
           otpCode: code,
-          rawMessage: raw,
+          rawMessage: found.message,
         };
       }
     }
@@ -256,12 +240,12 @@ export async function fetchOtpForNumber(num: string): Promise<OtpResult> {
     // Ignore error
   }
 
-  // Try Stex /success-otp
+  // Try Zenex /v1/numsuccess/info
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${STEX_URL}/success-otp`, {
-      headers: { "mauthapi": STEX_KEY },
+    const res = await fetch(`${ZENEX_URL}/v1/numsuccess/info`, {
+      headers: { "mapikey": ZENEX_KEY },
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -270,12 +254,13 @@ export async function fetchOtpForNumber(num: string): Promise<OtpResult> {
       const data: any = await res.json();
       const otps = data?.data?.otps || [];
       const found = otps.find((item: any) => String(item.number).includes(cleanNum) || cleanNum.includes(String(item.number)));
-      if (found && found.message) {
-        const code = extractOtpCode(found.message);
+      if (found && (found.otp || found.message)) {
+        const raw = found.message || found.otp;
+        const code = extractOtpCode(raw);
         return {
-          service: "WHATSAPP",
+          service: found.service || "INSTAGRAM",
           otpCode: code,
-          rawMessage: found.message,
+          rawMessage: raw,
         };
       }
     }
@@ -283,35 +268,11 @@ export async function fetchOtpForNumber(num: string): Promise<OtpResult> {
     // Ignore error
   }
 
-  // Default sample selection
-  const sampleOtps = [
-    {
-      service: "FACEBOOK",
-      raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW",
-    },
-    {
-      service: "WHATSAPP",
-      raw: "212-123 is your WhatsApp code",
-    },
-    {
-      service: "WHATSAPP",
-      raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others",
-    },
-    {
-      service: "FACEBOOK",
-      raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr",
-    },
-    {
-      service: "INSTAGRAM",
-      raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t",
-    },
-  ];
-
-  const selected = sampleOtps[Math.floor(Math.random() * sampleOtps.length)];
+  // No mock fallback! Return empty waiting state.
   return {
-    service: selected.service,
-    otpCode: extractOtpCode(selected.raw),
-    rawMessage: selected.raw,
+    service: "WAITING",
+    otpCode: "",
+    rawMessage: "Waiting for incoming OTP from API...",
   };
 }
 

@@ -288,7 +288,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment" | "logout">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<SmsMessage[]>([]);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(INITIAL_FEEDS);
   const [searchQuery, setSearchQuery] = useState("");
   const [feedFilter, setFeedFilter] = useState<"ALL" | "SUCCESS" | "PENDING" | "FAILED">("ALL");
@@ -472,7 +472,7 @@ export default function App() {
 
   const handleGetNumber = async () => {
     setProvisioning(true);
-    setProvisionMsg("Connecting to Voltx, Stex & Zenex Core Routing Engine...");
+    setProvisionMsg("Connecting to Stex SMS & Core Routing Engine...");
 
     try {
       const res = await fetch("/api/sms/getnum", {
@@ -484,7 +484,7 @@ export default function App() {
 
       if (data && data.success) {
         const formattedNumber = data.number;
-        const providerName = data.provider || "CORE";
+        const providerName = data.provider || "STEX";
         const detectedCountry = data.country || "Global";
         const detectedOperator = data.operator || "Orange";
 
@@ -511,11 +511,13 @@ export default function App() {
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
         setProvisioning(false);
-        setProvisionMsg(`Provisioned Number: ${formattedNumber} [${providerName}]`);
+        setProvisionMsg(`Allocated Number: ${formattedNumber} [${providerName}]`);
         setTimeout(() => setProvisionMsg(null), 4000);
 
-        // Fetch OTP from Voltx/Stex/Zenex APIs
-        setTimeout(async () => {
+        // Real OTP Polling Loop - polls every 4 seconds for up to 12 attempts (48 seconds)
+        let attempts = 0;
+        const pollInterval = setInterval(async () => {
+          attempts += 1;
           try {
             const otpRes = await fetch("/api/sms/fetch-otp", {
               method: "POST",
@@ -524,15 +526,16 @@ export default function App() {
             });
             const otpData = await otpRes.json();
 
-            if (otpData && otpData.success) {
+            if (otpData && otpData.success && otpData.otpCode) {
+              clearInterval(pollInterval);
               setFeedNumbers((prev) =>
                 prev.map((item) => {
                   if (item.id === newItemId) {
                     return {
                       ...item,
                       status: "SUCCESS",
-                      service: otpData.service || "INSTAGRAM",
-                      otpCode: otpData.otpCode || "318215",
+                      service: otpData.service || "WHATSAPP",
+                      otpCode: otpData.otpCode,
                       rawMessage: otpData.rawMessage,
                       timeAgo: "just now",
                     };
@@ -540,18 +543,21 @@ export default function App() {
                   return item;
                 })
               );
+            } else if (attempts >= 12) {
+              clearInterval(pollInterval);
             }
           } catch (e) {
-            console.error("OTP fetch error", e);
+            console.error("OTP fetch polling error", e);
+            if (attempts >= 12) clearInterval(pollInterval);
           }
-        }, 3000);
+        }, 4000);
       } else {
-        throw new Error("Failed to fetch number");
+        throw new Error(data?.error || "Out of stock / Range error from Stex API");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Get Number failed:", err);
       setProvisioning(false);
-      setProvisionMsg("Failed to provision number");
+      setProvisionMsg(err.message || "Out of stock or Range error from Stex API");
       setTimeout(() => setProvisionMsg(null), 4000);
     }
   };
