@@ -207,6 +207,11 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
 
             const locInfo = getCountryAndOperatorFromRange(h.range);
 
+            let displayRange = h.range || "";
+            if (!displayRange.includes("X") && !displayRange.includes("x")) {
+              displayRange = displayRange + "XXX";
+            }
+
             return {
               id: `hit-${h.range}-${h.time}-${idx}`,
               time: formattedTime,
@@ -215,7 +220,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
               countryIso: locInfo.iso,
               service: serviceUpper,
               serviceColor,
-              number: h.range,
+              number: displayRange,
               otpCode: extracted,
               rawMessage: maskMessageOtp(h.message),
             };

@@ -323,6 +323,11 @@ export default function App() {
 
             const locInfo = getCountryAndOperatorFromRange(h.range);
 
+            let displayRange = h.range || "";
+            if (!displayRange.includes("X") && !displayRange.includes("x")) {
+              displayRange = displayRange + "XXX";
+            }
+
             return {
               id: `hit-${h.range}-${h.time}-${idx}`,
               time: formattedTime,
@@ -331,7 +336,7 @@ export default function App() {
               countryIso: locInfo.iso,
               service: serviceUpper,
               serviceColor,
-              number: h.range,
+              number: displayRange,
               otpCode: extracted,
               rawMessage: maskMessageOtp(h.message),
             };
@@ -348,7 +353,7 @@ export default function App() {
           });
         }
 
-        // 2. Fetch User OTPs
+        // 2. Fetch User OTPs for requested numbers
         const otpRes = await fetchStexOtps(activeKey);
         if (otpRes.meta && otpRes.meta.code === 200 && otpRes.data && otpRes.data.otps) {
           const fetchedOtps = otpRes.data.otps;
@@ -376,55 +381,6 @@ export default function App() {
               return item;
             });
             return updated ? newFeed : prevFeed;
-          });
-
-          const realUserOtps: SmsMessage[] = fetchedOtps.map((o, idx) => {
-            const extracted = extractOtpFromMessage(o.message);
-            const formattedTime = new Date(Number(o.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
-
-            let detectedService = "SMS OTP";
-            let serviceColor = "bg-purple-950/80 text-purple-400 border-purple-500/30";
-            const msgUpper = (o.message || "").toUpperCase();
-            if (msgUpper.includes("FACEBOOK")) {
-              detectedService = "FACEBOOK";
-              serviceColor = "bg-blue-950/80 text-blue-400 border-blue-500/30";
-            } else if (msgUpper.includes("WHATSAPP")) {
-              detectedService = "WHATSAPP";
-              serviceColor = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
-            } else if (msgUpper.includes("INSTAGRAM") || msgUpper.includes("#IG")) {
-              detectedService = "INSTAGRAM";
-              serviceColor = "bg-pink-950/80 text-pink-400 border-pink-500/30";
-            } else if (msgUpper.includes("TELEGRAM")) {
-              detectedService = "TELEGRAM";
-              serviceColor = "bg-sky-950/80 text-sky-400 border-sky-500/30";
-            } else if (msgUpper.includes("IMO")) {
-              detectedService = "IMO";
-              serviceColor = "bg-cyan-950/80 text-cyan-400 border-cyan-500/30";
-            }
-
-            const locInfo = getCountryAndOperatorFromRange(o.number);
-
-            return {
-              id: `otp-${o.otp_id || idx}-${o.time}`,
-              time: formattedTime,
-              operator: locInfo.operator,
-              country: locInfo.country,
-              countryIso: locInfo.iso,
-              service: detectedService,
-              serviceColor,
-              number: o.number,
-              otpCode: extracted,
-              rawMessage: maskMessageOtp(o.message),
-            };
-          });
-
-          setMessages((prevMsgs) => {
-            const existingIds = new Set(prevMsgs.map((m) => m.id));
-            const fresh = realUserOtps.filter((m) => !existingIds.has(m.id));
-            if (fresh.length > 0) {
-              return [...fresh, ...prevMsgs].slice(0, 50);
-            }
-            return prevMsgs;
           });
         }
       } catch (err) {
