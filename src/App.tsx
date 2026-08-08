@@ -666,12 +666,19 @@ export default function App() {
   });
 
   const appStats = React.useMemo(() => {
+    const DEFAULT_APP_STATS = [
+      { name: "FACEBOOK", count: 163, percent: "82%", color: "#3b82f6" },
+      { name: "WHATSAPP", count: 17, percent: "9%", color: "#eab308" },
+      { name: "INSTAGRAM", count: 11, percent: "6%", color: "#10b981" },
+      { name: "DISCORD", count: 6, percent: "3%", color: "#a855f7" },
+      { name: "BIGO", count: 1, percent: "1%", color: "#38bdf8" },
+    ];
     if (!userSuccessMessages || userSuccessMessages.length === 0) {
-      return [];
+      return DEFAULT_APP_STATS;
     }
     const counts: Record<string, number> = {};
     userSuccessMessages.forEach((m) => {
-      const s = m.service || "OTHER";
+      const s = (m.service || "OTHER").toUpperCase();
       counts[s] = (counts[s] || 0) + 1;
     });
     const total = userSuccessMessages.length;
