@@ -2,12 +2,46 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { getNumberFromApis, fetchOtpForNumber, fetchLiveConsoleHits } from "./server/smsService.js";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json({ limit: "10mb" }));
+
+  // SMS Routing Endpoints for Voltx, Stex, and Zenex APIs
+  app.post("/api/sms/getnum", async (req, res) => {
+    try {
+      const { targetRange, isNational, noPlus } = req.body;
+      const result = await getNumberFromApis(targetRange, isNational, noPlus);
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error("SMS getnum error:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/sms/fetch-otp", async (req, res) => {
+    try {
+      const { number } = req.body;
+      const result = await fetchOtpForNumber(number);
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error("SMS fetch-otp error:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/sms/console-hits", async (req, res) => {
+    try {
+      const hits = await fetchLiveConsoleHits();
+      res.json({ success: true, hits });
+    } catch (error: any) {
+      console.error("SMS console-hits error:", error);
+      res.status(500).json({ success: false, error: error.message, hits: [] });
+    }
+  });
 
   // Initialize Gemini AI Client lazily or safely
   const getAI = () => {

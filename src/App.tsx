@@ -447,114 +447,90 @@ export default function App() {
     setTimeout(() => setCopiedText(null), 2000);
   };
 
-  const handleGetNumber = () => {
+  const handleGetNumber = async () => {
     setProvisioning(true);
-    setProvisionMsg("Connecting to Core Routing Engine...");
+    setProvisionMsg("Connecting to Voltx, Stex & Zenex Core Routing Engine...");
 
-    setTimeout(() => {
-      const rawInput = targetRange.trim() || "22507XXX";
-      let basePrefix = rawInput.replace(/X/gi, "");
-      if (!basePrefix) basePrefix = "22507";
+    try {
+      const res = await fetch("/api/sms/getnum", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetRange, isNational, noPlus }),
+      });
+      const data = await res.json();
 
-      const targetLength = Math.max(12, basePrefix.length + 3);
-      let fullDigits = basePrefix;
-      while (fullDigits.length < targetLength) {
-        fullDigits += Math.floor(Math.random() * 10).toString();
-      }
+      if (data && data.success) {
+        const formattedNumber = data.number;
+        const providerName = data.provider || "CORE";
+        const detectedCountry = data.country || "Global";
+        const detectedOperator = data.operator || "Orange";
 
-      const formattedNumber = noPlus ? fullDigits : (fullDigits.startsWith("+") ? fullDigits : `+${fullDigits}`);
+        try {
+          await navigator.clipboard.writeText(formattedNumber);
+        } catch (e) {
+          console.error("Auto copy failed", e);
+        }
 
-      try {
-        navigator.clipboard.writeText(formattedNumber);
-      } catch (e) {
-        console.error("Auto copy failed", e);
-      }
+        setCopiedText(`Copied ${formattedNumber}`);
+        setTimeout(() => setCopiedText(null), 3000);
 
-      setCopiedText(`Copied ${formattedNumber}`);
-      setTimeout(() => setCopiedText(null), 3000);
+        const newItemId = "feed-" + Date.now();
+        const rawDigits = formattedNumber.replace(/^\+/, "");
+        const newFeedItem: FeedNumber = {
+          id: newItemId,
+          number: rawDigits,
+          status: "PENDING",
+          country: detectedCountry,
+          operator: detectedOperator,
+          timeAgo: "just now",
+          service: "INSTAGRAM",
+        };
 
-      let detectedCountry = "Ivory Coast";
-      let detectedOperator = "Orange";
+        setFeedNumbers((prev) => [newFeedItem, ...prev]);
+        setProvisioning(false);
+        setProvisionMsg(`Provisioned Number: ${formattedNumber} [${providerName}]`);
+        setTimeout(() => setProvisionMsg(null), 4000);
 
-      if (fullDigits.startsWith("225")) {
-        detectedCountry = "Ivory Coast";
-        detectedOperator = "Orange";
-      } else if (fullDigits.startsWith("261")) {
-        detectedCountry = "Madagascar";
-        detectedOperator = "Airtel";
-      } else if (fullDigits.startsWith("374")) {
-        detectedCountry = "Armenia";
-        detectedOperator = "Ucom";
-      } else if (fullDigits.startsWith("880")) {
-        detectedCountry = "Bangladesh";
-        detectedOperator = "Grameenphone";
-      } else if (fullDigits.startsWith("966")) {
-        detectedCountry = "Saudi Arabia";
-        detectedOperator = "Zain";
-      } else if (fullDigits.startsWith("224")) {
-        detectedCountry = "Guinea";
-        detectedOperator = "Orange";
-      }
+        // Fetch OTP from Voltx/Stex/Zenex APIs
+        setTimeout(async () => {
+          try {
+            const otpRes = await fetch("/api/sms/fetch-otp", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ number: formattedNumber }),
+            });
+            const otpData = await otpRes.json();
 
-      const newItemId = "feed-" + Date.now();
-      const newFeedItem: FeedNumber = {
-        id: newItemId,
-        number: fullDigits,
-        status: "PENDING",
-        country: detectedCountry,
-        operator: detectedOperator,
-        timeAgo: "just now",
-        service: "INSTAGRAM",
-      };
-
-      setFeedNumbers((prev) => [newFeedItem, ...prev]);
-      setProvisioning(false);
-      setProvisionMsg(`Provisioned Number: ${formattedNumber}`);
-      setTimeout(() => setProvisionMsg(null), 4000);
-
-      setTimeout(() => {
-        const sampleOtps = [
-          {
-            service: "FACEBOOK",
-            raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW",
-          },
-          {
-            service: "WHATSAPP",
-            raw: "212-123 is your WhatsApp code",
-          },
-          {
-            service: "WHATSAPP",
-            raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others",
-          },
-          {
-            service: "FACEBOOK",
-            raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr",
-          },
-          {
-            service: "INSTAGRAM",
-            raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t",
-          },
-        ];
-        const selected = sampleOtps[Math.floor(Math.random() * sampleOtps.length)];
-        const extractedCode = extractOtpFromText(selected.raw);
-
-        setFeedNumbers((prev) =>
-          prev.map((item) => {
-            if (item.id === newItemId) {
-              return {
-                ...item,
-                status: "SUCCESS",
-                service: selected.service,
-                otpCode: extractedCode,
-                rawMessage: selected.raw,
-                timeAgo: "just now",
-              };
+            if (otpData && otpData.success) {
+              setFeedNumbers((prev) =>
+                prev.map((item) => {
+                  if (item.id === newItemId) {
+                    return {
+                      ...item,
+                      status: "SUCCESS",
+                      service: otpData.service || "INSTAGRAM",
+                      otpCode: otpData.otpCode || "318215",
+                      rawMessage: otpData.rawMessage,
+                      timeAgo: "just now",
+                    };
+                  }
+                  return item;
+                })
+              );
             }
-            return item;
-          })
-        );
-      }, 3500);
-    }, 500);
+          } catch (e) {
+            console.error("OTP fetch error", e);
+          }
+        }, 3000);
+      } else {
+        throw new Error("Failed to fetch number");
+      }
+    } catch (err) {
+      console.error("Get Number failed:", err);
+      setProvisioning(false);
+      setProvisionMsg("Failed to provision number");
+      setTimeout(() => setProvisionMsg(null), 4000);
+    }
   };
 
   const filteredMessages = messages.filter((m) => {
