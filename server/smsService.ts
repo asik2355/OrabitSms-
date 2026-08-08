@@ -64,7 +64,82 @@ export async function getNumberFromApis(
   const rawInput = (targetRange || "22507XXX").trim();
   const cleanPrefix = rawInput.replace(/X/gi, "").replace(/\+/g, "") || "22507";
 
-  // Try 1: Zenex Network API
+  // Primary: Stex SMS API (POST /@public/api/getnum)
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${STEX_URL}/getnum`, {
+      method: "POST",
+      headers: {
+        "mauthapi": STEX_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ rid: cleanPrefix }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data: any = await res.json();
+      if (data?.meta?.code === 200 && data?.data) {
+        const num = data.data.no_plus_number || data.data.full_number || data.data.national_number;
+        if (num) {
+          const digits = String(num).replace(/\+/g, "");
+          const formatted = noPlus ? digits : `+${digits}`;
+          const countryName = data.data.country || detectCountryOperator(digits).country;
+          const operatorName = data.data.operator || detectCountryOperator(digits).operator;
+          return {
+            number: formatted,
+            provider: "STEX",
+            country: countryName,
+            operator: operatorName,
+            service: "INSTAGRAM",
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.log("Stex API request error:", (e as Error).message);
+  }
+
+  // Secondary: Voltx API
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`${VOLTX_URL}/getnum`, {
+      method: "POST",
+      headers: {
+        "mauthapi": VOLTX_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ rid: cleanPrefix }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data: any = await res.json();
+      if (data?.meta?.code === 200 && data?.data) {
+        const num = data.data.no_plus_number || data.data.national_number || data.data.full_number;
+        if (num) {
+          const digits = String(num).replace(/\+/g, "");
+          const formatted = noPlus ? digits : `+${digits}`;
+          const info = detectCountryOperator(digits);
+          return {
+            number: formatted,
+            provider: "VOLTX",
+            country: info.country,
+            operator: info.operator,
+            service: "INSTAGRAM",
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.log("Voltx API request skipped/failed:", (e as Error).message);
+  }
+
+  // Tertiary: Zenex Network API
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4000);
@@ -103,80 +178,6 @@ export async function getNumberFromApis(
     }
   } catch (e) {
     console.log("Zenex API request skipped/failed:", (e as Error).message);
-  }
-
-  // Try 2: Voltx API
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`${VOLTX_URL}/getnum`, {
-      method: "POST",
-      headers: {
-        "mauthapi": VOLTX_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ rid: cleanPrefix }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      const data: any = await res.json();
-      if (data?.meta?.code === 200 && data?.data) {
-        const num = data.data.no_plus_number || data.data.national_number || data.data.full_number;
-        if (num) {
-          const digits = String(num).replace(/\+/g, "");
-          const formatted = noPlus ? digits : `+${digits}`;
-          const info = detectCountryOperator(digits);
-          return {
-            number: formatted,
-            provider: "VOLTX",
-            country: info.country,
-            operator: info.operator,
-            service: "INSTAGRAM",
-          };
-        }
-      }
-    }
-  } catch (e) {
-    console.log("Voltx API request skipped/failed:", (e as Error).message);
-  }
-
-  // Try 3: Stex API
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`${STEX_URL}/getnum`, {
-      method: "POST",
-      headers: {
-        "mauthapi": STEX_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ rid: cleanPrefix }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      const data: any = await res.json();
-      if (data?.meta?.code === 200 && data?.data) {
-        const num = data.data.no_plus_number || data.data.national_number;
-        if (num) {
-          const digits = String(num).replace(/\+/g, "");
-          const formatted = noPlus ? digits : `+${digits}`;
-          const info = detectCountryOperator(digits);
-          return {
-            number: formatted,
-            provider: "STEX",
-            country: info.country,
-            operator: info.operator,
-            service: "INSTAGRAM",
-          };
-        }
-      }
-    }
-  } catch (e) {
-    console.log("Stex API request skipped/failed:", (e as Error).message);
   }
 
   // Fallback: Smart Generator matching specified Range format
