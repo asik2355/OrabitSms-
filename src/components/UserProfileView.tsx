@@ -22,11 +22,13 @@ import {
   Sparkles,
   CreditCard,
   Lock,
+  LogOut,
 } from "lucide-react";
 
 interface UserProfileViewProps {
   userProfile: UserProfile;
   onUpdateProfile: (updated: UserProfile) => void;
+  onLogout?: () => void;
   currency?: "BDT" | "USD";
   usdExchangeRate?: number;
 }
@@ -34,6 +36,7 @@ interface UserProfileViewProps {
 export const UserProfileView: React.FC<UserProfileViewProps> = ({
   userProfile,
   onUpdateProfile,
+  onLogout,
   currency = "BDT",
   usdExchangeRate = 100,
 }) => {
@@ -158,6 +161,17 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             ACTIVE ACCOUNT
           </span>
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="px-3 py-1 rounded-full bg-rose-950/60 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span>Logout</span>
+            </button>
+          )}
         </div>
       </div>
 

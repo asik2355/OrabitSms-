@@ -6,6 +6,7 @@ import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
 import { OrabitApiDoc } from "./components/OrabitApiDoc";
 import { OrabitLogo } from "./components/OrabitLogo";
 import { ServiceLogo } from "./components/ServiceLogo";
+import { LogoutPage } from "./components/LogoutPage";
 import {
   Search,
   RefreshCw,
@@ -273,7 +274,7 @@ export default function App() {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment" | "logout">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(INITIAL_FEEDS);
@@ -340,7 +341,7 @@ export default function App() {
   }, [userProfile]);
 
   // Navigate to tab with browser URL history update
-  const navigateToTab = (tab: "dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment") => {
+  const navigateToTab = (tab: "dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment" | "logout") => {
     setActiveTab(tab);
     try {
       if (userProfile) {
@@ -366,6 +367,7 @@ export default function App() {
           else if (path === "/console") setActiveTab("console");
           else if (path === "/api" || path === "/apidocs") setActiveTab("api");
           else if (path === "/domain") setActiveTab("domain");
+          else if (path === "/logout" || path === "/signout") setActiveTab("logout");
           else {
             setActiveTab("dashboard");
             if (path !== "/dashboard") {
@@ -773,18 +775,10 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  if (window.confirm("Do you want to log out of your account?")) {
-                    try {
-                      localStorage.removeItem("orabit_user_profile");
-                      window.history.pushState({}, "", "/login");
-                    } catch (e) {
-                      console.error(e);
-                    }
-                    setUserProfile(null);
-                  }
                   setSidebarOpen(false);
+                  navigateToTab("logout");
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30 transition-all"
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30 transition-all cursor-pointer"
               >
                 <LogOut className="w-4 h-4 text-rose-400" />
                 <span>Logout</span>
@@ -1456,6 +1450,7 @@ export default function App() {
           <UserProfileView
             userProfile={userProfile}
             onUpdateProfile={(updated) => setUserProfile(updated)}
+            onLogout={() => navigateToTab("logout")}
             currency={currency}
             usdExchangeRate={usdExchangeRate}
           />
@@ -1466,6 +1461,25 @@ export default function App() {
           <OrabitPaymentWallet
             userProfile={userProfile}
             onUpdateBalance={(newBal) => setUserProfile({ ...userProfile, balance: newBal })}
+            currency={currency}
+            usdExchangeRate={usdExchangeRate}
+          />
+        )}
+
+        {/* TAB 8: LOGOUT PAGE */}
+        {activeTab === "logout" && (
+          <LogoutPage
+            userProfile={userProfile}
+            onConfirmLogout={() => {
+              try {
+                localStorage.removeItem("orabit_user_profile");
+                window.history.pushState({}, "", "/login");
+              } catch (e) {
+                console.error(e);
+              }
+              setUserProfile(null);
+            }}
+            onCancel={() => navigateToTab("dashboard")}
             currency={currency}
             usdExchangeRate={usdExchangeRate}
           />
