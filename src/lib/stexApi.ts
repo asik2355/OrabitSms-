@@ -97,14 +97,27 @@ export async function requestStexNumber(params: {
         apiKey: key,
       }),
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
-  } catch (error: any) {
-    console.error("Stex requestStexNumber error:", error);
-    return {
-      meta: { code: 500, status: "error" },
-      data: null,
-      message: error.message || "Network error requesting Stex number",
-    };
+  } catch (proxyError) {
+    // Fallback to direct Stex API call
+    try {
+      const directRes = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/getnum", {
+        method: "POST",
+        headers: {
+          "mauthapi": key,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rid: params.query }),
+      });
+      return await directRes.json();
+    } catch (directError: any) {
+      return {
+        meta: { code: 500, status: "error" },
+        data: null,
+        message: directError.message || "Network error requesting Stex number",
+      };
+    }
   }
 }
 
@@ -115,12 +128,23 @@ export async function fetchStexOtps(apiKey?: string): Promise<StexOtpResponse> {
   const key = apiKey || DEFAULT_STEX_API_KEY;
   try {
     const res = await fetch(`/api/stex/success-otp?apiKey=${encodeURIComponent(key)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
-  } catch (error: any) {
-    console.error("Stex fetchStexOtps error:", error);
-    return {
-      meta: { code: 500, status: "error" },
-    };
+  } catch (proxyError) {
+    // Fallback to direct Stex API call
+    try {
+      const directRes = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/success-otp", {
+        method: "GET",
+        headers: {
+          "mauthapi": key,
+        },
+      });
+      return await directRes.json();
+    } catch (directError) {
+      return {
+        meta: { code: 500, status: "error" },
+      };
+    }
   }
 }
 
@@ -131,11 +155,22 @@ export async function fetchStexConsole(apiKey?: string): Promise<StexConsoleResp
   const key = apiKey || DEFAULT_STEX_API_KEY;
   try {
     const res = await fetch(`/api/stex/console?apiKey=${encodeURIComponent(key)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
-  } catch (error: any) {
-    console.error("Stex fetchStexConsole error:", error);
-    return {
-      meta: { code: 500, status: "error" },
-    };
+  } catch (proxyError) {
+    // Fallback to direct Stex API call
+    try {
+      const directRes = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/console", {
+        method: "GET",
+        headers: {
+          "mauthapi": key,
+        },
+      });
+      return await directRes.json();
+    } catch (directError) {
+      return {
+        meta: { code: 500, status: "error" },
+      };
+    }
   }
 }
