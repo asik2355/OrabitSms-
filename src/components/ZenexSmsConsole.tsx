@@ -108,6 +108,92 @@ const GLOBAL_TRENDING = [
   { id: 10, name: "fairpari", color: "#f59e0b", icon: "🎲", hits: "410" },
 ];
 
+function detectServiceAndColor(rawMessage: string, sidFallback?: string) {
+  const msgUpper = (rawMessage || "").toUpperCase();
+
+  if (msgUpper.includes("INSTAGRAM") || msgUpper.includes("INSTA CODE") || msgUpper.includes("#IG")) {
+    return {
+      service: "INSTAGRAM",
+      color: "bg-pink-950/80 text-pink-400 border-pink-500/30",
+    };
+  }
+  if (msgUpper.includes("WHATSAPP")) {
+    return {
+      service: "WHATSAPP",
+      color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30",
+    };
+  }
+  if (msgUpper.includes("FACEBOOK") || msgUpper.includes("FB-") || msgUpper.includes("FACEBOOK CODE")) {
+    return {
+      service: "FACEBOOK",
+      color: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    };
+  }
+  if (msgUpper.includes("TELEGRAM")) {
+    return {
+      service: "TELEGRAM",
+      color: "bg-sky-950/80 text-sky-400 border-sky-500/30",
+    };
+  }
+  if (msgUpper.includes("IMO")) {
+    return {
+      service: "IMO",
+      color: "bg-cyan-950/80 text-cyan-400 border-cyan-500/30",
+    };
+  }
+  if (msgUpper.includes("DISCORD")) {
+    return {
+      service: "DISCORD",
+      color: "bg-indigo-950/80 text-indigo-400 border-indigo-500/30",
+    };
+  }
+  if (msgUpper.includes("TIKTOK")) {
+    return {
+      service: "TIKTOK",
+      color: "bg-rose-950/80 text-rose-400 border-rose-500/30",
+    };
+  }
+  if (msgUpper.includes("GOOGLE") || msgUpper.includes("G-")) {
+    return {
+      service: "GOOGLE",
+      color: "bg-amber-950/80 text-amber-400 border-amber-500/30",
+    };
+  }
+  if (msgUpper.includes("NETFLIX")) {
+    return {
+      service: "NETFLIX",
+      color: "bg-red-950/80 text-red-400 border-red-500/30",
+    };
+  }
+  if (msgUpper.includes("CLOUDOTP")) {
+    return {
+      service: "CLOUDOTP",
+      color: "bg-purple-950/80 text-purple-400 border-purple-500/30",
+    };
+  }
+
+  // Fallback to CLI / API sid if no keyword found in message body
+  const sidUpper = (sidFallback || "").trim().toUpperCase();
+  if (sidUpper && sidUpper !== "SERVICE" && sidUpper !== "UNKNOWN") {
+    let color = "bg-blue-950/80 text-blue-400 border-blue-500/30";
+    if (sidUpper.includes("WHATSAPP")) color = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
+    else if (sidUpper.includes("INSTAGRAM") || sidUpper.includes("INSTA")) color = "bg-pink-950/80 text-pink-400 border-pink-500/30";
+    else if (sidUpper.includes("TELEGRAM")) color = "bg-sky-950/80 text-sky-400 border-sky-500/30";
+    else if (sidUpper.includes("IMO")) color = "bg-cyan-950/80 text-cyan-400 border-cyan-500/30";
+    else if (sidUpper.includes("FACEBOOK")) color = "bg-blue-950/80 text-blue-400 border-blue-500/30";
+    else if (sidUpper.includes("GOOGLE")) color = "bg-amber-950/80 text-amber-400 border-amber-500/30";
+    else if (sidUpper.includes("DISCORD")) color = "bg-indigo-950/80 text-indigo-400 border-indigo-500/30";
+    else if (sidUpper.includes("CLOUDOTP")) color = "bg-purple-950/80 text-purple-400 border-purple-500/30";
+
+    return { service: sidUpper, color };
+  }
+
+  return {
+    service: "SMS OTP",
+    color: "bg-purple-950/80 text-purple-400 border-purple-500/30",
+  };
+}
+
 const MOCK_LIVE_MESSAGES: SmsMessage[] = [];
 
 const INITIAL_FEEDS: FeedNumber[] = [
@@ -219,13 +305,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
           const liveConsoleMsgs: SmsMessage[] = hits.map((h, idx) => {
             const formattedTime = new Date(Number(h.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
             const extracted = extractOtpFromMessage(h.message);
-            const serviceUpper = (h.sid || "SERVICE").toUpperCase();
-
-            let serviceColor = "bg-blue-950/80 text-blue-400 border-blue-500/30";
-            if (serviceUpper.includes("WHATSAPP")) serviceColor = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
-            else if (serviceUpper.includes("INSTAGRAM")) serviceColor = "bg-pink-950/80 text-pink-400 border-pink-500/30";
-            else if (serviceUpper.includes("TELEGRAM")) serviceColor = "bg-sky-950/80 text-sky-400 border-sky-500/30";
-            else if (serviceUpper.includes("IMO")) serviceColor = "bg-cyan-950/80 text-cyan-400 border-cyan-500/30";
+            const { service: detectedService, color: serviceColor } = detectServiceAndColor(h.message, h.sid);
 
             const locInfo = getCountryAndOperatorFromRange(h.range);
 
@@ -240,7 +320,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
               operator: locInfo.operator,
               country: locInfo.country,
               countryIso: locInfo.iso,
-              service: serviceUpper,
+              service: detectedService,
               serviceColor,
               number: displayRange,
               otpCode: extracted,
