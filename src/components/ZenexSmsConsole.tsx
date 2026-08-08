@@ -383,7 +383,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
   const handleGetNumber = async () => {
     if (provisioning) return;
     setProvisioning(true);
-    setProvisionMsg("Connecting to StexSMS Core Routing Engine...");
+    setProvisionMsg("Connecting to ORABIT Core Routing Engine...");
 
     const cleanInput = targetRange.trim().replace(/X/gi, "") || "26134";
 
@@ -410,7 +410,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
           country: d.country || "MADAGASCAR",
           operator: d.operator || "AIRTEL",
           timeAgo: "Just now",
-          service: "STEX_OTP",
+          service: "SMS OTP",
         };
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
@@ -429,7 +429,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
       }
     } catch (err: any) {
       console.error("ZenexSmsConsole handleGetNumber error:", err);
-      setProvisionMsg("❌ StexSMS API Connection Error.");
+      setProvisionMsg("❌ API Connection Error.");
     } finally {
       setProvisioning(false);
     }

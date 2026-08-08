@@ -487,14 +487,35 @@ export default function App() {
           const stexMsgs: SmsMessage[] = fetchedOtps.map((o, idx) => {
             const extracted = extractOtpFromMessage(o.message);
             const formattedTime = new Date(Number(o.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
+
+            let detectedService = "SMS OTP";
+            let serviceColor = "bg-purple-950/80 text-purple-400 border-purple-500/30";
+            const msgUpper = (o.message || "").toUpperCase();
+            if (msgUpper.includes("FACEBOOK")) {
+              detectedService = "FACEBOOK";
+              serviceColor = "bg-blue-950/80 text-blue-400 border-blue-500/30";
+            } else if (msgUpper.includes("WHATSAPP")) {
+              detectedService = "WHATSAPP";
+              serviceColor = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
+            } else if (msgUpper.includes("INSTAGRAM") || msgUpper.includes("#IG")) {
+              detectedService = "INSTAGRAM";
+              serviceColor = "bg-pink-950/80 text-pink-400 border-pink-500/30";
+            } else if (msgUpper.includes("TELEGRAM")) {
+              detectedService = "TELEGRAM";
+              serviceColor = "bg-sky-950/80 text-sky-400 border-sky-500/30";
+            } else if (msgUpper.includes("IMO")) {
+              detectedService = "IMO";
+              serviceColor = "bg-cyan-950/80 text-cyan-400 border-cyan-500/30";
+            }
+
             return {
-              id: `stex-otp-${o.otp_id || idx}-${o.time}`,
+              id: `otp-${o.otp_id || idx}-${o.time}`,
               time: formattedTime,
-              operator: "Stex Network",
+              operator: "GSM Core",
               country: "Global",
               countryIso: "un",
-              service: "STEX_OTP",
-              serviceColor: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30",
+              service: detectedService,
+              serviceColor,
               number: o.number,
               otpCode: extracted,
               rawMessage: o.message,
@@ -580,7 +601,7 @@ export default function App() {
   const handleGetNumber = async () => {
     if (provisioning) return;
     setProvisioning(true);
-    setProvisionMsg("Connecting to StexSMS Core API...");
+    setProvisionMsg("Connecting to ORABIT Core Network...");
 
     const cleanInput = targetRange.trim().replace(/X/gi, "") || "26134";
     const activeKey = apiKey || DEFAULT_STEX_API_KEY;
@@ -601,10 +622,10 @@ export default function App() {
           finalFormattedNumber = rawNational;
         }
 
-        const countryName = d.country || "Stex Pool";
-        const operatorName = d.operator || "GSM Operator";
+        const countryName = (d.country && d.country !== "Stex Pool") ? d.country : "Global Pool";
+        const operatorName = d.operator || "GSM Network";
 
-        const newItemId = "stex-feed-" + Date.now();
+        const newItemId = "feed-" + Date.now();
         const newFeedItem: FeedNumber = {
           id: newItemId,
           number: rawNoPlus,
@@ -612,7 +633,7 @@ export default function App() {
           country: countryName,
           operator: operatorName,
           timeAgo: "Just now",
-          service: "STEX_OTP",
+          service: "SMS OTP",
         };
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
@@ -640,7 +661,7 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("handleGetNumber exception:", err);
-      setProvisionMsg("❌ StexSMS API Connection Error. Please try again.");
+      setProvisionMsg("❌ Connection Error. Please try again.");
     } finally {
       setProvisioning(false);
     }
