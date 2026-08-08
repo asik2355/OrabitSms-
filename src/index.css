@@ -146,3 +146,19 @@
   animation: iconBounce 2s ease-in-out infinite;
 }
 
+/* ANTI-DOWNLOAD & LONG-PRESS IMAGE PROTECTION */
+img, svg, picture {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-drag: none !important;
+  pointer-events: none !important;
+}
+
+.protected-img-container {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+

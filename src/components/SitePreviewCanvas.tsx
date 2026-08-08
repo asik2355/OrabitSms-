@@ -358,11 +358,16 @@ export const SitePreviewCanvas: React.FC<SitePreviewCanvasProps> = ({
 
               {/* Hero Image */}
               {config.hero.showHeroImage && config.hero.heroImage && (
-                <div className="mt-8 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800">
+                <div className="mt-8 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800 select-none protected-img-container">
                   <img
                     src={config.hero.heroImage}
                     alt="Hero Visual"
-                    className="w-full h-64 sm:h-96 object-cover hover:scale-105 transition-transform duration-700"
+                    className="w-full h-64 sm:h-96 object-cover hover:scale-105 transition-transform duration-700 pointer-events-none select-none"
+                    loading="eager"
+                    decoding="async"
+                    draggable={false}
+                    onContextMenu={(e) => e.preventDefault()}
+                    onDragStart={(e) => e.preventDefault()}
                   />
                 </div>
               )}
@@ -505,11 +510,16 @@ export const SitePreviewCanvas: React.FC<SitePreviewCanvasProps> = ({
               </div>
 
               {config.about.image && (
-                <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-800">
+                <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-800 select-none protected-img-container">
                   <img
                     src={config.about.image}
                     alt="About Us"
-                    className="w-full h-72 sm:h-96 object-cover"
+                    className="w-full h-72 sm:h-96 object-cover pointer-events-none select-none"
+                    loading="eager"
+                    decoding="async"
+                    draggable={false}
+                    onContextMenu={(e) => e.preventDefault()}
+                    onDragStart={(e) => e.preventDefault()}
                   />
                 </div>
               )}
