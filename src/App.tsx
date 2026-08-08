@@ -93,6 +93,28 @@ interface FeedNumber {
   rawMessage?: string;
 }
 
+function extractOtpFromText(rawText: string): string {
+  if (!rawText) return "318215";
+
+  // 1. Hyphenated 6-digit code e.g. "212-123" or "492-018"
+  const hyphenated = rawText.match(/\b\d{3}-\d{3}\b/);
+  if (hyphenated) return hyphenated[0];
+
+  // 2. Prefixed code format e.g. "G-123456" or "FB-78291"
+  const prefixedCode = rawText.match(/\b[A-Z]{1,3}-\d{4,8}\b/i);
+  if (prefixedCode) return prefixedCode[0];
+
+  // 3. Any 4 to 8 digit numbers in the text e.g. "318215", "782910"
+  const digits = rawText.match(/\b\d{4,8}\b/);
+  if (digits) return digits[0];
+
+  // 4. Alphanumeric code (like ZBYKMCDOL)
+  const alphaMatch = rawText.match(/\b[A-Z0-9]{5,10}\b/);
+  if (alphaMatch) return alphaMatch[0];
+
+  return "318215";
+}
+
 const INITIAL_TRAFFIC_DATA = [
   { time: "00:00", volume: 0 },
   { time: "02:00", volume: 0.1 },
@@ -372,12 +394,13 @@ export default function App() {
       setAutoSyncSeconds((prev) => {
         if (prev <= 1) {
           const serviceTemplates = [
-            { name: "INSTAGRAM", color: "bg-pink-950/80 text-pink-400 border-pink-500/30", raw: "<#> *** *** is your Instagram code. Don't share it. SIYRxKrru1t" },
-            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> ***** is your Facebook code H29Q+Fsn4Sr" },
-            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> FB-***** is your Facebook confirmation code m.facebook.com #*****" },
-            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "<#> Your WhatsApp code: ***-*** Don't share this code with others 4sgLq1p5sV6" },
-            { name: "TELEGRAM", color: "bg-sky-950/80 text-sky-400 border-sky-500/30", raw: "<#> Telegram code: ***** Do not share this code with anyone." },
-            { name: "IMO", color: "bg-cyan-950/80 text-cyan-400 border-cyan-500/30", raw: "<#> IMO verification code: *****. Keep it private." },
+            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW" },
+            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "212-123 is your WhatsApp code" },
+            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others 4sgLq1p5sV6" },
+            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr" },
+            { name: "INSTAGRAM", color: "bg-pink-950/80 text-pink-400 border-pink-500/30", raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t" },
+            { name: "TELEGRAM", color: "bg-sky-950/80 text-sky-400 border-sky-500/30", raw: "<#> Telegram code: 849-201 Do not share this code with anyone." },
+            { name: "IMO", color: "bg-cyan-950/80 text-cyan-400 border-cyan-500/30", raw: "<#> IMO verification code: 593-102. Keep it private." },
           ];
 
           const locations = [
@@ -404,7 +427,7 @@ export default function App() {
             service: s.name,
             serviceColor: s.color,
             number: randNum,
-            otpCode: "*****",
+            otpCode: extractOtpFromText(s.raw),
             rawMessage: s.raw,
           };
 
@@ -492,22 +515,28 @@ export default function App() {
       setTimeout(() => {
         const sampleOtps = [
           {
-            service: "INSTAGRAM",
-            otp: "000000",
-            raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t",
-          },
-          {
             service: "FACEBOOK",
-            otp: "782910",
-            raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr",
+            raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW",
           },
           {
             service: "WHATSAPP",
-            otp: "492018",
+            raw: "212-123 is your WhatsApp code",
+          },
+          {
+            service: "WHATSAPP",
             raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others",
+          },
+          {
+            service: "FACEBOOK",
+            raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr",
+          },
+          {
+            service: "INSTAGRAM",
+            raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t",
           },
         ];
         const selected = sampleOtps[Math.floor(Math.random() * sampleOtps.length)];
+        const extractedCode = extractOtpFromText(selected.raw);
 
         setFeedNumbers((prev) =>
           prev.map((item) => {
@@ -516,7 +545,7 @@ export default function App() {
                 ...item,
                 status: "SUCCESS",
                 service: selected.service,
-                otpCode: selected.otp,
+                otpCode: extractedCode,
                 rawMessage: selected.raw,
                 timeAgo: "just now",
               };
