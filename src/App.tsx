@@ -115,30 +115,6 @@ function extractOtpFromText(rawText: string): string {
   return "318215";
 }
 
-function parsePrefixGeo(rangeStr: string) {
-  const digits = (rangeStr || "").replace(/X/gi, "").replace(/\+/g, "");
-  if (digits.startsWith("225")) return { country: "IVORY COAST", iso: "ci", op: "Orange" };
-  if (digits.startsWith("224")) return { country: "GUINEA", iso: "gn", op: "Orange" };
-  if (digits.startsWith("261")) return { country: "MADAGASCAR", iso: "mg", op: "Airtel" };
-  if (digits.startsWith("374")) return { country: "ARMENIA", iso: "am", op: "Ucom" };
-  if (digits.startsWith("880")) return { country: "BANGLADESH", iso: "bd", op: "Grameenphone" };
-  if (digits.startsWith("966")) return { country: "SAUDI ARABIA", iso: "sa", op: "Zain" };
-  if (digits.startsWith("992")) return { country: "TAJIKISTAN", iso: "tj", op: "Babilon-M" };
-  if (digits.startsWith("44")) return { country: "UNITED KINGDOM", iso: "gb", op: "EE" };
-  if (digits.startsWith("1")) return { country: "UNITED STATES", iso: "us", op: "T-Mobile" };
-  return { country: "GLOBAL", iso: "un", op: "Telecom" };
-}
-
-function getServiceColor(sid: string) {
-  const name = (sid || "").toUpperCase();
-  if (name.includes("FACEBOOK") || name.includes("FB")) return "bg-blue-950/80 text-blue-400 border-blue-500/30";
-  if (name.includes("WHATSAPP")) return "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
-  if (name.includes("INSTAGRAM")) return "bg-pink-950/80 text-pink-400 border-pink-500/30";
-  if (name.includes("TELEGRAM")) return "bg-sky-950/80 text-sky-400 border-sky-500/30";
-  if (name.includes("IMO")) return "bg-cyan-950/80 text-cyan-400 border-cyan-500/30";
-  return "bg-slate-900/80 text-emerald-400 border-slate-700/50";
-}
-
 const INITIAL_TRAFFIC_DATA = [
   { time: "00:00", volume: 0 },
   { time: "02:00", volume: 0.1 },
@@ -288,7 +264,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment" | "logout">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [messages, setMessages] = useState<SmsMessage[]>([]);
+  const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(INITIAL_FEEDS);
   const [searchQuery, setSearchQuery] = useState("");
   const [feedFilter, setFeedFilter] = useState<"ALL" | "SUCCESS" | "PENDING" | "FAILED">("ALL");
@@ -412,56 +388,55 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Live Auto Sync Loop - Fetches live hits from Stex SMS API /api/sms/console-hits in real-time
+  // Live Auto Sync Loop - Simulates incoming global OTP traffic in real-time
   useEffect(() => {
-    const fetchRealConsoleHits = async () => {
-      try {
-        const res = await fetch("/api/sms/console-hits");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data && data.success && Array.isArray(data.hits) && data.hits.length > 0) {
-          const liveMsgs: SmsMessage[] = data.hits.map((hit: any, idx: number) => {
-            const range = hit.range || "22501XXX";
-            const geo = parsePrefixGeo(range);
-            const rawMsg = hit.message || `<#> ${hit.service || "Service"} verification code`;
-            const timeStr = hit.time
-              ? new Date(hit.time).toLocaleTimeString("en-US", { hour12: true })
-              : new Date().toLocaleTimeString("en-US", { hour12: true });
-
-            return {
-              id: `stex-${hit.time || Date.now()}-${idx}-${hit.range || ""}`,
-              time: timeStr,
-              operator: geo.op,
-              country: geo.country,
-              countryIso: geo.iso,
-              service: (hit.service || "WHATSAPP").toUpperCase(),
-              serviceColor: getServiceColor(hit.service || ""),
-              number: range,
-              otpCode: extractOtpFromText(rawMsg),
-              rawMessage: rawMsg,
-            };
-          });
-
-          setMessages((prev) => {
-            if (prev.length === 0) return liveMsgs;
-            const existingIds = new Set(prev.map((m) => m.id));
-            const fresh = liveMsgs.filter((m) => !existingIds.has(m.id));
-            if (fresh.length > 0) {
-              return [...fresh, ...prev].slice(0, 100);
-            }
-            return prev;
-          });
-        }
-      } catch {
-        // Silently catch network glitches
-      }
-    };
-
-    fetchRealConsoleHits();
     const timer = setInterval(() => {
-      fetchRealConsoleHits();
-      setAutoSyncSeconds((prev) => (prev <= 1 ? 5 : prev - 1));
-    }, 5000);
+      setAutoSyncSeconds((prev) => {
+        if (prev <= 1) {
+          const serviceTemplates = [
+            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW" },
+            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "212-123 is your WhatsApp code" },
+            { name: "WHATSAPP", color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30", raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others 4sgLq1p5sV6" },
+            { name: "FACEBOOK", color: "bg-blue-950/80 text-blue-400 border-blue-500/30", raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr" },
+            { name: "INSTAGRAM", color: "bg-pink-950/80 text-pink-400 border-pink-500/30", raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t" },
+            { name: "TELEGRAM", color: "bg-sky-950/80 text-sky-400 border-sky-500/30", raw: "<#> Telegram code: 849-201 Do not share this code with anyone." },
+            { name: "IMO", color: "bg-cyan-950/80 text-cyan-400 border-cyan-500/30", raw: "<#> IMO verification code: 593-102. Keep it private." },
+          ];
+
+          const locations = [
+            { country: "GUINEA", iso: "gn", operators: ["Mobile", "Orange"], prefix: "224" },
+            { country: "MADAGASCAR", iso: "mg", operators: ["Airtel", "Telma"], prefix: "261" },
+            { country: "SAUDI ARABIA", iso: "sa", operators: ["Zain", "STC"], prefix: "966" },
+            { country: "TAJIKISTAN", iso: "tj", operators: ["Babilon-M", "Tcell"], prefix: "992" },
+            { country: "BANGLADESH", iso: "bd", operators: ["Grameenphone", "Robi"], prefix: "880" },
+            { country: "MONTENEGRO", iso: "me", operators: ["Telenor", "One"], prefix: "382" },
+          ];
+
+          const s = serviceTemplates[Math.floor(Math.random() * serviceTemplates.length)];
+          const loc = locations[Math.floor(Math.random() * locations.length)];
+          const op = loc.operators[Math.floor(Math.random() * loc.operators.length)];
+          const randNum = loc.prefix + Math.floor(100000 + Math.random() * 900000) + "XXX";
+          const nowTime = new Date().toLocaleTimeString("en-US", { hour12: true });
+
+          const newMsg: SmsMessage = {
+            id: "msg-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9),
+            time: nowTime,
+            operator: op,
+            country: loc.country,
+            countryIso: loc.iso,
+            service: s.name,
+            serviceColor: s.color,
+            number: randNum,
+            otpCode: extractOtpFromText(s.raw),
+            rawMessage: s.raw,
+          };
+
+          setMessages((prev) => [newMsg, ...prev.slice(0, 19)]);
+          return 5;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
     return () => clearInterval(timer);
   }, []);
@@ -472,96 +447,114 @@ export default function App() {
     setTimeout(() => setCopiedText(null), 2000);
   };
 
-  const handleGetNumber = async () => {
+  const handleGetNumber = () => {
     setProvisioning(true);
-    setProvisionMsg("Connecting to Stex SMS & Core Routing Engine...");
+    setProvisionMsg("Connecting to Core Routing Engine...");
 
-    try {
-      const res = await fetch("/api/sms/getnum", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetRange, isNational, noPlus }),
-      });
-      const data = await res.json();
+    setTimeout(() => {
+      const rawInput = targetRange.trim() || "22507XXX";
+      let basePrefix = rawInput.replace(/X/gi, "");
+      if (!basePrefix) basePrefix = "22507";
 
-      if (data && data.success) {
-        const formattedNumber = data.number;
-        const providerName = data.provider || "STEX";
-        const detectedCountry = data.country || "Global";
-        const detectedOperator = data.operator || "Orange";
-
-        try {
-          await navigator.clipboard.writeText(formattedNumber);
-        } catch (e) {
-          console.error("Auto copy failed", e);
-        }
-
-        setCopiedText(`Copied ${formattedNumber}`);
-        setTimeout(() => setCopiedText(null), 3000);
-
-        const newItemId = "feed-" + Date.now();
-        const rawDigits = formattedNumber.replace(/^\+/, "");
-        const newFeedItem: FeedNumber = {
-          id: newItemId,
-          number: rawDigits,
-          status: "PENDING",
-          country: detectedCountry,
-          operator: detectedOperator,
-          timeAgo: "just now",
-          service: "INSTAGRAM",
-        };
-
-        setFeedNumbers((prev) => [newFeedItem, ...prev]);
-        setProvisioning(false);
-        setProvisionMsg(`Allocated Number: ${formattedNumber} [${providerName}]`);
-        setTimeout(() => setProvisionMsg(null), 4000);
-
-        // Real OTP Polling Loop - polls every 4 seconds for up to 12 attempts (48 seconds)
-        let attempts = 0;
-        const pollInterval = setInterval(async () => {
-          attempts += 1;
-          try {
-            const otpRes = await fetch("/api/sms/fetch-otp", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ number: formattedNumber }),
-            });
-            const otpData = await otpRes.json();
-
-            if (otpData && otpData.success && otpData.otpCode) {
-              clearInterval(pollInterval);
-              setFeedNumbers((prev) =>
-                prev.map((item) => {
-                  if (item.id === newItemId) {
-                    return {
-                      ...item,
-                      status: "SUCCESS",
-                      service: otpData.service || "WHATSAPP",
-                      otpCode: otpData.otpCode,
-                      rawMessage: otpData.rawMessage,
-                      timeAgo: "just now",
-                    };
-                  }
-                  return item;
-                })
-              );
-            } else if (attempts >= 12) {
-              clearInterval(pollInterval);
-            }
-          } catch (e) {
-            console.error("OTP fetch polling error", e);
-            if (attempts >= 12) clearInterval(pollInterval);
-          }
-        }, 4000);
-      } else {
-        throw new Error(data?.error || "Out of stock / Range error from Stex API");
+      const targetLength = Math.max(12, basePrefix.length + 3);
+      let fullDigits = basePrefix;
+      while (fullDigits.length < targetLength) {
+        fullDigits += Math.floor(Math.random() * 10).toString();
       }
-    } catch (err: any) {
-      console.error("Get Number failed:", err);
+
+      const formattedNumber = noPlus ? fullDigits : (fullDigits.startsWith("+") ? fullDigits : `+${fullDigits}`);
+
+      try {
+        navigator.clipboard.writeText(formattedNumber);
+      } catch (e) {
+        console.error("Auto copy failed", e);
+      }
+
+      setCopiedText(`Copied ${formattedNumber}`);
+      setTimeout(() => setCopiedText(null), 3000);
+
+      let detectedCountry = "Ivory Coast";
+      let detectedOperator = "Orange";
+
+      if (fullDigits.startsWith("225")) {
+        detectedCountry = "Ivory Coast";
+        detectedOperator = "Orange";
+      } else if (fullDigits.startsWith("261")) {
+        detectedCountry = "Madagascar";
+        detectedOperator = "Airtel";
+      } else if (fullDigits.startsWith("374")) {
+        detectedCountry = "Armenia";
+        detectedOperator = "Ucom";
+      } else if (fullDigits.startsWith("880")) {
+        detectedCountry = "Bangladesh";
+        detectedOperator = "Grameenphone";
+      } else if (fullDigits.startsWith("966")) {
+        detectedCountry = "Saudi Arabia";
+        detectedOperator = "Zain";
+      } else if (fullDigits.startsWith("224")) {
+        detectedCountry = "Guinea";
+        detectedOperator = "Orange";
+      }
+
+      const newItemId = "feed-" + Date.now();
+      const newFeedItem: FeedNumber = {
+        id: newItemId,
+        number: fullDigits,
+        status: "PENDING",
+        country: detectedCountry,
+        operator: detectedOperator,
+        timeAgo: "just now",
+        service: "INSTAGRAM",
+      };
+
+      setFeedNumbers((prev) => [newFeedItem, ...prev]);
       setProvisioning(false);
-      setProvisionMsg(err.message || "Out of stock or Range error from Stex API");
+      setProvisionMsg(`Provisioned Number: ${formattedNumber}`);
       setTimeout(() => setProvisionMsg(null), 4000);
-    }
+
+      setTimeout(() => {
+        const sampleOtps = [
+          {
+            service: "FACEBOOK",
+            raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW",
+          },
+          {
+            service: "WHATSAPP",
+            raw: "212-123 is your WhatsApp code",
+          },
+          {
+            service: "WHATSAPP",
+            raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others",
+          },
+          {
+            service: "FACEBOOK",
+            raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr",
+          },
+          {
+            service: "INSTAGRAM",
+            raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t",
+          },
+        ];
+        const selected = sampleOtps[Math.floor(Math.random() * sampleOtps.length)];
+        const extractedCode = extractOtpFromText(selected.raw);
+
+        setFeedNumbers((prev) =>
+          prev.map((item) => {
+            if (item.id === newItemId) {
+              return {
+                ...item,
+                status: "SUCCESS",
+                service: selected.service,
+                otpCode: extractedCode,
+                rawMessage: selected.raw,
+                timeAgo: "just now",
+              };
+            }
+            return item;
+          })
+        );
+      }, 3500);
+    }, 500);
   };
 
   const filteredMessages = messages.filter((m) => {
