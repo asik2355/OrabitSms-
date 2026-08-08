@@ -2,6 +2,13 @@ import React, { useState, useEffect } from "react";
 import { ServiceLogo } from "./ServiceLogo";
 import { OrabitApiDoc } from "./OrabitApiDoc";
 import {
+  requestStexNumber,
+  fetchStexOtps,
+  fetchStexConsole,
+  extractOtpFromMessage,
+  DEFAULT_STEX_API_KEY,
+} from "../lib/stexApi";
+import {
   Search,
   RefreshCw,
   Clock,
@@ -324,32 +331,108 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
     return () => clearInterval(timer);
   }, []);
 
+  // Stex SMS Real-Time OTP Listener
+  useEffect(() => {
+    const pollOtps = async () => {
+      try {
+        const res = await fetchStexOtps(DEFAULT_STEX_API_KEY);
+        if (res.meta && res.meta.code === 200 && res.data && res.data.otps && res.data.otps.length > 0) {
+          const fetchedOtps = res.data.otps;
+
+          setFeedNumbers((prevFeed) => {
+            let updated = false;
+            const newFeed = prevFeed.map((item) => {
+              const matchedOtp = fetchedOtps.find((o) => {
+                const oNum = (o.number || "").replace(/\D/g, "");
+                const iNum = (item.number || "").replace(/\D/g, "");
+                return oNum === iNum || oNum.endsWith(iNum) || iNum.endsWith(oNum);
+              });
+
+              if (matchedOtp && item.status !== "SUCCESS") {
+                updated = true;
+                const extracted = extractOtpFromMessage(matchedOtp.message);
+                return {
+                  ...item,
+                  status: "SUCCESS" as const,
+                  otpCode: extracted,
+                  rawMessage: matchedOtp.message,
+                  timeAgo: "Just now",
+                };
+              }
+              return item;
+            });
+            return updated ? newFeed : prevFeed;
+          });
+        }
+      } catch (err) {
+        console.error("ZenexSmsConsole OTP polling error:", err);
+      }
+    };
+
+    pollOtps();
+    const interval = setInterval(pollOtps, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(label);
     setTimeout(() => setCopiedText(null), 2000);
   };
 
-  const handleGetNumber = () => {
+  const handleGetNumber = async () => {
+    if (provisioning) return;
     setProvisioning(true);
-    setProvisionMsg("Connecting to Zenex Core Routing Engine...");
-    setTimeout(() => {
-      const generated = "26134" + Math.floor(1000000 + Math.random() * 9000000);
-      const newFeedItem: FeedNumber = {
-        id: "feed-" + Date.now(),
-        number: generated,
-        status: "PENDING",
-        country: "MADAGASCAR",
-        operator: "AIRTEL",
-        timeAgo: "Just now",
-        service: targetRange.toUpperCase() || "SMS_OTP",
-      };
+    setProvisionMsg("Connecting to StexSMS Core Routing Engine...");
 
-      setFeedNumbers((prev) => [newFeedItem, ...prev]);
+    const cleanInput = targetRange.trim().replace(/X/gi, "") || "26134";
+
+    try {
+      const result = await requestStexNumber({ query: cleanInput, apiKey: DEFAULT_STEX_API_KEY });
+
+      if (result.meta && result.meta.code === 200 && result.data) {
+        const d = result.data;
+        const rawNoPlus = d.no_plus_number || (d.full_number ? d.full_number.replace(/\+/g, "") : cleanInput);
+        const rawNational = d.national_number || rawNoPlus;
+        const rawFull = d.full_number || `+${rawNoPlus}`;
+
+        let finalFormattedNumber = rawFull;
+        if (noPlus) {
+          finalFormattedNumber = rawNoPlus;
+        } else if (isNational) {
+          finalFormattedNumber = rawNational;
+        }
+
+        const newFeedItem: FeedNumber = {
+          id: "feed-" + Date.now(),
+          number: rawNoPlus,
+          status: "PENDING",
+          country: d.country || "MADAGASCAR",
+          operator: d.operator || "AIRTEL",
+          timeAgo: "Just now",
+          service: "STEX_OTP",
+        };
+
+        setFeedNumbers((prev) => [newFeedItem, ...prev]);
+        setProvisionMsg(`✓ Successfully Provisioned: ${finalFormattedNumber}`);
+
+        try {
+          await navigator.clipboard.writeText(finalFormattedNumber);
+          setCopiedText(`Copied ${finalFormattedNumber}`);
+          setTimeout(() => setCopiedText(null), 3000);
+        } catch (e) {
+          console.error("Auto copy error:", e);
+        }
+      } else {
+        const errMsg = result.message || "No numbers available in this range. Try a different range.";
+        setProvisionMsg(`❌ ${errMsg}`);
+      }
+    } catch (err: any) {
+      console.error("ZenexSmsConsole handleGetNumber error:", err);
+      setProvisionMsg("❌ StexSMS API Connection Error.");
+    } finally {
       setProvisioning(false);
-      setProvisionMsg(`Successfully Provisioned: +${generated}`);
-      setTimeout(() => setProvisionMsg(null), 4000);
-    }, 1200);
+    }
   };
 
   const filteredMessages = messages.filter((m) => {

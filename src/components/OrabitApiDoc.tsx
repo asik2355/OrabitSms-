@@ -16,13 +16,13 @@ export const OrabitApiDoc: React.FC<OrabitApiDocProps> = ({ apiKey }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Playground state
-  const [playgroundKey, setPlaygroundKey] = useState("");
+  const [playgroundKey, setPlaygroundKey] = useState("M4DDE8HGFJ9");
   const [selectedEndpoint, setSelectedEndpoint] = useState<string>("POST /@public/api/getnum");
   const [ridInput, setRidInput] = useState<string>("26134");
   const [playgroundRunning, setPlaygroundRunning] = useState<boolean>(false);
   const [playgroundResponse, setPlaygroundResponse] = useState<string | null>(null);
 
-  const basePath = "https://orabitsms.xyz/@public/api";
+  const basePath = "https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api";
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -30,110 +30,49 @@ export const OrabitApiDoc: React.FC<OrabitApiDocProps> = ({ apiKey }) => {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const handleRunPlayground = () => {
+  const handleRunPlayground = async () => {
     setPlaygroundRunning(true);
     setPlaygroundResponse(null);
 
-    setTimeout(() => {
-      setPlaygroundRunning(false);
+    const activeKey = playgroundKey.trim() || "M4DDE8HGFJ9";
 
-      if (!playgroundKey.trim()) {
-        setPlaygroundResponse(
-          JSON.stringify(
-            {
-              meta: { code: 401, status: "unauthorized" },
-              message: "Enter your API key first"
-            },
-            null,
-            2
-          )
-        );
-        return;
-      }
-
-      const currentTimeMs = Date.now();
-
+    try {
       if (selectedEndpoint === "POST /@public/api/getnum") {
-        const rid = ridInput || "26134";
-        setPlaygroundResponse(
-          JSON.stringify(
-            {
-              meta: { code: 200, status: "ok" },
-              data: {
-                full_number: "+447404333228",
-                national_number: "7404333228",
-                no_plus_number: "447404333228",
-                country: "United Kingdom",
-                operator: "EE",
-              },
-              message: "number allocated",
-              rid: rid,
-            },
-            null,
-            2
-          )
-        );
-      } else if (selectedEndpoint === "GET /@public/api/liveaccess") {
-        setPlaygroundResponse(
-          JSON.stringify(
-            {
-              meta: { code: 200, status: "ok" },
-              data: {
-                cached: true,
-                services: [
-                  { sid: "Telegram", last_at: currentTimeMs, ranges: ["22501XXX", "8801XXX"] },
-                ],
-              },
-              message: "ok",
-              rid: "…",
-            },
-            null,
-            2
-          )
-        );
+        const rid = ridInput.trim() || "26134";
+        const res = await fetch("/api/stex/getnum", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: rid, apiKey: activeKey }),
+        });
+        const json = await res.json();
+        setPlaygroundResponse(JSON.stringify(json, null, 2));
       } else if (selectedEndpoint === "GET /@public/api/success-otp") {
-        setPlaygroundResponse(
-          JSON.stringify(
-            {
-              meta: { code: 200, status: "ok" },
-              data: {
-                cached: false,
-                otps: [
-                  {
-                    otp_id: "4474043332281779460000000",
-                    number: "447404333228",
-                    message: "Your code is 123456",
-                    time: 1779460000000,
-                  },
-                ],
-              },
-              message: "ok",
-              rid: "…",
-            },
-            null,
-            2
-          )
-        );
+        const res = await fetch(`/api/stex/success-otp?apiKey=${encodeURIComponent(activeKey)}`);
+        const json = await res.json();
+        setPlaygroundResponse(JSON.stringify(json, null, 2));
       } else if (selectedEndpoint === "GET /@public/api/console") {
-        setPlaygroundResponse(
-          JSON.stringify(
-            {
-              meta: { code: 200, status: "ok" },
-              data: {
-                cached: false,
-                hits: [
-                  { range: "22501XXX", sid: "WhatsApp", message: "Your code 998877", time: 1779460000000 },
-                ],
-              },
-              message: "ok",
-              rid: "…",
-            },
-            null,
-            2
-          )
-        );
+        const res = await fetch(`/api/stex/console?apiKey=${encodeURIComponent(activeKey)}`);
+        const json = await res.json();
+        setPlaygroundResponse(JSON.stringify(json, null, 2));
+      } else {
+        const res = await fetch(`/api/stex/console?apiKey=${encodeURIComponent(activeKey)}`);
+        const json = await res.json();
+        setPlaygroundResponse(JSON.stringify(json, null, 2));
       }
-    }, 350);
+    } catch (err: any) {
+      setPlaygroundResponse(
+        JSON.stringify(
+          {
+            meta: { code: 500, status: "error" },
+            message: err.message || "Failed to execute request",
+          },
+          null,
+          2
+        )
+      );
+    } finally {
+      setPlaygroundRunning(false);
+    }
   };
 
   const scrollToId = (id: string) => {

@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
+import {
+  requestStexNumber,
+  fetchStexOtps,
+  fetchStexConsole,
+  extractOtpFromMessage,
+  DEFAULT_STEX_API_KEY,
+} from "./lib/stexApi";
 import { OrabitAuthScreen, UserProfile } from "./components/OrabitAuthScreen";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
@@ -441,120 +448,202 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
+  // Stex SMS Real-Time OTP Listener (every 5s)
+  useEffect(() => {
+    const activeKey = apiKey || DEFAULT_STEX_API_KEY;
+    const pollOtps = async () => {
+      try {
+        const res = await fetchStexOtps(activeKey);
+        if (res.meta && res.meta.code === 200 && res.data && res.data.otps && res.data.otps.length > 0) {
+          const fetchedOtps = res.data.otps;
+
+          // 1. Update matching provisioned numbers in feedNumbers
+          setFeedNumbers((prevFeed) => {
+            let updated = false;
+            const newFeed = prevFeed.map((item) => {
+              const matchedOtp = fetchedOtps.find((o) => {
+                const oNum = (o.number || "").replace(/\D/g, "");
+                const iNum = (item.number || "").replace(/\D/g, "");
+                return oNum === iNum || oNum.endsWith(iNum) || iNum.endsWith(oNum);
+              });
+
+              if (matchedOtp && item.status !== "SUCCESS") {
+                updated = true;
+                const extracted = extractOtpFromMessage(matchedOtp.message);
+                return {
+                  ...item,
+                  status: "SUCCESS" as const,
+                  otpCode: extracted,
+                  rawMessage: matchedOtp.message,
+                  timeAgo: "Just now",
+                };
+              }
+              return item;
+            });
+            return updated ? newFeed : prevFeed;
+          });
+
+          // 2. Add real OTP entries to live messages stream
+          const stexMsgs: SmsMessage[] = fetchedOtps.map((o, idx) => {
+            const extracted = extractOtpFromMessage(o.message);
+            const formattedTime = new Date(Number(o.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
+            return {
+              id: `stex-otp-${o.otp_id || idx}-${o.time}`,
+              time: formattedTime,
+              operator: "Stex Network",
+              country: "Global",
+              countryIso: "un",
+              service: "STEX_OTP",
+              serviceColor: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30",
+              number: o.number,
+              otpCode: extracted,
+              rawMessage: o.message,
+            };
+          });
+
+          setMessages((prevMsgs) => {
+            const existingIds = new Set(prevMsgs.map((m) => m.id));
+            const fresh = stexMsgs.filter((m) => !existingIds.has(m.id));
+            if (fresh.length > 0) {
+              return [...fresh, ...prevMsgs].slice(0, 30);
+            }
+            return prevMsgs;
+          });
+        }
+      } catch (err) {
+        console.error("Error polling Stex OTPs:", err);
+      }
+    };
+
+    pollOtps();
+    const interval = setInterval(pollOtps, 5000);
+    return () => clearInterval(interval);
+  }, [apiKey]);
+
+  // Stex SMS Live Console Traffic Listener (every 8s)
+  useEffect(() => {
+    const activeKey = apiKey || DEFAULT_STEX_API_KEY;
+    const pollConsole = async () => {
+      try {
+        const res = await fetchStexConsole(activeKey);
+        if (res.meta && res.meta.code === 200 && res.data && res.data.hits && res.data.hits.length > 0) {
+          const hits = res.data.hits;
+          const liveMsgs: SmsMessage[] = hits.map((h, idx) => {
+            const formattedTime = new Date(Number(h.time) || Date.now()).toLocaleTimeString("en-US", { hour12: true });
+            const extracted = extractOtpFromMessage(h.message);
+            const serviceUpper = (h.sid || "SERVICE").toUpperCase();
+
+            let serviceColor = "bg-blue-950/80 text-blue-400 border-blue-500/30";
+            if (serviceUpper.includes("WHATSAPP")) serviceColor = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
+            else if (serviceUpper.includes("INSTAGRAM")) serviceColor = "bg-pink-950/80 text-pink-400 border-pink-500/30";
+            else if (serviceUpper.includes("TELEGRAM")) serviceColor = "bg-sky-950/80 text-sky-400 border-sky-500/30";
+
+            return {
+              id: `hit-${h.range}-${h.time}-${idx}`,
+              time: formattedTime,
+              operator: "GSM Traffic",
+              country: "Global",
+              countryIso: "un",
+              service: serviceUpper,
+              serviceColor,
+              number: h.range,
+              otpCode: extracted,
+              rawMessage: h.message,
+            };
+          });
+
+          setMessages((prevMsgs) => {
+            const existingIds = new Set(prevMsgs.map((m) => m.id));
+            const fresh = liveMsgs.filter((m) => !existingIds.has(m.id));
+            if (fresh.length > 0) {
+              return [...fresh, ...prevMsgs].slice(0, 30);
+            }
+            return prevMsgs;
+          });
+        }
+      } catch (err) {
+        console.error("Error polling Stex console:", err);
+      }
+    };
+
+    pollConsole();
+    const interval = setInterval(pollConsole, 8000);
+    return () => clearInterval(interval);
+  }, [apiKey]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(label);
     setTimeout(() => setCopiedText(null), 2000);
   };
 
-  const handleGetNumber = () => {
+  const handleGetNumber = async () => {
+    if (provisioning) return;
     setProvisioning(true);
-    setProvisionMsg("Connecting to Core Routing Engine...");
+    setProvisionMsg("Connecting to StexSMS Core API...");
 
-    setTimeout(() => {
-      const rawInput = targetRange.trim() || "22507XXX";
-      let basePrefix = rawInput.replace(/X/gi, "");
-      if (!basePrefix) basePrefix = "22507";
+    const cleanInput = targetRange.trim().replace(/X/gi, "") || "26134";
+    const activeKey = apiKey || DEFAULT_STEX_API_KEY;
 
-      const targetLength = Math.max(12, basePrefix.length + 3);
-      let fullDigits = basePrefix;
-      while (fullDigits.length < targetLength) {
-        fullDigits += Math.floor(Math.random() * 10).toString();
+    try {
+      const result = await requestStexNumber({ query: cleanInput, apiKey: activeKey });
+
+      if (result.meta && result.meta.code === 200 && result.data) {
+        const d = result.data;
+        const rawNoPlus = d.no_plus_number || (d.full_number ? d.full_number.replace(/\+/g, "") : cleanInput);
+        const rawNational = d.national_number || rawNoPlus;
+        const rawFull = d.full_number || `+${rawNoPlus}`;
+
+        let finalFormattedNumber = rawFull;
+        if (noPlus) {
+          finalFormattedNumber = rawNoPlus;
+        } else if (isNational) {
+          finalFormattedNumber = rawNational;
+        }
+
+        const countryName = d.country || "Stex Pool";
+        const operatorName = d.operator || "GSM Operator";
+
+        const newItemId = "stex-feed-" + Date.now();
+        const newFeedItem: FeedNumber = {
+          id: newItemId,
+          number: rawNoPlus,
+          status: "PENDING",
+          country: countryName,
+          operator: operatorName,
+          timeAgo: "Just now",
+          service: "STEX_OTP",
+        };
+
+        setFeedNumbers((prev) => [newFeedItem, ...prev]);
+        setProvisionMsg(`✓ Number Allocated: ${finalFormattedNumber}`);
+
+        // Automatically copy to clipboard
+        try {
+          await navigator.clipboard.writeText(finalFormattedNumber);
+          setCopiedText(`Copied ${finalFormattedNumber}`);
+          setTimeout(() => setCopiedText(null), 3000);
+        } catch (e) {
+          console.error("Auto copy error:", e);
+        }
+
+        // Deduct nominal balance from user profile if available
+        if (userProfile && userProfile.balance > 0.05) {
+          setUserProfile({
+            ...userProfile,
+            balance: Math.max(0, userProfile.balance - 0.05),
+          });
+        }
+      } else {
+        const errMsg = result.message || "No numbers available in this range. Try a different range.";
+        setProvisionMsg(`❌ ${errMsg}`);
       }
-
-      const formattedNumber = noPlus ? fullDigits : (fullDigits.startsWith("+") ? fullDigits : `+${fullDigits}`);
-
-      try {
-        navigator.clipboard.writeText(formattedNumber);
-      } catch (e) {
-        console.error("Auto copy failed", e);
-      }
-
-      setCopiedText(`Copied ${formattedNumber}`);
-      setTimeout(() => setCopiedText(null), 3000);
-
-      let detectedCountry = "Ivory Coast";
-      let detectedOperator = "Orange";
-
-      if (fullDigits.startsWith("225")) {
-        detectedCountry = "Ivory Coast";
-        detectedOperator = "Orange";
-      } else if (fullDigits.startsWith("261")) {
-        detectedCountry = "Madagascar";
-        detectedOperator = "Airtel";
-      } else if (fullDigits.startsWith("374")) {
-        detectedCountry = "Armenia";
-        detectedOperator = "Ucom";
-      } else if (fullDigits.startsWith("880")) {
-        detectedCountry = "Bangladesh";
-        detectedOperator = "Grameenphone";
-      } else if (fullDigits.startsWith("966")) {
-        detectedCountry = "Saudi Arabia";
-        detectedOperator = "Zain";
-      } else if (fullDigits.startsWith("224")) {
-        detectedCountry = "Guinea";
-        detectedOperator = "Orange";
-      }
-
-      const newItemId = "feed-" + Date.now();
-      const newFeedItem: FeedNumber = {
-        id: newItemId,
-        number: fullDigits,
-        status: "PENDING",
-        country: detectedCountry,
-        operator: detectedOperator,
-        timeAgo: "just now",
-        service: "INSTAGRAM",
-      };
-
-      setFeedNumbers((prev) => [newFeedItem, ...prev]);
+    } catch (err: any) {
+      console.error("handleGetNumber exception:", err);
+      setProvisionMsg("❌ StexSMS API Connection Error. Please try again.");
+    } finally {
       setProvisioning(false);
-      setProvisionMsg(`Provisioned Number: ${formattedNumber}`);
-      setTimeout(() => setProvisionMsg(null), 4000);
-
-      setTimeout(() => {
-        const sampleOtps = [
-          {
-            service: "FACEBOOK",
-            raw: "<#> 318215 is your Facebook confirmation code Laz+nxCarLW",
-          },
-          {
-            service: "WHATSAPP",
-            raw: "212-123 is your WhatsApp code",
-          },
-          {
-            service: "WHATSAPP",
-            raw: "<#> Your WhatsApp code: 492-018 Don't share this code with others",
-          },
-          {
-            service: "FACEBOOK",
-            raw: "<#> 782910 is your Facebook verification code H29Q+Fsn4Sr",
-          },
-          {
-            service: "INSTAGRAM",
-            raw: "<#> ZBYKMCDOL is your Instagram code. Don't share it. SIYRxKrru1t",
-          },
-        ];
-        const selected = sampleOtps[Math.floor(Math.random() * sampleOtps.length)];
-        const extractedCode = extractOtpFromText(selected.raw);
-
-        setFeedNumbers((prev) =>
-          prev.map((item) => {
-            if (item.id === newItemId) {
-              return {
-                ...item,
-                status: "SUCCESS",
-                service: selected.service,
-                otpCode: extractedCode,
-                rawMessage: selected.raw,
-                timeAgo: "just now",
-              };
-            }
-            return item;
-          })
-        );
-      }, 3500);
-    }, 500);
+    }
   };
 
   const filteredMessages = messages.filter((m) => {
@@ -1405,6 +1494,24 @@ export default function App() {
                   <span>Remove (+)</span>
                 </label>
               </div>
+
+              {/* Provisioning Message Status Notification */}
+              {provisionMsg && (
+                <div
+                  className={`p-3 rounded-xl font-mono text-xs font-bold border flex items-center justify-between transition-all ${
+                    provisionMsg.includes("❌")
+                      ? "bg-rose-950/90 border-rose-500/50 text-rose-300"
+                      : "bg-emerald-950/90 border-emerald-500/50 text-emerald-300"
+                  }`}
+                >
+                  <span className="break-all">{provisionMsg}</span>
+                  {copiedText && (
+                    <span className="text-[10px] text-amber-300 bg-amber-950/90 border border-amber-500/40 px-2 py-0.5 rounded shrink-0 ml-2">
+                      {copiedText}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Get Number Button */}
               <div className="flex justify-end pt-1">

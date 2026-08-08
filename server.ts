@@ -28,6 +28,76 @@ async function startServer() {
     res.json({ status: "ok", geminiAvailable: !!process.env.GEMINI_API_KEY });
   });
 
+  // Stex SMS API Proxy Endpoints
+  app.post("/api/stex/getnum", async (req, res) => {
+    try {
+      const apiKey = req.body.apiKey || req.headers.mauthapi || process.env.STEX_API_KEY || "M4DDE8HGFJ9";
+      const query = req.body.query || req.body.rid || "26134";
+
+      const response = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/getnum", {
+        method: "POST",
+        headers: {
+          "mauthapi": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rid: query }),
+      });
+
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    } catch (error: any) {
+      console.error("Stex getnum error:", error);
+      return res.status(500).json({
+        meta: { code: 500, status: "error" },
+        message: error.message || "Failed to connect to StexSMS getnum service",
+      });
+    }
+  });
+
+  app.get("/api/stex/success-otp", async (req, res) => {
+    try {
+      const apiKey = (req.query.apiKey as string) || (req.headers.mauthapi as string) || process.env.STEX_API_KEY || "M4DDE8HGFJ9";
+
+      const response = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/success-otp", {
+        method: "GET",
+        headers: {
+          "mauthapi": apiKey,
+        },
+      });
+
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    } catch (error: any) {
+      console.error("Stex success-otp error:", error);
+      return res.status(500).json({
+        meta: { code: 500, status: "error" },
+        message: error.message || "Failed to connect to StexSMS success-otp service",
+      });
+    }
+  });
+
+  app.get("/api/stex/console", async (req, res) => {
+    try {
+      const apiKey = (req.query.apiKey as string) || (req.headers.mauthapi as string) || process.env.STEX_API_KEY || "M4DDE8HGFJ9";
+
+      const response = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/console", {
+        method: "GET",
+        headers: {
+          "mauthapi": apiKey,
+        },
+      });
+
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    } catch (error: any) {
+      console.error("Stex console error:", error);
+      return res.status(500).json({
+        meta: { code: 500, status: "error" },
+        message: error.message || "Failed to connect to StexSMS console service",
+      });
+    }
+  });
+
   // AI Website Generator Endpoint
   app.post("/api/gemini/generate-site", async (req, res) => {
     try {
