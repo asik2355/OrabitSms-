@@ -469,10 +469,6 @@ export default function App() {
             const existingIds = new Set(prevMsgs.map((m) => m.id));
             const fresh = liveConsoleMsgs.filter((m) => !existingIds.has(m.id));
             if (fresh.length > 0) {
-              const freshEarningsBDT = fresh.reduce((acc, m) => acc + getServiceRateBDT(m.service), 0);
-              if (freshEarningsBDT > 0) {
-                setUserProfile((prev) => (prev ? { ...prev, balance: prev.balance + freshEarningsBDT } : null));
-              }
               return [...fresh, ...prevMsgs].slice(0, 300);
             }
             if (prevMsgs.length === 0) return liveConsoleMsgs.slice(0, 300);
@@ -506,6 +502,10 @@ export default function App() {
             if (matchedOtp && item.status !== "SUCCESS") {
               updated = true;
               const extracted = extractOtpFromMessage(matchedOtp.message);
+              const earnedRate = getServiceRateBDT(item.service);
+              if (earnedRate > 0) {
+                setUserProfile((prev) => (prev ? { ...prev, balance: prev.balance + earnedRate } : null));
+              }
               return {
                 ...item,
                 status: "SUCCESS" as const,
