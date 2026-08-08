@@ -242,6 +242,20 @@ interface ZenexSmsConsoleProps {
 export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) => {
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api">("dashboard");
   const [messages, setMessages] = useState<SmsMessage[]>(MOCK_LIVE_MESSAGES);
+
+  const getServiceRateBDT = (serviceName: string): number => {
+    const norm = (serviceName || "").toUpperCase().trim();
+    if (
+      norm.includes("WHATSAPP") ||
+      norm === "WA" ||
+      norm.includes("TELEGRAM") ||
+      norm === "TG"
+    ) {
+      return 0;
+    }
+    return 0.60; // 60 poisha = ৳0.60 BDT
+  };
+
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(() => {
     try {
       const saved = localStorage.getItem("orabit_feed_numbers");
@@ -254,6 +268,16 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
     }
     return INITIAL_FEEDS;
   });
+
+  const userSuccessMessages = React.useMemo(() => {
+    return feedNumbers.filter((f) => f.status === "SUCCESS");
+  }, [feedNumbers]);
+
+  const todayRevenueBDT = React.useMemo(() => {
+    return userSuccessMessages.reduce((sum, msg) => sum + getServiceRateBDT(msg.service), 0);
+  }, [userSuccessMessages]);
+
+  const todayOtpsCount = userSuccessMessages.length;
 
   useEffect(() => {
     try {
@@ -503,20 +527,15 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
   });
 
   const appStats = React.useMemo(() => {
-    if (!messages || messages.length === 0) {
-      return [
-        { name: "FACEBOOK", count: 41, percent: "82%", color: "#3b82f6" },
-        { name: "Facebook", count: 4, percent: "8%", color: "#a855f7" },
-        { name: "WhatsApp", count: 4, percent: "8%", color: "#eab308" },
-        { name: "IMO", count: 1, percent: "2%", color: "#10b981" },
-      ];
+    if (!userSuccessMessages || userSuccessMessages.length === 0) {
+      return [];
     }
     const counts: Record<string, number> = {};
-    messages.forEach((m) => {
+    userSuccessMessages.forEach((m) => {
       const s = m.service || "OTHER";
       counts[s] = (counts[s] || 0) + 1;
     });
-    const total = messages.length;
+    const total = userSuccessMessages.length;
     const colors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
     const list = Object.entries(counts).map(([name, count], idx) => ({
       name,
@@ -524,14 +543,8 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
       percent: Math.round((count / total) * 100) + "%",
       color: colors[idx % colors.length],
     }));
-    list.sort((a, b) => b.count - a.count);
-    return list.length > 0 ? list : [
-      { name: "FACEBOOK", count: 41, percent: "82%", color: "#3b82f6" },
-      { name: "Facebook", count: 4, percent: "8%", color: "#a855f7" },
-      { name: "WhatsApp", count: 4, percent: "8%", color: "#eab308" },
-      { name: "IMO", count: 1, percent: "2%", color: "#10b981" },
-    ];
-  }, [messages]);
+    return list.sort((a, b) => b.count - a.count);
+  }, [userSuccessMessages]);
 
   const carrierStats = React.useMemo(() => {
     if (!messages || messages.length === 0) {
@@ -663,7 +676,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
             </div>
           </div>
           <div className="text-2xl font-black text-white font-mono">
-            ${(messages.length * 0.01).toFixed(2)}
+            ${(todayRevenueBDT / 100).toFixed(2)}
           </div>
           <div className="text-[11px] text-slate-500">Earnings from successful OTPs</div>
         </div>
@@ -676,7 +689,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
             </div>
           </div>
           <div className="text-2xl font-black text-white font-mono">
-            {messages.length}
+            {todayOtpsCount}
           </div>
           <div className="text-[11px] text-slate-500">Total successful verifications</div>
         </div>
@@ -755,7 +768,8 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
                   <tbody className="divide-y divide-slate-800/60">
                     {appStats && appStats.length > 0 ? (
                       appStats.slice(0, 5).map((item) => {
-                        const earningsUsd = item.count * 0.01;
+                        const rateBDT = getServiceRateBDT(item.name);
+                        const earningsUsd = (item.count * rateBDT) / 100;
                         return (
                           <tr key={item.name} className="hover:bg-slate-800/40">
                             <td className="py-3 px-3 flex items-center gap-3">

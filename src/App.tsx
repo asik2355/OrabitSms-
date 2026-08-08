@@ -322,6 +322,29 @@ export default function App() {
   const usdExchangeRate = 100; // Fixed rate: 1 USD = 100 BDT
   const [currencyModalOpen, setCurrencyModalOpen] = useState<boolean>(false);
 
+  const getServiceRateBDT = (serviceName: string): number => {
+    const norm = (serviceName || "").toUpperCase().trim();
+    if (
+      norm.includes("WHATSAPP") ||
+      norm === "WA" ||
+      norm.includes("TELEGRAM") ||
+      norm === "TG"
+    ) {
+      return 0;
+    }
+    return 0.60; // 60 poisha = ৳0.60 BDT
+  };
+
+  const userSuccessMessages = React.useMemo(() => {
+    return feedNumbers.filter((f) => f.status === "SUCCESS");
+  }, [feedNumbers]);
+
+  const todayRevenueBDT = React.useMemo(() => {
+    return userSuccessMessages.reduce((sum, msg) => sum + getServiceRateBDT(msg.service), 0);
+  }, [userSuccessMessages]);
+
+  const todayOtpsCount = userSuccessMessages.length;
+
   useEffect(() => {
     try {
       localStorage.setItem("orabit_currency", currency);
@@ -446,6 +469,10 @@ export default function App() {
             const existingIds = new Set(prevMsgs.map((m) => m.id));
             const fresh = liveConsoleMsgs.filter((m) => !existingIds.has(m.id));
             if (fresh.length > 0) {
+              const freshEarningsBDT = fresh.reduce((acc, m) => acc + getServiceRateBDT(m.service), 0);
+              if (freshEarningsBDT > 0) {
+                setUserProfile((prev) => (prev ? { ...prev, balance: prev.balance + freshEarningsBDT } : null));
+              }
               return [...fresh, ...prevMsgs].slice(0, 300);
             }
             if (prevMsgs.length === 0) return liveConsoleMsgs.slice(0, 300);
@@ -631,20 +658,15 @@ export default function App() {
   });
 
   const appStats = React.useMemo(() => {
-    if (!messages || messages.length === 0) {
-      return [
-        { name: "FACEBOOK", count: 41, percent: "82%", color: "#3b82f6" },
-        { name: "Facebook", count: 4, percent: "8%", color: "#a855f7" },
-        { name: "WhatsApp", count: 4, percent: "8%", color: "#eab308" },
-        { name: "IMO", count: 1, percent: "2%", color: "#10b981" },
-      ];
+    if (!userSuccessMessages || userSuccessMessages.length === 0) {
+      return [];
     }
     const counts: Record<string, number> = {};
-    messages.forEach((m) => {
+    userSuccessMessages.forEach((m) => {
       const s = m.service || "OTHER";
       counts[s] = (counts[s] || 0) + 1;
     });
-    const total = messages.length;
+    const total = userSuccessMessages.length;
     const colors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
     const list = Object.entries(counts).map(([name, count], idx) => ({
       name,
@@ -652,31 +674,19 @@ export default function App() {
       percent: Math.round((count / total) * 100) + "%",
       color: colors[idx % colors.length],
     }));
-    list.sort((a, b) => b.count - a.count);
-    return list.length > 0 ? list : [
-      { name: "FACEBOOK", count: 41, percent: "82%", color: "#3b82f6" },
-      { name: "Facebook", count: 4, percent: "8%", color: "#a855f7" },
-      { name: "WhatsApp", count: 4, percent: "8%", color: "#eab308" },
-      { name: "IMO", count: 1, percent: "2%", color: "#10b981" },
-    ];
-  }, [messages]);
+    return list.sort((a, b) => b.count - a.count);
+  }, [userSuccessMessages]);
 
   const carrierStats = React.useMemo(() => {
-    if (!messages || messages.length === 0) {
-      return [
-        { name: "Airtel", count: 40, percent: "80%", color: "#10b981" },
-        { name: "Zain", count: 4, percent: "8%", color: "#3b82f6" },
-        { name: "Orange (Airtel)", count: 2, percent: "4%", color: "#a855f7" },
-        { name: "Togo Cellulaire (Togocel)", count: 2, percent: "4%", color: "#eab308" },
-        { name: "Mobile", count: 1, percent: "2%", color: "#ef4444" },
-      ];
+    if (!userSuccessMessages || userSuccessMessages.length === 0) {
+      return [];
     }
     const counts: Record<string, number> = {};
-    messages.forEach((m) => {
+    userSuccessMessages.forEach((m) => {
       const op = m.operator || "Other";
       counts[op] = (counts[op] || 0) + 1;
     });
-    const total = messages.length;
+    const total = userSuccessMessages.length;
     const colors = ["#10b981", "#3b82f6", "#a855f7", "#eab308", "#ef4444", "#64748b"];
     const list = Object.entries(counts).map(([name, count], idx) => ({
       name,
@@ -684,15 +694,8 @@ export default function App() {
       percent: Math.round((count / total) * 100) + "%",
       color: colors[idx % colors.length],
     }));
-    list.sort((a, b) => b.count - a.count);
-    return list.length > 0 ? list : [
-      { name: "Airtel", count: 40, percent: "80%", color: "#10b981" },
-      { name: "Zain", count: 4, percent: "8%", color: "#3b82f6" },
-      { name: "Orange (Airtel)", count: 2, percent: "4%", color: "#a855f7" },
-      { name: "Togo Cellulaire (Togocel)", count: 2, percent: "4%", color: "#eab308" },
-      { name: "Mobile", count: 1, percent: "2%", color: "#ef4444" },
-    ];
-  }, [messages]);
+    return list.sort((a, b) => b.count - a.count);
+  }, [userSuccessMessages]);
 
   if (!userProfile) {
     return (
@@ -1019,8 +1022,8 @@ export default function App() {
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
                     {currency === "BDT"
-                      ? `৳${(messages.length * 0.01 * usdExchangeRate).toFixed(2)}`
-                      : `$${(messages.length * 0.01).toFixed(2)}`}
+                      ? `৳${todayRevenueBDT.toFixed(2)}`
+                      : `$${(todayRevenueBDT / usdExchangeRate).toFixed(2)}`}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Earnings from successful OTPs</div>
                 </div>
@@ -1034,7 +1037,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-blue-300 transition-colors">
-                    {messages.length}
+                    {todayOtpsCount}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Total successful verifications</div>
                 </div>
@@ -1103,10 +1106,11 @@ export default function App() {
                     <tbody className="divide-y divide-slate-800/60">
                       {appStats && appStats.length > 0 ? (
                         appStats.slice(0, 5).map((item) => {
-                          const earningsUsd = item.count * 0.01;
+                          const rateBDT = getServiceRateBDT(item.name);
+                          const earningsBDT = item.count * rateBDT;
                           const earningsFormatted = currency === "BDT" 
-                            ? `৳${(earningsUsd * usdExchangeRate).toFixed(2)}`
-                            : `$${earningsUsd.toFixed(2)}`;
+                            ? `৳${earningsBDT.toFixed(2)}`
+                            : `$${(earningsBDT / usdExchangeRate).toFixed(2)}`;
                           return (
                             <tr key={item.name} className="hover:bg-slate-800/50 hover:scale-[1.005] transition-all duration-200 cursor-pointer">
                               <td className="py-3 px-3 flex items-center gap-3">
