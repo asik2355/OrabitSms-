@@ -417,6 +417,7 @@ export default function App() {
     const fetchRealConsoleHits = async () => {
       try {
         const res = await fetch("/api/sms/console-hits");
+        if (!res.ok) return;
         const data = await res.json();
         if (data && data.success && Array.isArray(data.hits) && data.hits.length > 0) {
           const liveMsgs: SmsMessage[] = data.hits.map((hit: any, idx: number) => {
@@ -450,8 +451,8 @@ export default function App() {
             return prev;
           });
         }
-      } catch (err) {
-        console.error("Failed to fetch live console hits:", err);
+      } catch {
+        // Silently catch network glitches
       }
     };
 
@@ -459,7 +460,7 @@ export default function App() {
     const timer = setInterval(() => {
       fetchRealConsoleHits();
       setAutoSyncSeconds((prev) => (prev <= 1 ? 5 : prev - 1));
-    }, 3000);
+    }, 5000);
 
     return () => clearInterval(timer);
   }, []);
