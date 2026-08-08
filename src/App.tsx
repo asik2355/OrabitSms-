@@ -1018,7 +1018,9 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
-                    {currency === "BDT" ? `৳${(0.01 * usdExchangeRate).toFixed(2)}` : "$0.01"}
+                    {currency === "BDT"
+                      ? `৳${(messages.length * 0.01 * usdExchangeRate).toFixed(2)}`
+                      : `$${(messages.length * 0.01).toFixed(2)}`}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Earnings from successful OTPs</div>
                 </div>
@@ -1032,7 +1034,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-blue-300 transition-colors">
-                    1
+                    {messages.length}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Total successful verifications</div>
                 </div>
@@ -1099,39 +1101,25 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {messages.length > 0 ? (
-                        <>
-                          <tr className="hover:bg-slate-800/50 hover:scale-[1.005] transition-all duration-200 cursor-pointer">
-                            <td className="py-3 px-3 flex items-center gap-3">
-                              <ServiceLogo name="WhatsApp" size={32} className="w-8 h-8" />
-                              <span className="font-bold text-slate-100 text-sm">WhatsApp</span>
-                            </td>
-                            <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">6</td>
-                            <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">
-                              {currency === "BDT" ? "৳0.00" : "$0.00"}
-                            </td>
-                          </tr>
-                          <tr className="hover:bg-slate-800/50 hover:scale-[1.005] transition-all duration-200 cursor-pointer">
-                            <td className="py-3 px-3 flex items-center gap-3">
-                              <ServiceLogo name="Facebook" size={32} className="w-8 h-8" />
-                              <span className="font-bold text-slate-100 text-sm">Facebook</span>
-                            </td>
-                            <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">14</td>
-                            <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">
-                              {currency === "BDT" ? "৳12.00" : "$0.12"}
-                            </td>
-                          </tr>
-                          <tr className="hover:bg-slate-800/50 hover:scale-[1.005] transition-all duration-200 cursor-pointer">
-                            <td className="py-3 px-3 flex items-center gap-3">
-                              <ServiceLogo name="Telegram" size={32} className="w-8 h-8" />
-                              <span className="font-bold text-slate-100 text-sm">Telegram</span>
-                            </td>
-                            <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">8</td>
-                            <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">
-                              {currency === "BDT" ? "৳8.00" : "$0.08"}
-                            </td>
-                          </tr>
-                        </>
+                      {appStats && appStats.length > 0 ? (
+                        appStats.slice(0, 5).map((item) => {
+                          const earningsUsd = item.count * 0.01;
+                          const earningsFormatted = currency === "BDT" 
+                            ? `৳${(earningsUsd * usdExchangeRate).toFixed(2)}`
+                            : `$${earningsUsd.toFixed(2)}`;
+                          return (
+                            <tr key={item.name} className="hover:bg-slate-800/50 hover:scale-[1.005] transition-all duration-200 cursor-pointer">
+                              <td className="py-3 px-3 flex items-center gap-3">
+                                <ServiceLogo name={item.name} size={32} className="w-8 h-8" />
+                                <span className="font-bold text-slate-100 text-sm">{item.name}</span>
+                              </td>
+                              <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">{item.count}</td>
+                              <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">
+                                {earningsFormatted}
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td colSpan={3} className="py-12 text-center">
@@ -1368,7 +1356,7 @@ export default function App() {
 
               {/* SMS Stream Cards with Service Logo and Compact Fine Typography */}
               <div className="space-y-2">
-                {filteredMessages.slice(0, 300).map((msg, idx) => {
+                {filteredMessages.slice(0, 50).map((msg, idx) => {
                   let displayMsg = msg.rawMessage || "";
                   if (!displayMsg.includes("***") && !displayMsg.includes("*****")) {
                     displayMsg = displayMsg.replace(/\b\d{4,8}\b/g, "*****");
@@ -1431,7 +1419,7 @@ export default function App() {
               {/* Card Footer */}
               <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-2 border-t border-slate-800/60">
                 <span>Last Updated: {utcTime ? utcTime.substring(0, 8) : "10:51:35"}</span>
-                <span>Logs: {Math.min(filteredMessages.length, 300)} (Max 300)</span>
+                <span>Logs: {Math.min(filteredMessages.length, 50)} (Max 50)</span>
               </div>
             </div>
           </div>

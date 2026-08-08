@@ -77,7 +77,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const publicUid = "M4Q91X5HKW3";
   const memberSince = "Jul 2026";
   const lastLogin = "06/08/2026, 13:34:55";
-  const lifetimeEarning = userProfile.balance > 0 ? userProfile.balance : 22.99;
+  const lifetimeEarning = userProfile.balance;
 
   const handleCopy = (text: string, type: "key" | "uid") => {
     navigator.clipboard.writeText(text);
@@ -227,8 +227,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </span>
             <span>
               {currency === "BDT"
-                ? (userProfile.balance > 0 ? userProfile.balance : 2299.00).toFixed(2)
-                : ((userProfile.balance > 0 ? userProfile.balance : 2299.00) / usdExchangeRate).toFixed(2)}
+                ? userProfile.balance.toFixed(2)
+                : (userProfile.balance / usdExchangeRate).toFixed(2)}
             </span>
             <span className="text-xs text-slate-400 font-sans font-bold ml-1">
               {currency}

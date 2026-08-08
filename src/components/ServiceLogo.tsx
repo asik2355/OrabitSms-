@@ -13,11 +13,13 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
   // WHATSAPP
   if (normalized.includes("WHATSAPP") || normalized === "WA") {
     return (
-      <div className={`shrink-0 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center p-0.5 sm:p-1 shadow-sm ${className}`} style={customStyle}>
-        <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M17.5 14.333C17.2 14.183 15.7 13.442 15.42 13.342C15.14 13.242 14.94 13.192 14.74 13.492C14.54 13.792 13.98 14.442 13.81 14.642C13.64 14.842 13.7 14.867 13.17 14.717C12.87 14.567 11.9 14.25 10.75 13.225C9.85 12.425 9.24 11.433 9.07 11.133C8.9 10.833 9.05 10.675 9.2 10.525C9.33 10.392 9.5 10.167 9.65 9.992C9.8 9.817 9.85 9.692 9.95 9.492C10.05 9.292 10 9.117 9.93 8.967C9.86 8.817 9.3 7.442 9.07 6.875C8.84 6.325 8.61 6.4 8.44 6.392C8.28 6.384 8.1 6.384 7.92 6.384C7.74 6.384 7.44 6.45 7.19 6.725C6.94 7 6.24 7.658 6.24 9C6.24 10.342 7.22 11.633 7.35 11.808C7.49 11.983 9.28 14.733 12.02 15.917C12.67 16.2 13.18 16.367 13.57 16.492C14.22 16.7 14.82 16.667 15.29 16.592C15.82 16.508 16.91 15.925 17.14 15.275C17.37 14.625 17.37 14.075 17.3 13.958C17.23 13.842 17.8 14.483 17.5 14.333Z" fill="#25D366" />
-          <path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.4A10 10 0 1 0 12 2zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 1 .9-2.9-.2-.3A8 8 0 1 1 12 20z" fill="#25D366" />
-        </svg>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/5gbTft6y/20260808-203304.png"
+          alt="WhatsApp"
+          className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }
@@ -25,10 +27,13 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
   // FACEBOOK
   if (normalized.includes("FACEBOOK") || normalized === "FB") {
     return (
-      <div className={`shrink-0 rounded-lg bg-blue-600/15 border border-blue-500/30 flex items-center justify-center p-0.5 sm:p-1 shadow-sm ${className}`} style={customStyle}>
-        <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" fill="#1877F2" />
-        </svg>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/HDQZpNRm/20260808-203212.png"
+          alt="Facebook"
+          className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }
@@ -47,15 +52,13 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
   // IMO
   if (normalized.includes("IMO")) {
     return (
-      <div className={`shrink-0 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center p-0.5 sm:p-1 shadow-sm ${className}`} style={customStyle}>
-        <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* Blue outer speech bubble */}
-          <path d="M12 2.2C6.59 2.2 2.2 6.59 2.2 12c0 2.18.7 4.2 1.9 5.84L2.6 21.4a.5.5 0 0 0 .63.63l3.56-1.58A9.74 9.74 0 0 0 12 21.8c5.41 0 9.8-4.39 9.8-9.8S17.41 2.2 12 2.2z" fill="#1D68EC" />
-          {/* White inner bubble fill */}
-          <path d="M12 4C7.58 4 4 7.58 4 12c0 1.83.61 3.52 1.65 4.88L4.5 19.5l2.97-1.32A7.94 7.94 0 0 0 12 20c4.42 0 8-3.58 8-8s-3.58-8-8-8z" fill="#FFFFFF" />
-          {/* Imo text in blue */}
-          <text x="12" y="14.2" textAnchor="middle" fill="#1D68EC" fontSize="7.5" fontWeight="900" fontFamily="Arial, Helvetica, sans-serif" letterSpacing="-0.2px">imo</text>
-        </svg>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/XrgXvjxG/20260808-204438.png"
+          alt="IMO"
+          className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }
@@ -87,10 +90,13 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
   // DISCORD
   if (normalized.includes("DISCORD")) {
     return (
-      <div className={`shrink-0 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center p-0.5 sm:p-1 shadow-sm ${className}`} style={customStyle}>
-        <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" fill="#5865F2" />
-        </svg>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/gMLbkyZD/20260808-204306.png"
+          alt="Discord"
+          className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }
@@ -98,10 +104,13 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
   // INSTAGRAM
   if (normalized.includes("INSTAGRAM") || normalized.includes("INSTA")) {
     return (
-      <div className={`shrink-0 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center p-0.5 sm:p-1 shadow-sm ${className}`} style={customStyle}>
-        <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 7a5 5 0 100 10 5 5 0 000-10zm0 8a3 3 0 110-6 3 3 0 010 6zm5.25-9.25a1.25 1.25 0 100 2.5 1.25 1.25 0 000-2.5z" fill="#E1306C" />
-        </svg>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/GvxdH9kw/20260808-204046.png"
+          alt="Instagram"
+          className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }
@@ -109,10 +118,13 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
   // TIKTOK
   if (normalized.includes("TIKTOK")) {
     return (
-      <div className={`shrink-0 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center p-0.5 sm:p-1 shadow-sm ${className}`} style={customStyle}>
-        <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12.53 2h3.17c.12 1.35.8 2.68 1.94 3.4 1.15.73 2.57.87 3.86.5V9.1c-2.12.02-4.13-.81-5.47-2.33V15c0 3.59-2.91 6.5-6.5 6.5S3 18.59 3 15s2.91-6.5 6.5-6.5c.52 0 1.04.06 1.54.19v3.29c-.48-.19-.99-.28-1.54-.28-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5 3.5-1.57 3.5-3.5V2z" fill="#25F4EE" />
-        </svg>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/cKrBxZ8j/20260808-204219.png"
+          alt="TikTok"
+          className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }
@@ -151,6 +163,7 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
             src="https://i.ibb.co/0pHxFr0R/1000007767.png"
             alt="bKash"
             className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
+            referrerPolicy="no-referrer"
           />
         </div>
       </div>
@@ -167,24 +180,23 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
             src="https://i.ibb.co/h1JMTshQ/20260808-091517.png"
             alt="Nagad"
             className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
+            referrerPolicy="no-referrer"
           />
         </div>
       </div>
     );
   }
 
-  // BINANCE (Animated Logo)
+  // BINANCE
   if (normalized.includes("BINANCE")) {
     return (
-      <div className={`shrink-0 rounded-2xl bg-gradient-to-tr from-[#8C6D05] via-[#F0B90B] to-[#FFE279] p-0.5 border border-[#F0B90B]/60 shadow-lg shadow-[#F0B90B]/30 relative overflow-hidden group flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[#F0B90B]/60 ${className}`} style={customStyle}>
-        <div className="absolute -inset-1 rounded-2xl bg-[#F0B90B] blur-md opacity-30 group-hover:opacity-70 animate-pulse transition-all"></div>
-        <div className="w-full h-full rounded-[14px] bg-[#181A20] p-1 relative z-10 flex items-center justify-center overflow-hidden">
-          <img
-            src="https://i.ibb.co/LdBwLbHW/20260808-091450.png"
-            alt="Binance"
-            className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
-          />
-        </div>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/8DXH9tpH/20260808-204739.png"
+          alt="Binance"
+          className="w-full h-full object-contain"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }
@@ -199,6 +211,7 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
             src="https://i.ibb.co/gZDqd4mc/20260808-091340.png"
             alt="BEP20"
             className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
+            referrerPolicy="no-referrer"
           />
         </div>
       </div>

@@ -662,7 +662,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
               <Zap className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">$0.00</div>
+          <div className="text-2xl font-black text-white font-mono">
+            ${(messages.length * 0.01).toFixed(2)}
+          </div>
           <div className="text-[11px] text-slate-500">Earnings from successful OTPs</div>
         </div>
 
@@ -673,7 +675,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
               <MessageSquare className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">6</div>
+          <div className="text-2xl font-black text-white font-mono">
+            {messages.length}
+          </div>
           <div className="text-[11px] text-slate-500">Total successful verifications</div>
         </div>
 
@@ -684,7 +688,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
               <RefreshCw className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">$0.24</div>
+          <div className="text-2xl font-black text-white font-mono">$0.00</div>
           <div className="text-[11px] text-slate-500">Previous day performance</div>
         </div>
       </div>
@@ -749,30 +753,29 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    <tr className="hover:bg-slate-800/40">
-                      <td className="py-3 px-3 flex items-center gap-3">
-                        <ServiceLogo name="WhatsApp" size={32} className="w-8 h-8" />
-                        <span className="font-bold text-slate-100 text-sm">WhatsApp</span>
-                      </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">6</td>
-                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">$0.00</td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/40">
-                      <td className="py-3 px-3 flex items-center gap-3">
-                        <ServiceLogo name="Facebook" size={32} className="w-8 h-8" />
-                        <span className="font-bold text-slate-100 text-sm">Facebook</span>
-                      </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">14</td>
-                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">$0.12</td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/40">
-                      <td className="py-3 px-3 flex items-center gap-3">
-                        <ServiceLogo name="Telegram" size={32} className="w-8 h-8" />
-                        <span className="font-bold text-slate-100 text-sm">Telegram</span>
-                      </td>
-                      <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">8</td>
-                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">$0.08</td>
-                    </tr>
+                    {appStats && appStats.length > 0 ? (
+                      appStats.slice(0, 5).map((item) => {
+                        const earningsUsd = item.count * 0.01;
+                        return (
+                          <tr key={item.name} className="hover:bg-slate-800/40">
+                            <td className="py-3 px-3 flex items-center gap-3">
+                              <ServiceLogo name={item.name} size={32} className="w-8 h-8" />
+                              <span className="font-bold text-slate-100 text-sm">{item.name}</span>
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">{item.count}</td>
+                            <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">
+                              ${earningsUsd.toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={3} className="py-8 text-center text-slate-500 font-mono text-xs">
+                          No messages received yet today
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -937,7 +940,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
 
             {/* SMS Stream Cards with Service Logo and Compact Fine Typography */}
             <div className="space-y-2">
-              {filteredMessages.slice(0, 300).map((msg, idx) => {
+              {filteredMessages.slice(0, 50).map((msg, idx) => {
                 let displayMsg = msg.rawMessage || "";
                 if (!displayMsg.includes("***") && !displayMsg.includes("*****")) {
                   displayMsg = displayMsg.replace(/\b\d{4,8}\b/g, "*****");
@@ -1000,7 +1003,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
             {/* Card Footer */}
             <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-2 border-t border-slate-800/60">
               <span>Last Updated: 10:51:35</span>
-              <span>Logs: {Math.min(filteredMessages.length, 300)} (Max 300)</span>
+              <span>Logs: {Math.min(filteredMessages.length, 50)} (Max 50)</span>
             </div>
           </div>
         </div>
