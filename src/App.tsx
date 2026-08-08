@@ -228,17 +228,29 @@ const INITIAL_TRAFFIC_DATA = [
   { time: "22:00", volume: 0.1 },
 ];
 
+function getBD4AMWindowStart() {
+  const now = new Date();
+  const bdNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+  const bdHours = bdNow.getUTCHours();
+  const windowStartBD = new Date(bdNow);
+  if (bdHours < 4) {
+    windowStartBD.setUTCDate(windowStartBD.getUTCDate() - 1);
+  }
+  windowStartBD.setUTCHours(4, 0, 0, 0);
+  return windowStartBD.getTime() - 6 * 60 * 60 * 1000;
+}
+
 const GLOBAL_TRENDING = [
-  { id: 1, name: "FACEBOOK", color: "#3b82f6", icon: "💬", hits: "4.8k" },
-  { id: 2, name: "Facebook", color: "#60a5fa", icon: "💬", hits: "3.2k" },
-  { id: 3, name: "WhatsApp", color: "#22c55e", icon: "🟢", hits: "2.9k" },
-  { id: 4, name: "Telegram", color: "#38bdf8", icon: "✈️", hits: "2.1k" },
-  { id: 5, name: "IMO", color: "#94a3b8", icon: "🛡️", hits: "1.4k" },
-  { id: 6, name: "AUTHMSG", color: "#a855f7", icon: "🔐", hits: "1.1k" },
-  { id: 7, name: "CloudOTP", color: "#ec4899", icon: "☁️", hits: "890" },
-  { id: 8, name: "DISCORD", color: "#6366f1", icon: "🎮", hits: "750" },
-  { id: 9, name: "alymscintl", color: "#64748b", icon: "🌐", hits: "620" },
-  { id: 10, name: "fairpari", color: "#f59e0b", icon: "🎲", hits: "410" },
+  { id: 1, name: "FACEBOOK", color: "#3b82f6", icon: "💬" },
+  { id: 2, name: "WHATSAPP", color: "#22c55e", icon: "🟢" },
+  { id: 3, name: "TELEGRAM", color: "#38bdf8", icon: "✈️" },
+  { id: 4, name: "INSTAGRAM", color: "#e1306c", icon: "📷" },
+  { id: 5, name: "IMO", color: "#94a3b8", icon: "🛡️" },
+  { id: 6, name: "AUTHMSG", color: "#a855f7", icon: "🔐" },
+  { id: 7, name: "CLOUDOTP", color: "#ec4899", icon: "☁️" },
+  { id: 8, name: "DISCORD", color: "#6366f1", icon: "🎮" },
+  { id: 9, name: "BIGO", color: "#38bdf8", icon: "📹" },
+  { id: 10, name: "FAIRPARI", color: "#f59e0b", icon: "🎲" },
 ];
 
 const INITIAL_MESSAGES: SmsMessage[] = [];
@@ -694,6 +706,80 @@ export default function App() {
   ], []);
 
   const consoleAppStats = appStats.length > 0 ? appStats : DEFAULT_APP_STATS;
+
+  const top10Trending = React.useMemo(() => {
+    const bdStart = getBD4AMWindowStart();
+    const serviceCounts: Record<string, number> = {};
+
+    const processMessage = (msg: any) => {
+      if (!msg) return;
+      if (msg.timestamp) {
+        const t = new Date(msg.timestamp).getTime();
+        if (!isNaN(t) && t < bdStart) return;
+      }
+      let s = (msg.service || msg.serviceName || "OTHER").trim();
+      if (!s) return;
+      s = s.toUpperCase();
+      serviceCounts[s] = (serviceCounts[s] || 0) + 1;
+    };
+
+    if (messages && messages.length > 0) {
+      messages.forEach(processMessage);
+    }
+    if (userSuccessMessages && userSuccessMessages.length > 0) {
+      userSuccessMessages.forEach(processMessage);
+    }
+
+    const colorMap: Record<string, string> = {
+      FACEBOOK: "#3b82f6",
+      WHATSAPP: "#22c55e",
+      TELEGRAM: "#38bdf8",
+      INSTAGRAM: "#e1306c",
+      IMO: "#94a3b8",
+      AUTHMSG: "#a855f7",
+      CLOUDOTP: "#ec4899",
+      DISCORD: "#6366f1",
+      BIGO: "#38bdf8",
+      FAIRPARI: "#f59e0b",
+      ALYMSCINTL: "#64748b",
+    };
+
+    const aggregatedList = Object.entries(serviceCounts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        color: colorMap[name] || "#3b82f6",
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const result: Array<{ id: number; name: string; color: string; count?: number }> = [];
+    const usedNames = new Set<string>();
+
+    aggregatedList.forEach((item) => {
+      if (!usedNames.has(item.name) && result.length < 10) {
+        usedNames.add(item.name);
+        result.push({
+          id: result.length + 1,
+          name: item.name,
+          color: item.color,
+          count: item.count,
+        });
+      }
+    });
+
+    GLOBAL_TRENDING.forEach((def) => {
+      if (!usedNames.has(def.name) && result.length < 10) {
+        usedNames.add(def.name);
+        result.push({
+          id: result.length + 1,
+          name: def.name,
+          color: def.color,
+        });
+      }
+    });
+
+    return result;
+  }, [messages, userSuccessMessages]);
 
   const carrierStats = React.useMemo(() => {
     if (!userSuccessMessages || userSuccessMessages.length === 0) {
@@ -1234,7 +1320,7 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2">
-                  {GLOBAL_TRENDING.map((item) => (
+                  {top10Trending.map((item) => (
                     <div
                       key={item.id}
                       className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between hover:border-slate-700 transition-all"
