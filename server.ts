@@ -76,6 +76,28 @@ async function startServer() {
     }
   });
 
+  app.get("/api/stex/liveaccess", async (req, res) => {
+    try {
+      const apiKey = (req.query.apiKey as string) || (req.headers.mauthapi as string) || process.env.STEX_API_KEY || "M4DDE8HGFJ9";
+
+      const response = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/liveaccess", {
+        method: "GET",
+        headers: {
+          "mauthapi": apiKey,
+        },
+      });
+
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    } catch (error: any) {
+      console.error("Stex liveaccess error:", error);
+      return res.status(500).json({
+        meta: { code: 500, status: "error" },
+        message: error.message || "Failed to connect to StexSMS liveaccess service",
+      });
+    }
+  });
+
   app.get("/api/stex/console", async (req, res) => {
     try {
       const apiKey = (req.query.apiKey as string) || (req.headers.mauthapi as string) || process.env.STEX_API_KEY || "M4DDE8HGFJ9";

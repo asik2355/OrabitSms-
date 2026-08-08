@@ -46,6 +46,10 @@ export const OrabitApiDoc: React.FC<OrabitApiDocProps> = ({ apiKey }) => {
         });
         const json = await res.json();
         setPlaygroundResponse(JSON.stringify(json, null, 2));
+      } else if (selectedEndpoint === "GET /@public/api/liveaccess") {
+        const res = await fetch(`/api/stex/liveaccess?apiKey=${encodeURIComponent(activeKey)}`);
+        const json = await res.json();
+        setPlaygroundResponse(JSON.stringify(json, null, 2));
       } else if (selectedEndpoint === "GET /@public/api/success-otp") {
         const res = await fetch(`/api/stex/success-otp?apiKey=${encodeURIComponent(activeKey)}`);
         const json = await res.json();

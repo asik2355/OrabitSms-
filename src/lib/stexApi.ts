@@ -149,6 +149,32 @@ export async function fetchStexOtps(apiKey?: string): Promise<StexOtpResponse> {
 }
 
 /**
+ * Fetch live access active services and ranges from Stex SMS API
+ */
+export async function fetchStexLiveAccess(apiKey?: string): Promise<any> {
+  const key = apiKey || DEFAULT_STEX_API_KEY;
+  try {
+    const res = await fetch(`/api/stex/liveaccess?apiKey=${encodeURIComponent(key)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (proxyError) {
+    try {
+      const directRes = await fetch("https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/liveaccess", {
+        method: "GET",
+        headers: {
+          "mauthapi": key,
+        },
+      });
+      return await directRes.json();
+    } catch (directError) {
+      return {
+        meta: { code: 500, status: "error" },
+      };
+    }
+  }
+}
+
+/**
  * Fetch live console hits from Stex SMS API
  */
 export async function fetchStexConsole(apiKey?: string): Promise<StexConsoleResponse> {
