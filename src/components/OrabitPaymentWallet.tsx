@@ -707,21 +707,24 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
                             : "bg-slate-950/80 border-slate-800 hover:border-slate-700"
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                              isSelected ? "border-cyan-400 bg-cyan-500" : "border-slate-600"
-                            }`}
-                          >
-                            {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
-                          </div>
-                          <div>
-                            <span className={`font-bold text-xs ${m.color}`}>{m.label}</span>
-                            <div className="text-[11px] font-mono text-slate-400">
-                              {hasVal ? m.val : <span className="text-slate-500 italic">Not set</span>}
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                                isSelected ? "border-cyan-400 bg-cyan-500" : "border-slate-600"
+                              }`}
+                            >
+                              {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                            </div>
+
+                            <ServiceLogo name={m.label} className="w-9 h-9 shrink-0" />
+
+                            <div className="min-w-0">
+                              <span className={`font-extrabold text-xs block ${m.color}`}>{m.label}</span>
+                              <div className="text-[11px] font-mono text-slate-300 truncate">
+                                {hasVal ? m.val : <span className="text-slate-500 italic">Not set</span>}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
                         {!hasVal && (
                           <button

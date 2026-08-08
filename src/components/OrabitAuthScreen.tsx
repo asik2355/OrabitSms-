@@ -141,10 +141,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
-    if (agentReferralEmail.trim() && !emailRegex.test(agentReferralEmail.trim())) {
+    if (!agentReferralEmail.trim() || !emailRegex.test(agentReferralEmail.trim())) {
       newErrors.agentReferralEmail = true;
       setErrors(newErrors);
-      showAlert("Please enter a valid agent referral email", "error");
+      showAlert("Valid Agent Referral Email is required to register", "error");
       return;
     }
 
@@ -177,7 +177,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       telegram: telegramUsername.trim() || "@orabit_user",
       city: city.trim() || "Dhaka",
       country: country.trim() || "Bangladesh",
-      referralEmail: agentReferralEmail.trim() || "official@orabit.bd",
+      referralEmail: agentReferralEmail.trim(),
       withdrawPin: withdrawPin.trim(),
       balance: 0.0,
       password: password,
@@ -197,7 +197,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               telegram: telegramUsername.trim() || "@orabit_user",
               city: city.trim() || "Dhaka",
               country: country.trim() || "Bangladesh",
-              referralEmail: agentReferralEmail.trim() || "official@orabit.bd",
+              referralEmail: agentReferralEmail.trim(),
               withdrawPin: withdrawPin.trim(),
             },
           },
@@ -278,7 +278,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           telegram: meta.telegram || "@orabit_user",
           city: meta.city || "Dhaka",
           country: meta.country || "Bangladesh",
-          referralEmail: meta.referralEmail || "official@orabit.bd",
+          referralEmail: meta.referralEmail || "agent@orabit.bd",
           withdrawPin: meta.withdrawPin || "1234",
           balance: 0.0,
           password: loginPassword,
@@ -558,7 +558,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                       setAgentReferralEmail(e.target.value);
                       if (errors.agentReferralEmail) setErrors({ ...errors, agentReferralEmail: false });
                     }}
-                    placeholder="e.g. official@orabit.bd"
+                    placeholder="Enter Agent Email Address"
                     className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all ${
                       errors.agentReferralEmail
                         ? "border-rose-500 focus:border-rose-500 animate-shake"
@@ -568,18 +568,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                 </div>
 
                 {/* Agent Referral Hint Box */}
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[rgba(99,102,241,0.06)] border border-[rgba(99,102,241,0.2)] text-[12.5px] text-[#A5B4FC] leading-relaxed animate-hint-glow">
-                  <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5 animate-icon-bounce" />
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[12.5px] text-amber-200 leading-relaxed">
+                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <span>
-                    Type{" "}
-                    <button
-                      type="button"
-                      onClick={() => setAgentReferralEmail("official@orabit.bd")}
-                      className="bg-indigo-500/20 px-2 py-0.5 rounded text-[11.5px] text-[#C7D2FE] font-mono hover:bg-indigo-500/40 transition-colors font-medium cursor-pointer underline"
-                    >
-                      official@orabit.bd
-                    </button>{" "}
-                    if you don't have an agent.
+                    A valid registered Agent Referral Email is required to register an account.
                   </span>
                 </div>
               </div>
