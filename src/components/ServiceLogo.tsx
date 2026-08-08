@@ -141,6 +141,70 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
     );
   }
 
+  // BKASH (Animated Logo)
+  if (normalized.includes("BKASH")) {
+    return (
+      <div className={`shrink-0 rounded-2xl bg-gradient-to-tr from-[#D10060] via-[#E2136E] to-[#FF4B97] p-0.5 border border-[#FF65A8]/60 shadow-lg shadow-[#E2136E]/40 relative overflow-hidden group flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[#E2136E]/70 ${className}`} style={customStyle}>
+        <div className="absolute -inset-1 rounded-2xl bg-[#E2136E] blur-md opacity-40 group-hover:opacity-80 animate-pulse transition-all"></div>
+        <div className="w-full h-full rounded-[14px] bg-[#180814] p-1 relative z-10 flex items-center justify-center overflow-hidden">
+          <img
+            src="https://i.ibb.co/0pHxFr0R/1000007767.png"
+            alt="bKash"
+            className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // NAGAD (Animated Logo)
+  if (normalized.includes("NAGAD")) {
+    return (
+      <div className={`shrink-0 rounded-2xl bg-gradient-to-tr from-[#D9381E] via-[#F26522] to-[#FF8042] p-0.5 border border-[#FF9E66]/60 shadow-lg shadow-[#F26522]/40 relative overflow-hidden group flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[#F26522]/70 ${className}`} style={customStyle}>
+        <div className="absolute -inset-1 rounded-2xl bg-[#F26522] blur-md opacity-40 group-hover:opacity-80 animate-pulse transition-all"></div>
+        <div className="w-full h-full rounded-[14px] bg-[#1a0b06] p-1 relative z-10 flex items-center justify-center overflow-hidden">
+          <img
+            src="https://i.ibb.co/h1JMTshQ/20260808-091517.png"
+            alt="Nagad"
+            className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // BINANCE (Animated Logo)
+  if (normalized.includes("BINANCE")) {
+    return (
+      <div className={`shrink-0 rounded-2xl bg-gradient-to-tr from-[#8C6D05] via-[#F0B90B] to-[#FFE279] p-0.5 border border-[#F0B90B]/60 shadow-lg shadow-[#F0B90B]/30 relative overflow-hidden group flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[#F0B90B]/60 ${className}`} style={customStyle}>
+        <div className="absolute -inset-1 rounded-2xl bg-[#F0B90B] blur-md opacity-30 group-hover:opacity-70 animate-pulse transition-all"></div>
+        <div className="w-full h-full rounded-[14px] bg-[#181A20] p-1 relative z-10 flex items-center justify-center overflow-hidden">
+          <img
+            src="https://i.ibb.co/LdBwLbHW/20260808-091450.png"
+            alt="Binance"
+            className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // BEP20 / BSC (Animated Logo)
+  if (normalized.includes("BEP") || normalized.includes("BSC")) {
+    return (
+      <div className={`shrink-0 rounded-2xl bg-gradient-to-tr from-[#054D3B] via-[#10B981] to-[#34D399] p-0.5 border border-emerald-400/60 shadow-lg shadow-emerald-500/30 relative overflow-hidden group flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-emerald-500/60 ${className}`} style={customStyle}>
+        <div className="absolute -inset-1 rounded-2xl bg-emerald-500 blur-md opacity-30 group-hover:opacity-70 animate-pulse transition-all"></div>
+        <div className="w-full h-full rounded-[14px] bg-[#0A1D1A] p-1 relative z-10 flex items-center justify-center overflow-hidden">
+          <img
+            src="https://i.ibb.co/gZDqd4mc/20260808-091340.png"
+            alt="BEP20"
+            className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Default fallback for any other service name
   const firstLetter = name.charAt(0).toUpperCase() || "S";
   const bgColors = [

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
+import { ServiceLogo } from "./ServiceLogo";
 import {
   Wallet,
   CreditCard,
@@ -36,28 +37,7 @@ const DEFAULT_METHODS: PaymentMethodsData = {
   bep20: "",
 };
 
-const DEFAULT_HISTORY: TransactionHistoryItem[] = [
-  {
-    id: "tx-1",
-    type: "withdrawal",
-    method: "Bkash",
-    accountOrAddress: "0175257****",
-    amount: 202.0,
-    date: "Jun 7, 03:31",
-    timestamp: Date.now() - 86400000 * 60,
-    status: "Done",
-  },
-  {
-    id: "tx-2",
-    type: "withdrawal",
-    method: "Binance UID",
-    accountOrAddress: "128938402",
-    amount: 500.0,
-    date: "Jun 3, 11:20",
-    timestamp: Date.now() - 86400000 * 64,
-    status: "Done",
-  },
-];
+const DEFAULT_HISTORY: TransactionHistoryItem[] = [];
 
 interface OrabitPaymentWalletProps {
   userProfile: UserProfile;
@@ -79,10 +59,10 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
-          bkash: parsed.bkash || "",
-          nagad: parsed.nagad || "",
-          binanceUid: parsed.binanceUid || "",
-          bep20: parsed.bep20 || "",
+          bkash: parsed.bkash && !parsed.bkash.includes("****") ? parsed.bkash : "",
+          nagad: parsed.nagad && !parsed.nagad.includes("****") ? parsed.nagad : "",
+          binanceUid: parsed.binanceUid && parsed.binanceUid !== "128938402" ? parsed.binanceUid : "",
+          bep20: parsed.bep20 && !parsed.bep20.includes("****") ? parsed.bep20 : "",
         };
       }
     } catch (e) {
@@ -91,14 +71,16 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     return DEFAULT_METHODS;
   });
 
-  // Load saved withdrawal history
+  // Load saved withdrawal history (Defaults to empty list - no dummy mock history)
   const [history, setHistory] = useState<TransactionHistoryItem[]>(() => {
     try {
       const saved = localStorage.getItem("orabit_withdraw_history");
       if (saved) {
         const parsed: TransactionHistoryItem[] = JSON.parse(saved);
-        // filter out any legacy deposit records
-        return parsed.filter((item) => item.type === "withdrawal");
+        // Filter out legacy dummy records tx-1, tx-2 or dummy test entries
+        return parsed.filter(
+          (item) => item.type === "withdrawal" && item.id !== "tx-1" && item.id !== "tx-2" && !item.accountOrAddress.includes("****")
+        );
       }
     } catch (e) {
       console.error(e);
@@ -299,42 +281,49 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
       </div>
 
       {/* 2. PAYMENT METHODS SECTION */}
-      <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800/90 shadow-xl space-y-4">
+      <div className="p-6 rounded-3xl bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 shadow-2xl space-y-5 relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute top-1/2 -left-20 w-56 h-56 bg-pink-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 -right-20 w-56 h-56 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
         {/* Section Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-slate-400" />
-            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-              PAYMENT METHODS
-            </h2>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-cyan-400">
+              <CreditCard className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-xs font-black text-slate-200 uppercase tracking-widest">
+                PAYMENT METHODS
+              </h2>
+              <p className="text-[11px] text-slate-400 font-medium">Select method for payout processing</p>
+            </div>
           </div>
           <button
             onClick={() => openEditModal()}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 px-3 py-1.5 rounded-xl border border-slate-700 transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-2 text-xs font-bold text-slate-200 hover:text-white bg-slate-800/90 hover:bg-slate-700/90 px-3.5 py-1.5 rounded-xl border border-slate-700/80 shadow-md transition-all active:scale-95 cursor-pointer"
           >
-            <Edit2 className="w-3.5 h-3.5 text-slate-300" />
-            <span>Edit</span>
+            <Edit2 className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Manage All</span>
           </button>
         </div>
 
-        {/* Payment Methods List */}
-        <div className="divide-y divide-slate-800/60">
-          {/* BKASH */}
-          <div className="py-3.5 flex items-center justify-between hover:bg-slate-800/30 px-2 rounded-2xl transition-all">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-pink-950/80 border border-pink-500/40 text-pink-400 flex items-center justify-center font-black text-lg shadow-md shrink-0">
-                B
-              </div>
-              <div>
-                <div className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                  <span>BKASH</span>
-                  <span className="text-[10px] bg-pink-500/10 text-pink-400 px-2 py-0.2 rounded font-mono font-semibold">
-                    Personal / Agent
+        {/* Payment Methods Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 relative z-10">
+          {/* BKASH CARD */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 via-[#180b18] to-slate-950 border border-pink-500/20 hover:border-pink-500/50 shadow-md hover:shadow-pink-500/10 transition-all duration-300 flex items-center justify-between group">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <ServiceLogo name="BKASH" className="w-12 h-12" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-sm text-slate-100 group-hover:text-pink-300 transition-colors">BKASH</span>
+                  <span className="text-[9px] bg-pink-500/15 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-full font-mono font-bold tracking-tight">
+                    Personal
                   </span>
                 </div>
-                <div className="font-mono text-xs font-medium text-slate-300 mt-0.5">
+                <div className="font-mono text-xs font-medium text-slate-300 mt-1 truncate">
                   {methods.bkash && methods.bkash.trim() !== "" ? (
-                    <span className="text-slate-100 font-bold">{methods.bkash}</span>
+                    <span className="text-pink-200 font-bold tracking-wide">{methods.bkash}</span>
                   ) : (
                     <span className="text-slate-500 italic">Not set</span>
                   )}
@@ -343,28 +332,26 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
             </div>
             <button
               onClick={() => openEditModal("bkash")}
-              className="text-xs text-slate-400 hover:text-cyan-400 px-3 py-1.5 rounded-xl hover:bg-slate-800 transition-colors font-mono cursor-pointer"
+              className="text-xs font-bold text-pink-400 hover:text-pink-200 bg-pink-950/40 hover:bg-pink-900/60 border border-pink-500/30 px-3 py-1.5 rounded-xl transition-all font-mono shrink-0 cursor-pointer ml-2"
             >
-              {methods.bkash ? "Change" : "Add"}
+              {methods.bkash ? "Change" : "+ Add"}
             </button>
           </div>
 
-          {/* NAGAD */}
-          <div className="py-3.5 flex items-center justify-between hover:bg-slate-800/30 px-2 rounded-2xl transition-all">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-orange-950/80 border border-orange-500/40 text-orange-400 flex items-center justify-center font-black text-lg shadow-md shrink-0">
-                N
-              </div>
-              <div>
-                <div className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                  <span>NAGAD</span>
-                  <span className="text-[10px] bg-orange-500/10 text-orange-400 px-2 py-0.2 rounded font-mono font-semibold">
-                    Mobile Wallet
+          {/* NAGAD CARD */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 via-[#1c0f0a] to-slate-950 border border-orange-500/20 hover:border-orange-500/50 shadow-md hover:shadow-orange-500/10 transition-all duration-300 flex items-center justify-between group">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <ServiceLogo name="NAGAD" className="w-12 h-12" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-sm text-slate-100 group-hover:text-orange-300 transition-colors">NAGAD</span>
+                  <span className="text-[9px] bg-orange-500/15 text-orange-300 border border-orange-500/30 px-2 py-0.5 rounded-full font-mono font-bold tracking-tight">
+                    Personal
                   </span>
                 </div>
-                <div className="font-mono text-xs font-medium text-slate-300 mt-0.5">
+                <div className="font-mono text-xs font-medium text-slate-300 mt-1 truncate">
                   {methods.nagad && methods.nagad.trim() !== "" ? (
-                    <span className="text-slate-100 font-bold">{methods.nagad}</span>
+                    <span className="text-orange-200 font-bold tracking-wide">{methods.nagad}</span>
                   ) : (
                     <span className="text-slate-500 italic">Not set</span>
                   )}
@@ -373,28 +360,26 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
             </div>
             <button
               onClick={() => openEditModal("nagad")}
-              className="text-xs text-slate-400 hover:text-cyan-400 px-3 py-1.5 rounded-xl hover:bg-slate-800 transition-colors font-mono cursor-pointer"
+              className="text-xs font-bold text-orange-400 hover:text-orange-200 bg-orange-950/40 hover:bg-orange-900/60 border border-orange-500/30 px-3 py-1.5 rounded-xl transition-all font-mono shrink-0 cursor-pointer ml-2"
             >
-              {methods.nagad ? "Change" : "Add"}
+              {methods.nagad ? "Change" : "+ Add"}
             </button>
           </div>
 
-          {/* BINANCE UID */}
-          <div className="py-3.5 flex items-center justify-between hover:bg-slate-800/30 px-2 rounded-2xl transition-all">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-yellow-950/80 border border-yellow-500/40 text-yellow-400 flex items-center justify-center font-black text-lg shadow-md shrink-0">
-                #
-              </div>
-              <div>
-                <div className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                  <span>BINANCE UID</span>
-                  <span className="text-[10px] bg-yellow-500/10 text-yellow-400 px-2 py-0.2 rounded font-mono font-semibold">
-                    Pay / Direct UID
+          {/* BINANCE UID CARD */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 via-[#1c190a] to-slate-950 border border-yellow-500/20 hover:border-yellow-500/50 shadow-md hover:shadow-yellow-500/10 transition-all duration-300 flex items-center justify-between group">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <ServiceLogo name="BINANCE" className="w-12 h-12" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-sm text-slate-100 group-hover:text-yellow-300 transition-colors">BINANCE UID</span>
+                  <span className="text-[9px] bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 px-2 py-0.5 rounded-full font-mono font-bold tracking-tight">
+                    Direct UID
                   </span>
                 </div>
-                <div className="font-mono text-xs font-medium text-slate-300 mt-0.5">
+                <div className="font-mono text-xs font-medium text-slate-300 mt-1 truncate">
                   {methods.binanceUid && methods.binanceUid.trim() !== "" ? (
-                    <span className="text-slate-100 font-bold">{methods.binanceUid}</span>
+                    <span className="text-yellow-200 font-bold tracking-wide">{methods.binanceUid}</span>
                   ) : (
                     <span className="text-slate-500 italic">Not set</span>
                   )}
@@ -403,28 +388,26 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
             </div>
             <button
               onClick={() => openEditModal("binanceUid")}
-              className="text-xs text-slate-400 hover:text-cyan-400 px-3 py-1.5 rounded-xl hover:bg-slate-800 transition-colors font-mono cursor-pointer"
+              className="text-xs font-bold text-yellow-400 hover:text-yellow-200 bg-yellow-950/40 hover:bg-yellow-900/60 border border-yellow-500/30 px-3 py-1.5 rounded-xl transition-all font-mono shrink-0 cursor-pointer ml-2"
             >
-              {methods.binanceUid ? "Change" : "Add"}
+              {methods.binanceUid ? "Change" : "+ Add"}
             </button>
           </div>
 
-          {/* BEP20 */}
-          <div className="py-3.5 flex items-center justify-between hover:bg-slate-800/30 px-2 rounded-2xl transition-all">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-black text-lg shadow-md shrink-0">
-                Ξ
-              </div>
-              <div>
-                <div className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                  <span>BEP20 (USDT)</span>
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.2 rounded font-mono font-semibold">
+          {/* BEP20 CARD */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/90 via-[#0a1c18] to-slate-950 border border-emerald-500/20 hover:border-emerald-500/50 shadow-md hover:shadow-emerald-500/10 transition-all duration-300 flex items-center justify-between group">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <ServiceLogo name="BEP20" className="w-12 h-12" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-sm text-slate-100 group-hover:text-emerald-300 transition-colors">BEP20 (USDT)</span>
+                  <span className="text-[9px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-bold tracking-tight">
                     BNB Smart Chain
                   </span>
                 </div>
-                <div className="font-mono text-xs font-medium text-slate-300 mt-0.5 max-w-[220px] sm:max-w-md truncate">
+                <div className="font-mono text-xs font-medium text-slate-300 mt-1 truncate">
                   {methods.bep20 && methods.bep20.trim() !== "" ? (
-                    <span className="text-slate-100 font-bold tracking-wider">{methods.bep20}</span>
+                    <span className="text-emerald-200 font-bold tracking-wide">{methods.bep20}</span>
                   ) : (
                     <span className="text-slate-500 italic">Not set</span>
                   )}
@@ -433,9 +416,9 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
             </div>
             <button
               onClick={() => openEditModal("bep20")}
-              className="text-xs text-slate-400 hover:text-cyan-400 px-3 py-1.5 rounded-xl hover:bg-slate-800 transition-colors font-mono shrink-0 cursor-pointer"
+              className="text-xs font-bold text-emerald-400 hover:text-emerald-200 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/30 px-3 py-1.5 rounded-xl transition-all font-mono shrink-0 cursor-pointer ml-2"
             >
-              {methods.bep20 ? "Change" : "Add"}
+              {methods.bep20 ? "Change" : "+ Add"}
             </button>
           </div>
         </div>
