@@ -11,6 +11,7 @@ import {
   Search,
   RefreshCw,
   Clock,
+  History,
   Send,
   Bell,
   CheckCircle2,
@@ -874,42 +875,61 @@ export default function App() {
               </div>
 
               {/* TOP METRICS CARDS WITH ANIMATIONS */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/40 space-y-2 relative shadow-md hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                  <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-                    <span className="group-hover:text-emerald-300 transition-colors">TODAY REVENUE</span>
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all">
-                      <Zap className="w-4 h-4 animate-pulse" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* CARD 1: TODAY REVENUE */}
+                <div className="group p-4 rounded-2xl bg-[#131722]/90 border border-slate-800/90 hover:border-amber-500/40 space-y-2 relative shadow-md hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
+                    <span className="group-hover:text-amber-300 transition-colors uppercase">TODAY REVENUE</span>
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-500/25 transition-all">
+                      <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">
-                    {currency === "BDT" ? "৳0.00" : "$0.00"}
+                  <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
+                    {currency === "BDT" ? `৳${(0.01 * usdExchangeRate).toFixed(2)}` : "$0.01"}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Earnings from successful OTPs</div>
                 </div>
 
-                <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-blue-500/40 space-y-2 relative shadow-md hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                  <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-                    <span className="group-hover:text-blue-300 transition-colors">TODAY OTPS</span>
-                    <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-500/20 transition-all">
-                      <MessageSquare className="w-4 h-4" />
+                {/* CARD 2: TODAY OTPS */}
+                <div className="group p-4 rounded-2xl bg-[#131722]/90 border border-slate-800/90 hover:border-blue-500/40 space-y-2 relative shadow-md hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
+                    <span className="group-hover:text-blue-300 transition-colors uppercase">TODAY OTPS</span>
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-500/25 transition-all">
+                      <MessageSquare className="w-4 h-4 text-blue-400" />
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-white font-mono group-hover:text-blue-300 transition-colors">6</div>
+                  <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-blue-300 transition-colors">
+                    1
+                  </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Total successful verifications</div>
                 </div>
 
-                <div className="group p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/40 space-y-2 relative shadow-md hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                  <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-                    <span className="group-hover:text-purple-300 transition-colors">YESTERDAY REVENUE</span>
-                    <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/20 transition-all">
-                      <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                {/* CARD 3: YESTERDAY REVENUE */}
+                <div className="group p-4 rounded-2xl bg-[#131722]/90 border border-slate-800/90 hover:border-purple-500/40 space-y-2 relative shadow-md hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
+                    <span className="group-hover:text-purple-300 transition-colors uppercase">YESTERDAY REVENUE</span>
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/25 transition-all">
+                      <History className="w-4 h-4 text-purple-400" />
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
-                    {currency === "BDT" ? `৳${(0.24 * usdExchangeRate).toFixed(2)}` : "$0.24"}
+                  <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
+                    {currency === "BDT" ? "৳0.00" : "$0.00"}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Previous day performance</div>
+                </div>
+
+                {/* CARD 4: YESTERDAY OTPS */}
+                <div className="group p-4 rounded-2xl bg-[#131722]/90 border border-slate-800/90 hover:border-emerald-500/40 space-y-2 relative shadow-md hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
+                  <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider">
+                    <span className="group-hover:text-emerald-300 transition-colors uppercase">YESTERDAY OTPS</span>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/25 transition-all">
+                      <Check className="w-4 h-4 text-emerald-400" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">
+                    0
+                  </div>
+                  <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Completed verifications</div>
                 </div>
               </div>
             </div>

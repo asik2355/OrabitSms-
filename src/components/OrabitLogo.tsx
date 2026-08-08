@@ -46,24 +46,24 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
     >
       {/* LOGO ICON CONTAINER WITH ORBITAL GLOW */}
       <div className="relative flex items-center justify-center">
-        {/* Soft Ambient Neon Glow Behind */}
+        {/* Animated Multi-Color Ambient Neon Glow Behind */}
         <div
-          className={`absolute -inset-1.5 rounded-2xl bg-gradient-to-tr from-cyan-500 via-emerald-400 to-indigo-500 opacity-70 blur-md group-hover:opacity-100 transition-all duration-500 animate-pulse`}
+          className="absolute -inset-1.5 rounded-2xl bg-gradient-to-tr from-cyan-500 via-emerald-400 to-indigo-500 opacity-75 blur-md group-hover:opacity-100 transition-all duration-500 animate-pulse"
         />
 
         {/* Outer Orbital Ring Container */}
         <div
-          className={`relative ${iconSizes[size]} bg-[#090D1A] border border-cyan-400/40 p-0.5 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)] overflow-hidden group-hover:border-emerald-400/80 transition-all duration-300`}
+          className={`relative ${iconSizes[size]} bg-[#090D1A] border border-cyan-400/50 p-0.5 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)] overflow-hidden group-hover:border-emerald-400/90 transition-all duration-300`}
         >
           {/* Subtle Radial Mesh */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.25),transparent_70%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.3),transparent_70%)]" />
 
-          {/* CUSTOM ORBITAL SVG LOGO MARK */}
+          {/* CUSTOM ORBITAL SVG LOGO MARK WITH ANIMATION */}
           <svg
             viewBox="0 0 100 100"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-full relative z-10 transform group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full relative z-10 transform group-hover:scale-110 transition-transform duration-300"
           >
             <defs>
               <linearGradient id="orbGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -90,20 +90,21 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
               stroke="url(#orbGrad1)"
               strokeWidth="3.5"
               strokeDasharray="140 30"
-              className="animate-[spin_8s_linear_infinite] transform-origin-center"
+              className="animate-[spin_6s_linear_infinite]"
               style={{ transformOrigin: "50px 50px", transform: "rotate(-25deg)" }}
             />
 
-            {/* Counter Orbital Ring */}
+            {/* Counter Orbital Ring Rotating Opposite */}
             <ellipse
               cx="50"
               cy="50"
               rx="38"
               ry="18"
               stroke="url(#orbGrad2)"
-              strokeWidth="2"
-              strokeOpacity="0.6"
+              strokeWidth="2.5"
+              strokeOpacity="0.8"
               strokeDasharray="80 50"
+              className="animate-[spin_10s_linear_infinite_reverse]"
               style={{ transformOrigin: "50px 50px", transform: "rotate(35deg)" }}
             />
 
@@ -114,40 +115,37 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
               r="4.5"
               fill="#38BDF8"
               filter="url(#glowEffect)"
+              className="animate-ping opacity-80"
             />
 
-            {/* Central High-Tech Signal Core */}
-            <path
-              d="M32 42 C32 34 38 28 50 28 C62 28 68 34 68 42 C68 52 56 56 50 64 C48 66 48 68 48 70"
-              stroke="none"
-            />
             {/* SMS Message Envelope / Signal Core Icon */}
             <path
               d="M32 38 C32 34.6 34.6 32 38 32 H62 C65.4 32 68 34.6 68 38 V58 C68 61.4 65.4 64 62 64 H44 L34 72 V64 H38 C34.6 64 32 61.4 32 58 V38 Z"
               fill="url(#orbGrad1)"
-              fillOpacity="0.25"
+              fillOpacity="0.3"
               stroke="url(#orbGrad1)"
-              strokeWidth="4"
+              strokeWidth="3.5"
               strokeLinejoin="round"
             />
 
-            {/* Signal Bolt inside message core */}
+            {/* Pulsing Signal Lightning Bolt inside message core */}
             <path
               d="M52 38 L42 50 H51 L48 58 L58 46 H49 L52 38 Z"
               fill="#38BDF8"
               filter="url(#glowEffect)"
+              className="animate-pulse"
             />
           </svg>
         </div>
       </div>
 
-      {/* TYPOGRAPHY SECTION */}
+      {/* TYPOGRAPHY SECTION WITH GLOW & SHIMMER */}
       <div className="flex flex-col justify-center">
         <div className="flex items-center gap-1.5">
           <span
-            className={`font-black ${textSizes[size]} tracking-tight uppercase bg-gradient-to-r from-cyan-300 via-emerald-300 to-indigo-300 bg-clip-text text-transparent group-hover:from-emerald-300 group-hover:to-cyan-300 transition-all`}
+            className={`font-black ${textSizes[size]} tracking-tight uppercase bg-gradient-to-r from-cyan-300 via-emerald-300 to-indigo-300 bg-clip-text text-transparent group-hover:from-emerald-300 group-hover:to-cyan-300 transition-all duration-300`}
           >
-            ORABIT<span className="text-cyan-400 font-black">SMS</span>
+            ORABIT<span className="text-cyan-400 font-black animate-pulse">SMS</span>
           </span>
         </div>
 
@@ -162,3 +160,4 @@ export const OrabitLogo: React.FC<OrabitLogoProps> = ({
     </div>
   );
 };
+
