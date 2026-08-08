@@ -527,15 +527,8 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
   });
 
   const appStats = React.useMemo(() => {
-    const DEFAULT_APP_STATS = [
-      { name: "FACEBOOK", count: 163, percent: "82%", color: "#3b82f6" },
-      { name: "WHATSAPP", count: 17, percent: "9%", color: "#eab308" },
-      { name: "INSTAGRAM", count: 11, percent: "6%", color: "#10b981" },
-      { name: "DISCORD", count: 6, percent: "3%", color: "#a855f7" },
-      { name: "BIGO", count: 1, percent: "1%", color: "#38bdf8" },
-    ];
     if (!userSuccessMessages || userSuccessMessages.length === 0) {
-      return DEFAULT_APP_STATS;
+      return [];
     }
     const counts: Record<string, number> = {};
     userSuccessMessages.forEach((m) => {
