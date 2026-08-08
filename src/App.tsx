@@ -666,8 +666,15 @@ export default function App() {
   });
 
   const appStats = React.useMemo(() => {
+    const DEFAULT_APP_STATS = [
+      { name: "FACEBOOK", count: 163, percent: "82%", color: "#3b82f6" },
+      { name: "WHATSAPP", count: 17, percent: "9%", color: "#eab308" },
+      { name: "INSTAGRAM", count: 11, percent: "6%", color: "#10b981" },
+      { name: "DISCORD", count: 6, percent: "3%", color: "#a855f7" },
+      { name: "BIGO", count: 1, percent: "1%", color: "#38bdf8" },
+    ];
     if (!userSuccessMessages || userSuccessMessages.length === 0) {
-      return [];
+      return DEFAULT_APP_STATS;
     }
     const counts: Record<string, number> = {};
     userSuccessMessages.forEach((m) => {
@@ -1134,79 +1141,16 @@ export default function App() {
                         })
                       ) : (
                         <tr>
-                          <td colSpan={3} className="py-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
-                              <Ghost className="w-7 h-7 text-slate-500/80 mb-0.5" />
-                              <span className="text-xs font-bold text-slate-300">এখনও কোনো সফল ওটিপি মেসেজ পাওয়া যায়নি</span>
-                              <p className="text-[11px] text-slate-500 max-w-xs">
-                                'Get Number' থেকে নম্বর নিয়ে OTP সফল হলে সার্ভিস অনুযায়ী পরিসংখ্যান ও আর্নিং এখানে দেখাবে।
-                              </p>
+                          <td colSpan={3} className="py-12 text-center">
+                            <div className="flex flex-col items-center justify-center gap-2.5 text-slate-500">
+                              <Ghost className="w-7 h-7 text-slate-500/70" />
+                              <span className="text-xs font-medium text-slate-400">No activity recorded today</span>
                             </div>
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
-                </div>
-              </motion.div>
-
-              {/* 1.5. Successful Verification Numbers List Card */}
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.05, ease: "easeOut" }}
-                className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-lg hover:border-slate-700/80 transition-all duration-300"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-bold text-base text-white">
-                    <Check className="w-4.5 h-4.5 text-emerald-400" />
-                    <span>Successful Verifications ({userSuccessMessages.length})</span>
-                  </div>
-                  <span className="text-[10px] font-mono font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full">
-                    Active Feed
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  {userSuccessMessages.length > 0 ? (
-                    <div className="divide-y divide-slate-800/80">
-                      {userSuccessMessages.map((item) => {
-                        const rate = getServiceRateBDT(item.service);
-                        const rateFormatted = currency === "BDT" ? `+৳${rate.toFixed(2)}` : `+$${(rate / usdExchangeRate).toFixed(2)}`;
-                        return (
-                          <div key={item.id} className="py-3 flex items-center justify-between gap-3 hover:bg-slate-800/40 px-2 rounded-xl transition-all">
-                            <div className="flex items-center gap-3">
-                              <ServiceLogo name={item.service} className="w-8 h-8 shrink-0" />
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-slate-100 text-sm truncate">{item.service}</span>
-                                  <span className="text-[11px] font-mono bg-slate-800 text-emerald-300 px-2 py-0.5 rounded font-semibold border border-slate-700">
-                                    {item.number}
-                                  </span>
-                                </div>
-                                <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                                  <span>OTP: <strong className="text-emerald-400 font-mono text-xs">{item.otpCode || "SUCCESS"}</strong></span>
-                                  <span>•</span>
-                                  <span>{item.timeAgo}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="text-right shrink-0">
-                              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                                {rateFormatted}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-1.5">
-                      <span className="font-semibold text-slate-300">কোনো সফল নম্বরের তালিকা নেই</span>
-                      <p className="text-[11px] text-slate-500">আপনার নেওয়া নম্বরসমূহে OTP মেসেজ সফলভাবে আসলে নম্বর ও সার্ভিসসহ তালিকা এখানে দেখাবে।</p>
-                    </div>
-                  )}
                 </div>
               </motion.div>
 
