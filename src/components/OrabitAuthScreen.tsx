@@ -33,6 +33,7 @@ export interface UserProfile {
   balance: number;
   password?: string;
   apiEnabled?: boolean;
+  role?: string;
 }
 
 interface OrabitAuthScreenProps {
@@ -181,6 +182,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       withdrawPin: withdrawPin.trim(),
       balance: 0.0,
       password: password,
+      role: "Client",
     };
 
     (async () => {
@@ -199,6 +201,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               country: country.trim() || "Bangladesh",
               referralEmail: agentReferralEmail.trim(),
               withdrawPin: withdrawPin.trim(),
+              role: "Client",
             },
           },
         });
@@ -282,6 +285,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           withdrawPin: meta.withdrawPin || "1234",
           balance: 0.0,
           password: loginPassword,
+          role: meta.role || "Client",
         };
       } else if (error) {
         authErrorMsg = error.message;
@@ -314,7 +318,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           showAlert("Incorrect password. Please try again.", "error");
           return;
         }
-        loggedInUser = foundAcc;
+        loggedInUser = {
+          ...foundAcc,
+          role: foundAcc.role || "Client",
+        };
       }
     }
 

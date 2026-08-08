@@ -208,9 +208,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <CreditCard className="w-4.5 h-4.5 text-emerald-400" />
             <span>Account Overview</span>
           </div>
-          <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md">
-            ACTIVE
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md uppercase">
+              ROLE: {userProfile.role || "Client"}
+            </span>
+            <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md">
+              ACTIVE
+            </span>
+          </div>
         </div>
 
         {/* Highlight Lifetime Earning Box */}
@@ -293,6 +298,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 readOnly
                 value={userProfile.email}
                 className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 px-3.5 py-2.5 rounded-xl cursor-not-allowed font-medium select-none"
+              />
+            </div>
+
+            {/* ACCOUNT ROLE (READ-ONLY) */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                ACCOUNT ROLE
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={userProfile.role || "Client"}
+                className="w-full bg-slate-950/60 border border-slate-800/80 text-cyan-400 font-mono font-bold px-3.5 py-2.5 rounded-xl cursor-not-allowed select-none uppercase"
               />
             </div>
 
