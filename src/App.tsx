@@ -443,10 +443,11 @@ export default function App() {
           });
 
           setMessages((prev) => {
+            if (prev.length === 0) return liveMsgs;
             const existingIds = new Set(prev.map((m) => m.id));
             const fresh = liveMsgs.filter((m) => !existingIds.has(m.id));
             if (fresh.length > 0) {
-              return [...fresh, ...prev].slice(0, 50);
+              return [...fresh, ...prev].slice(0, 100);
             }
             return prev;
           });
