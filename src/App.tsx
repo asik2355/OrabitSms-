@@ -1342,22 +1342,6 @@ export default function App() {
           <div className="space-y-5">
             {/* TOP CARD: ENTER NUMBER RANGE */}
             <div className="p-4 sm:p-5 rounded-2xl bg-[#111524] border border-slate-800/90 space-y-4 shadow-xl">
-              {/* Header Label */}
-              <div className="text-emerald-400 font-extrabold text-xs tracking-wider uppercase flex items-center justify-between">
-                <span>ENTER NUMBER RANGE</span>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 bg-[#090c17] p-1 rounded-lg border border-slate-800 text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black">RANGE</span>
-                    <span className="px-2 py-0.5 text-slate-400 font-medium">SEARCH</span>
-                    <span className="px-2 py-0.5 text-slate-400 font-medium">ACCESS</span>
-                  </div>
-                  <label className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono font-bold cursor-pointer">
-                    <input type="checkbox" defaultChecked className="rounded bg-slate-800 border-slate-700 text-emerald-500" />
-                    <span>SYNC MODE</span>
-                  </label>
-                </div>
-              </div>
-
               {/* Range Input Box */}
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold text-slate-500 text-sm">#</span>
@@ -1404,32 +1388,6 @@ export default function App() {
                   <span>{provisioning ? "Connecting..." : "Get Number"}</span>
                 </button>
               </div>
-
-              {/* Hits Badge Box (when numbers have been taken) */}
-              {feedNumbers.length > 0 && (
-                <div className="mt-3 p-3 rounded-xl bg-[#090c17] border border-slate-800/80 space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-                    <div className="flex items-center gap-1.5 text-amber-400 font-bold">
-                      <Zap className="w-3.5 h-3.5 fill-amber-400" />
-                      <span>ALREADY HIT ON THIS RANGE · {targetRange || "22507XXX"}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded font-bold">
-                      14 SERVICES
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    {["32665", "FACEBOOK", "BIGO", "VERIFY", "WhatsApp"].map((svc) => (
-                      <span key={svc} className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300">
-                        {svc}
-                      </span>
-                    ))}
-                    <span className="text-[10px] text-blue-400 font-bold hover:underline cursor-pointer">
-                      + Show more (+9)
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* LOWER TABLE / LIST CARD */}
