@@ -7,10 +7,14 @@ export const PRELOAD_SERVICE_LOGOS = [
   "https://i.ibb.co/gMLbkyZD/20260808-204306.png", // Discord
   "https://i.ibb.co/GvxdH9kw/20260808-204046.png", // Instagram
   "https://i.ibb.co/cKrBxZ8j/20260808-204219.png", // TikTok
-  "https://i.ibb.co/0pHxFr0R/1000007767.png",     // bKash
+  "https://i.ibb.co/rfXnjhmT/20260808-225352.png", // bKash
   "https://i.ibb.co/h1JMTshQ/20260808-091517.png", // Nagad
   "https://i.ibb.co/8DXH9tpH/20260808-204739.png", // Binance
   "https://i.ibb.co/gZDqd4mc/20260808-091340.png", // BEP20
+  "https://i.ibb.co/pBsj6YrT/20260808-225511.png", // Apple
+  "https://i.ibb.co/MkdzsN3z/20260808-224734.png", // Microsoft
+  "https://i.ibb.co/XfF1sQw7/20260808-224540.png", // Bigo
+  "https://i.ibb.co/MkxNTZMp/20260808-224420.png", // Telegram
 ];
 
 interface ServiceLogoProps {
@@ -64,10 +68,75 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
   // TELEGRAM
   if (normalized.includes("TELEGRAM") || normalized === "TG") {
     return (
-      <div className={`shrink-0 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center p-0.5 sm:p-1 shadow-sm select-none ${className}`} style={customStyle}>
-        <svg className="w-full h-full pointer-events-none" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" fill="#229ED9" />
-        </svg>
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm select-none protected-img-container ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/MkxNTZMp/20260808-224420.png"
+          alt="Telegram"
+          className="w-full h-full object-contain pointer-events-none select-none"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        />
+      </div>
+    );
+  }
+
+  // APPLE
+  if (normalized.includes("APPLE")) {
+    return (
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm select-none protected-img-container ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/pBsj6YrT/20260808-225511.png"
+          alt="Apple"
+          className="w-full h-full object-contain pointer-events-none select-none"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        />
+      </div>
+    );
+  }
+
+  // MICROSOFT
+  if (normalized.includes("MICROSOFT") || normalized.includes("MSFT")) {
+    return (
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm select-none protected-img-container ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/MkdzsN3z/20260808-224734.png"
+          alt="Microsoft"
+          className="w-full h-full object-contain pointer-events-none select-none"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        />
+      </div>
+    );
+  }
+
+  // BIGO
+  if (normalized.includes("BIGO")) {
+    return (
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm select-none protected-img-container ${className}`} style={customStyle}>
+        <img
+          src="https://i.ibb.co/XfF1sQw7/20260808-224540.png"
+          alt="Bigo"
+          className="w-full h-full object-contain pointer-events-none select-none"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        />
       </div>
     );
   }
@@ -203,7 +272,7 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
         <div className="absolute -inset-1 rounded-2xl bg-[#E2136E] blur-md opacity-40 group-hover:opacity-80 animate-pulse transition-all"></div>
         <div className="w-full h-full rounded-[14px] bg-[#180814] p-1 relative z-10 flex items-center justify-center overflow-hidden">
           <img
-            src="https://i.ibb.co/0pHxFr0R/1000007767.png"
+            src="https://i.ibb.co/rfXnjhmT/20260808-225352.png"
             alt="bKash"
             className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
             referrerPolicy="no-referrer"
