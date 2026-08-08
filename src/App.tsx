@@ -100,6 +100,7 @@ interface FeedNumber {
   service: string;
   otpCode?: string;
   rawMessage?: string;
+  requestedAt?: number;
 }
 
 function extractOtpFromText(rawText: string): string {
@@ -177,7 +178,26 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment" | "logout">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
-  const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(INITIAL_FEEDS);
+  const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(() => {
+    try {
+      const saved = localStorage.getItem("orabit_feed_numbers");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error("Failed to load feed numbers from storage", e);
+    }
+    return INITIAL_FEEDS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("orabit_feed_numbers", JSON.stringify(feedNumbers));
+    } catch (e) {
+      console.error("Failed to save feed numbers to storage", e);
+    }
+  }, [feedNumbers]);
   const [searchQuery, setSearchQuery] = useState("");
   const [feedFilter, setFeedFilter] = useState<"ALL" | "SUCCESS" | "PENDING" | "FAILED">("ALL");
   const [autoSyncSeconds, setAutoSyncSeconds] = useState(2);
@@ -353,36 +373,72 @@ export default function App() {
           });
         }
 
-        // 2. Fetch User OTPs for requested numbers
-        const otpRes = await fetchStexOtps(activeKey);
-        if (otpRes.meta && otpRes.meta.code === 200 && otpRes.data && otpRes.data.otps) {
-          const fetchedOtps = otpRes.data.otps;
+        // 2. Fetch User OTPs for requested numbers & enforce 15-min expiration
+        let fetchedOtps: any[] = [];
+        try {
+          const otpRes = await fetchStexOtps(activeKey);
+          if (otpRes.meta && otpRes.meta.code === 200 && otpRes.data && otpRes.data.otps) {
+            fetchedOtps = otpRes.data.otps;
+          }
+        } catch (e) {
+          console.error("Error fetching OTPs:", e);
+        }
 
-          setFeedNumbers((prevFeed) => {
-            let updated = false;
-            const newFeed = prevFeed.map((item) => {
-              const matchedOtp = fetchedOtps.find((o) => {
-                const oNum = (o.number || "").replace(/\D/g, "");
-                const iNum = (item.number || "").replace(/\D/g, "");
-                return oNum === iNum || oNum.endsWith(iNum) || iNum.endsWith(oNum);
-              });
+        setFeedNumbers((prevFeed) => {
+          const now = Date.now();
+          let updated = false;
 
-              if (matchedOtp && item.status !== "SUCCESS") {
+          const newFeed = prevFeed.map((item) => {
+            // Check if matched OTP received
+            const matchedOtp = fetchedOtps.find((o) => {
+              const oNum = (o.number || "").replace(/\D/g, "");
+              const iNum = (item.number || "").replace(/\D/g, "");
+              return oNum === iNum || oNum.endsWith(iNum) || iNum.endsWith(oNum);
+            });
+
+            if (matchedOtp && item.status !== "SUCCESS") {
+              updated = true;
+              const extracted = extractOtpFromMessage(matchedOtp.message);
+              return {
+                ...item,
+                status: "SUCCESS" as const,
+                otpCode: extracted,
+                rawMessage: matchedOtp.message,
+                timeAgo: "Just now",
+              };
+            }
+
+            // Check 15-minute timeout for pending numbers (15 * 60 * 1000 = 900,000 ms)
+            const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
+            if (item.status === "PENDING" && reqTimestamp) {
+              const elapsedMs = now - reqTimestamp;
+              if (elapsedMs >= 15 * 60 * 1000) {
                 updated = true;
-                const extracted = extractOtpFromMessage(matchedOtp.message);
                 return {
                   ...item,
-                  status: "SUCCESS" as const,
-                  otpCode: extracted,
-                  rawMessage: matchedOtp.message,
-                  timeAgo: "Just now",
+                  status: "FAILED" as const,
+                  timeAgo: "Expired (15m)",
+                  rawMessage: "No SMS received within 15 minutes",
                 };
+              } else {
+                const elapsedMins = Math.floor(elapsedMs / 60000);
+                const remainingMins = Math.max(1, 15 - elapsedMins);
+                const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago (${remainingMins}m left)`;
+                if (item.timeAgo !== timeAgoStr) {
+                  updated = true;
+                  return {
+                    ...item,
+                    timeAgo: timeAgoStr,
+                  };
+                }
               }
-              return item;
-            });
-            return updated ? newFeed : prevFeed;
+            }
+
+            return item;
           });
-        }
+
+          return updated ? newFeed : prevFeed;
+        });
       } catch (err) {
         console.error("Error polling real traffic:", err);
       }
@@ -404,7 +460,7 @@ export default function App() {
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(label);
-    setTimeout(() => setCopiedText(null), 2000);
+    setTimeout(() => setCopiedText(null), 2500);
   };
 
   const handleGetNumber = async () => {
@@ -434,15 +490,17 @@ export default function App() {
         const countryName = (d.country && d.country !== "Stex Pool") ? d.country : "Global Pool";
         const operatorName = d.operator || "GSM Network";
 
-        const newItemId = "feed-" + Date.now();
+        const nowTs = Date.now();
+        const newItemId = "feed-" + nowTs;
         const newFeedItem: FeedNumber = {
           id: newItemId,
           number: rawNoPlus,
           status: "PENDING",
           country: countryName,
           operator: operatorName,
-          timeAgo: "Just now",
+          timeAgo: "Just now (15m left)",
           service: "SMS OTP",
+          requestedAt: nowTs,
         };
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
@@ -1256,14 +1314,28 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Middle Row: Country in Emerald :: Masked Phone Number */}
-                      <div className="flex items-center gap-1.5 font-mono">
-                        <div className="flex items-center gap-1 text-emerald-400 font-bold text-[10px] uppercase tracking-wider bg-emerald-950/50 border border-emerald-500/30 px-1.5 py-0.5 rounded">
-                          <Globe className="w-3 h-3 text-emerald-400" />
-                          <span>{msg.country}</span>
+                      {/* Middle Row: Country in Emerald :: Masked Phone Number + Copy Range Button */}
+                      <div className="flex items-center justify-between gap-1.5 font-mono">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1 text-emerald-400 font-bold text-[10px] uppercase tracking-wider bg-emerald-950/50 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                            <Globe className="w-3 h-3 text-emerald-400" />
+                            <span>{msg.country}</span>
+                          </div>
+                          <span className="text-slate-600 font-bold text-[10px] me-0.5">::</span>
+                          <span className="text-slate-100 font-bold text-xs tracking-wider">{msg.number}</span>
                         </div>
-                        <span className="text-slate-600 font-bold text-[10px] me-0.5">::</span>
-                        <span className="text-slate-100 font-bold text-xs tracking-wider">{msg.number}</span>
+
+                        <button
+                          onClick={() => {
+                            copyToClipboard(msg.number, `Copied range ${msg.number}! Set for Get Number.`);
+                            setTargetRange(msg.number);
+                          }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-700/80 hover:border-emerald-500/60 text-slate-300 hover:text-emerald-400 text-[10px] font-mono transition-all cursor-pointer shrink-0 ml-auto group"
+                          title="Copy range and set for Get Number"
+                        >
+                          <Copy className="w-3 h-3 text-emerald-400 group-hover:scale-110 transition-transform" />
+                          <span className="font-bold text-[10px]">Copy Range</span>
+                        </button>
                       </div>
 
                       {/* Bottom Row: Yellow Arrow ➜ SMS Message Payload */}
