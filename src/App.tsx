@@ -20,6 +20,7 @@ import { LogoutPage } from "./components/LogoutPage";
 import { SummaryDashboard } from "./components/SummaryDashboard";
 import { OwnerDashboard } from "./components/OwnerDashboard";
 import { OwnerSummary } from "./components/OwnerSummary";
+import { AgentDashboard } from "./components/AgentDashboard";
 import {
   Search,
   RefreshCw,
@@ -47,6 +48,8 @@ import {
   Lock,
   Terminal,
   Play,
+  Users,
+  UserPlus,
   Filter,
   Sliders,
   Menu,
@@ -283,6 +286,7 @@ export default function App() {
   const userFeedStorageKey = currentUserEmail ? `orabit_feed_numbers_${currentUserEmail}` : "orabit_feed_numbers_guest";
 
   const isOwner = userProfile?.role?.toLowerCase() === "owner" || userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com";
+  const isAgent = userProfile?.role?.toLowerCase() === "agent";
 
   // Automatically sync/check user role from Supabase user_roles table
   useEffect(() => {
@@ -290,7 +294,10 @@ export default function App() {
     let isMounted = true;
     getUserRoleFromSupabase(userProfile.email).then((fetchedRole) => {
       if (isMounted && fetchedRole) {
-        const normalizedRole = fetchedRole === "owner" ? "Owner" : "Client";
+        let normalizedRole = "Client";
+        if (fetchedRole === "owner") normalizedRole = "Owner";
+        else if (fetchedRole === "agent") normalizedRole = "Agent";
+
         if (normalizedRole !== userProfile.role) {
           setUserProfile((prev) => (prev ? { ...prev, role: normalizedRole } : null));
         }
@@ -301,7 +308,20 @@ export default function App() {
     };
   }, [userProfile?.email]);
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "summary" | "api" | "domain" | "profile" | "payment" | "logout" | "owner_dashboard" | "owner_summary">("dashboard");
+  const [activeTab, setActiveTab] = useState<
+    | "dashboard"
+    | "console"
+    | "getnum"
+    | "summary"
+    | "api"
+    | "domain"
+    | "profile"
+    | "payment"
+    | "logout"
+    | "owner_dashboard"
+    | "owner_summary"
+    | "agent_dashboard"
+  >("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);
@@ -454,9 +474,21 @@ export default function App() {
       | "logout"
       | "owner_dashboard"
       | "owner_summary"
+      | "agent_dashboard"
   ) => {
     // ROUTE PROTECTION: If client attempts to access owner dashboard/summary, redirect to client dashboard
     if ((tab === "owner_dashboard" || tab === "owner_summary") && !isOwner) {
+      setActiveTab("dashboard");
+      try {
+        if (window.location.pathname !== "/dashboard") {
+          window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+        }
+      } catch {}
+      return;
+    }
+
+    // ROUTE PROTECTION: If non-agent attempts to access agent dashboard, redirect to client dashboard
+    if (tab === "agent_dashboard" && !isAgent && !isOwner) {
       setActiveTab("dashboard");
       try {
         if (window.location.pathname !== "/dashboard") {
@@ -473,6 +505,7 @@ export default function App() {
         if (tab === "dashboard") path = "/dashboard";
         else if (tab === "owner_dashboard") path = "/owner/dashboard";
         else if (tab === "owner_summary") path = "/owner/summary";
+        else if (tab === "agent_dashboard") path = "/agent/dashboard";
 
         if (window.location.pathname !== path) {
           window.history.pushState({ tab }, "", path);
@@ -490,6 +523,7 @@ export default function App() {
         const path = window.location.pathname.toLowerCase();
         if (userProfile) {
           const isOwnerUser = userProfile.role?.toLowerCase() === "owner" || userProfile.email?.toLowerCase().trim() === "orabitsms@gmail.com";
+          const isAgentUser = userProfile.role?.toLowerCase() === "agent";
           
           if (path === "/owner/dashboard" || path === "/owner-dashboard" || path === "/owner") {
             if (isOwnerUser) {
@@ -507,6 +541,14 @@ export default function App() {
               setActiveTab("dashboard");
               window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
             }
+          } else if (path === "/agent/dashboard" || path === "/agent-dashboard" || path === "/agent") {
+            if (isAgentUser || isOwnerUser) {
+              setActiveTab("agent_dashboard");
+            } else {
+              // PROTECTED ROUTE: REDIRECT CLIENT AWAY TO /dashboard
+              setActiveTab("dashboard");
+              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+            }
           } else if (path === "/profile") setActiveTab("profile");
           else if (path === "/payment" || path === "/wallet") setActiveTab("payment");
           else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
@@ -516,7 +558,13 @@ export default function App() {
           else if (path === "/domain") setActiveTab("domain");
           else if (path === "/logout" || path === "/signout") setActiveTab("logout");
           else {
-            if (isOwnerUser && (path === "/" || path === "/owner/dashboard")) {
+            if (isAgentUser) {
+              // AUTOMATICALLY REDIRECT AGENT TO /agent/dashboard
+              setActiveTab("agent_dashboard");
+              if (path !== "/agent/dashboard") {
+                window.history.replaceState({ tab: "agent_dashboard" }, "", "/agent/dashboard");
+              }
+            } else if (isOwnerUser && (path === "/" || path === "/owner/dashboard")) {
               setActiveTab("owner_dashboard");
               if (path !== "/owner/dashboard") {
                 window.history.replaceState({ tab: "owner_dashboard" }, "", "/owner/dashboard");
@@ -541,7 +589,7 @@ export default function App() {
     syncRouteFromPath();
     window.addEventListener("popstate", syncRouteFromPath);
     return () => window.removeEventListener("popstate", syncRouteFromPath);
-  }, [userProfile, isOwner]);
+  }, [userProfile, isOwner, isAgent]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -1070,6 +1118,30 @@ export default function App() {
                 >
                   <BarChart3 className="w-4 h-4 text-amber-400" />
                   <span>Owner Summary</span>
+                </button>
+              </div>
+            )}
+
+            {/* Agent Section (Visible for Agent Account or Owner) */}
+            {(isAgent || isOwner) && (
+              <div className="space-y-1 bg-gradient-to-b from-indigo-500/10 to-slate-900/60 p-2.5 rounded-2xl border border-indigo-500/30">
+                <p className="text-[11px] font-black text-indigo-400 px-3 py-1 uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-indigo-400" /> Agent Menu
+                </p>
+
+                <button
+                  onClick={() => {
+                    navigateToTab("agent_dashboard");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "agent_dashboard"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-indigo-400" />
+                  <span>Agent Dashboard</span>
                 </button>
               </div>
             )}
@@ -1915,6 +1987,27 @@ export default function App() {
           ) : (
             <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
               <p className="text-rose-400 font-bold text-sm">Access Restricted: Owner role required.</p>
+              <button
+                onClick={() => navigateToTab("dashboard")}
+                className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl"
+              >
+                Go to Client Dashboard
+              </button>
+            </div>
+          )
+        )}
+
+        {/* AGENT TAB: AGENT DASHBOARD */}
+        {activeTab === "agent_dashboard" && (
+          (isAgent || isOwner) ? (
+            <AgentDashboard
+              userProfile={userProfile}
+              currency={currency}
+              usdExchangeRate={usdExchangeRate}
+            />
+          ) : (
+            <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+              <p className="text-rose-400 font-bold text-sm">Access Restricted: Agent role required.</p>
               <button
                 onClick={() => navigateToTab("dashboard")}
                 className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl"

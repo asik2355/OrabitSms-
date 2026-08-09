@@ -35,6 +35,8 @@ export interface UserProfile {
   password?: string;
   apiEnabled?: boolean;
   role?: string;
+  accountStatus?: "ACTIVE" | "DISABLED";
+  customOtpRate?: number;
 }
 
 interface OrabitAuthScreenProps {
@@ -360,7 +362,9 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       try {
         const fetchedRole = await getUserRoleFromSupabase(loggedInUser.email);
         if (fetchedRole) {
-          loggedInUser.role = fetchedRole === "owner" ? "Owner" : "Client";
+          if (fetchedRole === "owner") loggedInUser.role = "Owner";
+          else if (fetchedRole === "agent") loggedInUser.role = "Agent";
+          else loggedInUser.role = "Client";
         }
       } catch (err) {
         console.warn("Failed to query user_roles table on login:", err);

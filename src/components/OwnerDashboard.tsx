@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { FeedNumber } from "../types";
+import { createAgentInSupabase } from "../lib/userRoles";
 import {
   Users,
   ShieldCheck,
@@ -20,6 +21,10 @@ import {
   Server,
   Zap,
   Check,
+  UserPlus,
+  UserCheck,
+  Lock,
+  Mail,
 } from "lucide-react";
 
 interface OwnerDashboardProps {
@@ -51,6 +56,67 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   });
   const [isEditingNotice, setIsEditingNotice] = useState(false);
   const [tempNotice, setTempNotice] = useState(systemNotice);
+
+  // Agent Creation state
+  const [newAgentEmail, setNewAgentEmail] = useState("");
+  const [newAgentPassword, setNewAgentPassword] = useState("");
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const [agentNotice, setAgentNotice] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  const handleCreateAgentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanE = newAgentEmail.trim().toLowerCase();
+    if (!cleanE || !newAgentPassword.trim()) {
+      setAgentNotice({ text: "Please enter both Email and Password for the Agent.", type: "error" });
+      return;
+    }
+
+    setIsCreatingAgent(true);
+    setAgentNotice(null);
+
+    const res = await createAgentInSupabase(cleanE, newAgentPassword);
+
+    if (res.success) {
+      try {
+        const stored = localStorage.getItem("orabit_registered_users");
+        let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+        const existingIdx = list.findIndex((u) => u.email.toLowerCase() === cleanE);
+
+        const newAgentObj: UserProfile = {
+          fullName: `Agent (${cleanE.split("@")[0]})`,
+          mobileNumber: "01700000000",
+          email: cleanE,
+          telegram: "@agent_orabit",
+          city: "Dhaka",
+          country: "Bangladesh",
+          referralEmail: "orabitsms@gmail.com",
+          withdrawPin: "1234",
+          balance: 0.0,
+          password: newAgentPassword,
+          role: "Agent",
+        };
+
+        if (existingIdx >= 0) {
+          list[existingIdx] = { ...list[existingIdx], role: "Agent", password: newAgentPassword };
+        } else {
+          list.push(newAgentObj);
+        }
+
+        localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+        setRegisteredUsers(list);
+      } catch (err) {
+        console.error("Local storage error on agent creation:", err);
+      }
+
+      setAgentNotice({ text: res.message, type: "success" });
+      setNewAgentEmail("");
+      setNewAgentPassword("");
+    } else {
+      setAgentNotice({ text: res.message, type: "error" });
+    }
+
+    setIsCreatingAgent(false);
+  };
 
   // Load all registered users from storage
   const loadRegisteredUsers = () => {
@@ -313,6 +379,143 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             {systemNotice}
           </p>
         )}
+      </div>
+
+      {/* Agent Management Section */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div>
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-indigo-400" /> Agent Management
+            </h2>
+            <p className="text-xs text-slate-400">
+              Create and authorize system Agents. Assigned agents can manage their own referred client base.
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold font-mono">
+            Role: 'agent'
+          </span>
+        </div>
+
+        {/* Agent Notice Toast */}
+        {agentNotice && (
+          <div
+            className={`p-3 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+              agentNotice.type === "success"
+                ? "bg-emerald-950/80 border-emerald-500 text-emerald-300"
+                : "bg-rose-950/80 border-rose-500 text-rose-300"
+            }`}
+          >
+            {agentNotice.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span>{agentNotice.text}</span>
+          </div>
+        )}
+
+        {/* Create Agent Form */}
+        <form onSubmit={handleCreateAgentSubmit} className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <Plus className="w-3.5 h-3.5 text-indigo-400" /> Create New Agent Account
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="relative">
+              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <input
+                type="email"
+                value={newAgentEmail}
+                onChange={(e) => setNewAgentEmail(e.target.value)}
+                placeholder="Agent Email (e.g. agent@domain.com)"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                required
+              />
+            </div>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <input
+                type="password"
+                value={newAgentPassword}
+                onChange={(e) => setNewAgentPassword(e.target.value)}
+                placeholder="Agent Password (min 6 characters)"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                required
+              />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isCreatingAgent}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {isCreatingAgent ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Creating Agent & Setting Role...</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Create Agent & Set 'agent' Role</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+
+        {/* List of Agents */}
+        <div className="space-y-2">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            Active System Agents ({registeredUsers.filter((u) => u.role?.toLowerCase() === "agent").length})
+          </h3>
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-950/90 text-slate-400 font-semibold border-b border-slate-800">
+                  <th className="py-2.5 px-3">Agent Email</th>
+                  <th className="py-2.5 px-3">Assigned Role</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Referred Clients</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono">
+                {registeredUsers.filter((u) => u.role?.toLowerCase() === "agent").length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-center text-slate-500 font-sans">
+                      No agents created yet. Use the form above to add an agent.
+                    </td>
+                  </tr>
+                ) : (
+                  registeredUsers
+                    .filter((u) => u.role?.toLowerCase() === "agent")
+                    .map((agent) => {
+                      const referredCount = registeredUsers.filter(
+                        (cl) => cl.referralEmail?.toLowerCase().trim() === agent.email.toLowerCase().trim()
+                      ).length;
+                      return (
+                        <tr key={agent.email} className="hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 text-indigo-300 font-bold">{agent.email}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 text-[10px] uppercase font-bold border border-indigo-500/30">
+                              agent
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="text-emerald-400 text-[10px] font-bold flex items-center gap-1 font-sans">
+                              <UserCheck className="w-3 h-3" /> Active
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-white font-bold">{referredCount} Clients</td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* Client Accounts Management Table */}
