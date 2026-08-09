@@ -55,6 +55,10 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
 
+  const isAgent = userProfile?.role === "agent" || userProfile?.isAgent;
+  const agentEmail = (userProfile?.email || "").toLowerCase().trim();
+  const agentCode = userProfile?.referralCode || "";
+
   const dateRangeOptions = [
     "Today",
     "Yesterday",
@@ -62,7 +66,55 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     "30 Days",
   ];
 
-  // Compute live daily summary from the logged in user's feedNumbers
+  // Aggregate ALL feed numbers across ALL referred clients if logged in as an Agent
+  const effectiveFeedNumbers = useMemo(() => {
+    if (!isAgent) {
+      return feedNumbers;
+    }
+
+    const aggregatedFeeds: FeedNumber[] = [];
+    try {
+      const storedUsers = localStorage.getItem("orabit_registered_users");
+      let referredClientEmails: string[] = [];
+      if (storedUsers) {
+        const list: any[] = JSON.parse(storedUsers);
+        if (Array.isArray(list)) {
+          referredClientEmails = list
+            .filter(
+              (u) =>
+                u.role === "client" &&
+                (u.referredBy?.toLowerCase().trim() === agentEmail ||
+                  (agentCode && u.referredBy?.trim() === agentCode) ||
+                  u.referredByAgentEmail?.toLowerCase().trim() === agentEmail)
+            )
+            .map((u) => u.email.toLowerCase().trim());
+        }
+      }
+
+      // Collect feeds from each referred client's storage key
+      referredClientEmails.forEach((email) => {
+        const key = `orabit_feed_numbers_${email}`;
+        const storedFeed = localStorage.getItem(key);
+        if (storedFeed) {
+          const parsed: FeedNumber[] = JSON.parse(storedFeed);
+          if (Array.isArray(parsed)) {
+            aggregatedFeeds.push(...parsed);
+          }
+        }
+      });
+    } catch (e) {
+      console.error("Error computing referred clients' feed numbers in SummaryDashboard:", e);
+    }
+
+    // Include passed feedNumbers as fallback if any
+    if (feedNumbers.length > 0) {
+      aggregatedFeeds.push(...feedNumbers);
+    }
+
+    return aggregatedFeeds;
+  }, [isAgent, agentEmail, agentCode, feedNumbers]);
+
+  // Compute live daily summary from the effective feedNumbers
   const liveSummaryData = useMemo(() => {
     const dates: string[] = [];
     const baseDate = new Date("2026-08-09T00:00:00Z");
@@ -79,7 +131,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       mapByDate[d] = { allocation: 0, success: 0, failed: 0 };
     });
 
-    feedNumbers.forEach((fn) => {
+    effectiveFeedNumbers.forEach((fn) => {
       let dateKey = "2026-08-09";
       if (fn.requestedAt) {
         const d = new Date(fn.requestedAt);
@@ -111,7 +163,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
           amountUSD,
         };
       });
-  }, [feedNumbers]);
+  }, [effectiveFeedNumbers]);
 
   // Filter data based on date range selection for summary cards & charts
   const filteredData = useMemo(() => {
@@ -233,13 +285,15 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
-            <span>Summary Dashboard</span>
+            <span>{isAgent ? "Referred Clients Summary" : "Summary Dashboard"}</span>
             <span className="text-[11px] font-mono font-bold bg-[#2EE59D]/15 text-[#2EE59D] border border-[#2EE59D]/30 px-2.5 py-0.5 rounded-full">
-              LIVE
+              {isAgent ? "ALL CLIENTS SUMMARY" : "LIVE"}
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium">
-            Performance metrics and financial overview.
+            {isAgent
+              ? "Aggregated performance metrics and financial overview for all your referred clients."
+              : "Performance metrics and financial overview."}
           </p>
         </div>
 
