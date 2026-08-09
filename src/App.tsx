@@ -14,7 +14,7 @@ import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
 import { OrabitApiDoc } from "./components/OrabitApiDoc";
 import { OrabitLogo } from "./components/OrabitLogo";
-import { ServiceLogo, PRELOAD_SERVICE_LOGOS } from "./components/ServiceLogo";
+import { ServiceLogo } from "./components/ServiceLogo";
 import { LogoutPage } from "./components/LogoutPage";
 import { SummaryDashboard } from "./components/SummaryDashboard";
 import {
@@ -315,13 +315,6 @@ export default function App() {
     }
   }, [feedNumbers, userFeedStorageKey, currentUserEmail]);
 
-  // Preload all service logos and branding images on app start
-  useEffect(() => {
-    PRELOAD_SERVICE_LOGOS.forEach((url) => {
-      const img = new Image();
-      img.src = url;
-    });
-  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [feedFilter, setFeedFilter] = useState<"ALL" | "SUCCESS" | "PENDING" | "FAILED">("ALL");
   const [autoSyncSeconds, setAutoSyncSeconds] = useState(2);
