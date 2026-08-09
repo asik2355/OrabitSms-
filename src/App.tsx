@@ -16,7 +16,6 @@ import { OrabitApiDoc } from "./components/OrabitApiDoc";
 import { OrabitLogo } from "./components/OrabitLogo";
 import { ServiceLogo, PRELOAD_SERVICE_LOGOS } from "./components/ServiceLogo";
 import { LogoutPage } from "./components/LogoutPage";
-import { SummaryDashboard } from "./components/SummaryDashboard";
 import {
   Search,
   RefreshCw,
@@ -24,7 +23,6 @@ import {
   History,
   Send,
   Bell,
-  BarChart3,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -275,7 +273,7 @@ export default function App() {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "summary" | "api" | "domain" | "profile" | "payment" | "logout">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment" | "logout">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(() => {
@@ -392,7 +390,7 @@ export default function App() {
   }, [userProfile]);
 
   // Navigate to tab with browser URL history update
-  const navigateToTab = (tab: "dashboard" | "console" | "getnum" | "summary" | "api" | "domain" | "profile" | "payment" | "logout") => {
+  const navigateToTab = (tab: "dashboard" | "console" | "getnum" | "api" | "domain" | "profile" | "payment" | "logout") => {
     setActiveTab(tab);
     try {
       if (userProfile) {
@@ -416,7 +414,6 @@ export default function App() {
           else if (path === "/payment" || path === "/wallet") setActiveTab("payment");
           else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
           else if (path === "/console") setActiveTab("console");
-          else if (path === "/summary") setActiveTab("summary");
           else if (path === "/api" || path === "/apidocs") setActiveTab("api");
           else if (path === "/domain") setActiveTab("domain");
           else if (path === "/logout" || path === "/signout") setActiveTab("logout");
@@ -985,21 +982,6 @@ export default function App() {
               >
                 <Terminal className="w-4 h-4 text-slate-400" />
                 <span>Console</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  navigateToTab("summary");
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === "summary"
-                    ? "bg-[#2EE59D] text-slate-950 font-bold"
-                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                }`}
-              >
-                <BarChart3 className="w-4 h-4 text-slate-400" />
-                <span>Summary</span>
               </button>
             </div>
 
@@ -1731,11 +1713,6 @@ export default function App() {
               )}
             </div>
           </div>
-        )}
-
-        {/* TAB 3.5: SUMMARY DASHBOARD */}
-        {activeTab === "summary" && (
-          <SummaryDashboard currency={currency} usdExchangeRate={usdExchangeRate} />
         )}
 
         {/* TAB 4: ORABITSMS API DOCUMENTATION */}
