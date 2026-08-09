@@ -19,7 +19,6 @@ import { LogoutPage } from "./components/LogoutPage";
 import { SummaryDashboard } from "./components/SummaryDashboard";
 import { OwnerDashboard } from "./components/OwnerDashboard";
 import { OwnerSummary } from "./components/OwnerSummary";
-import { supabase } from "./lib/supabase";
 import {
   Search,
   RefreshCw,
@@ -282,11 +281,7 @@ export default function App() {
   const currentUserEmail = userProfile?.email ? userProfile.email.toLowerCase().trim() : "";
   const userFeedStorageKey = currentUserEmail ? `orabit_feed_numbers_${currentUserEmail}` : "orabit_feed_numbers_guest";
 
-  const userRoleClean = (userProfile?.role || "").toLowerCase().trim();
-  const isOwner =
-    userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com" ||
-    userRoleClean === "owner" ||
-    userRoleClean === "admin";
+  const isOwner = userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com" || userProfile?.role?.toLowerCase() === "owner";
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "summary" | "api" | "domain" | "profile" | "payment" | "logout" | "owner_dashboard" | "owner_summary">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -442,20 +437,16 @@ export default function App() {
       | "owner_dashboard"
       | "owner_summary"
   ) => {
-    let targetTab = tab;
-    if ((targetTab === "owner_dashboard" || targetTab === "owner_summary") && !isOwner) {
-      targetTab = "dashboard";
-    }
-    setActiveTab(targetTab);
+    setActiveTab(tab);
     try {
       if (userProfile) {
-        let path = `/${targetTab}`;
-        if (targetTab === "dashboard") path = "/dashboard";
-        else if (targetTab === "owner_dashboard") path = "/owner/dashboard";
-        else if (targetTab === "owner_summary") path = "/owner/summary";
+        let path = `/${tab}`;
+        if (tab === "dashboard") path = "/dashboard";
+        else if (tab === "owner_dashboard") path = "/owner/dashboard";
+        else if (tab === "owner_summary") path = "/owner/summary";
 
         if (window.location.pathname !== path) {
-          window.history.pushState({ tab: targetTab }, "", path);
+          window.history.pushState({ tab }, "", path);
         }
       }
     } catch {
@@ -469,35 +460,12 @@ export default function App() {
       try {
         const path = window.location.pathname.toLowerCase();
         if (userProfile) {
-          const roleClean = (userProfile.role || "").toLowerCase().trim();
-          const emailClean = (userProfile.email || "").toLowerCase().trim();
-          const isOwnerUser =
-            emailClean === "orabitsms@gmail.com" ||
-            roleClean === "owner" ||
-            roleClean === "admin";
-
-          // Route Guard for /owner links
-          if (
-            path === "/owner/dashboard" ||
-            path === "/owner-dashboard" ||
-            path === "/owner"
-          ) {
-            if (isOwnerUser) {
-              setActiveTab("owner_dashboard");
-            } else {
-              setActiveTab("dashboard");
-              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
-            }
-          } else if (
-            path === "/owner/summary" ||
-            path === "/owner-summary"
-          ) {
-            if (isOwnerUser) {
-              setActiveTab("owner_summary");
-            } else {
-              setActiveTab("dashboard");
-              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
-            }
+          const isOwnerUser = userProfile.email?.toLowerCase().trim() === "orabitsms@gmail.com" || userProfile.role?.toLowerCase() === "owner";
+          
+          if (path === "/owner/dashboard" || path === "/owner-dashboard" || path === "/owner") {
+            setActiveTab("owner_dashboard");
+          } else if (path === "/owner/summary" || path === "/owner-summary") {
+            setActiveTab("owner_summary");
           } else if (path === "/profile") setActiveTab("profile");
           else if (path === "/payment" || path === "/wallet") setActiveTab("payment");
           else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
@@ -533,115 +501,6 @@ export default function App() {
     window.addEventListener("popstate", syncRouteFromPath);
     return () => window.removeEventListener("popstate", syncRouteFromPath);
   }, [userProfile]);
-
-  // Supabase Auth Session & user_roles Database RBAC Route Guard
-  useEffect(() => {
-    let isMounted = true;
-
-    const enforceSupabaseRouteGuard = async () => {
-      if (!userProfile?.email) return;
-
-      const userEmailClean = userProfile.email.toLowerCase().trim();
-      let dbRole: string | null = null;
-
-      // 1. Fetch role directly from Supabase user_roles table using email (Primary Key)
-      try {
-        const { data: roleRow, error } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("email", userEmailClean)
-          .maybeSingle();
-
-        if (roleRow && roleRow.role) {
-          dbRole = roleRow.role.trim();
-        } else {
-          // Auto insert missing user (e.g., created from Supabase Auth Dashboard)
-          const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
-          const defaultRole = isOwnerEmail ? "Owner" : "Client";
-          dbRole = defaultRole;
-          await supabase.from("user_roles").upsert(
-            { email: userEmailClean, role: defaultRole },
-            { onConflict: "email" }
-          );
-        }
-      } catch (err) {
-        console.error("Error querying Supabase user_roles table:", err);
-      }
-
-      if (!isMounted) return;
-
-      // If role was fetched from user_roles and differs from current userProfile.role, sync it
-      if (dbRole) {
-        const normalizedDbRole = dbRole.toLowerCase() === "owner" ? "Owner" : dbRole.toLowerCase() === "admin" ? "Admin" : dbRole;
-        if (userProfile.role !== normalizedDbRole) {
-          setUserProfile((prev) => (prev ? { ...prev, role: normalizedDbRole } : null));
-        }
-      }
-
-      const activeRoleClean = (dbRole || userProfile.role || "").toLowerCase().trim();
-      const hasOwnerAccess =
-        userEmailClean === "orabitsms@gmail.com" ||
-        activeRoleClean === "owner" ||
-        activeRoleClean === "admin";
-
-      const currentPath = window.location.pathname.toLowerCase();
-      const isTryingToAccessOwner =
-        currentPath.includes("/owner") ||
-        activeTab === "owner_dashboard" ||
-        activeTab === "owner_summary";
-
-      // Redirect client or non-owner users away from owner links
-      if (!hasOwnerAccess && isTryingToAccessOwner) {
-        setActiveTab("dashboard");
-        window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
-      }
-    };
-
-    enforceSupabaseRouteGuard();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user && isMounted) {
-        const sessionEmail = session.user.email?.toLowerCase().trim() || "";
-        let dbRole: string | null = null;
-
-        try {
-          const { data: roleRow } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("email", sessionEmail)
-            .maybeSingle();
-
-          if (roleRow?.role) {
-            dbRole = roleRow.role.trim();
-          }
-        } catch (err) {
-          console.error("Error querying user_roles on Auth state change:", err);
-        }
-
-        const activeRoleClean = (dbRole || session.user.user_metadata?.role || userProfile?.role || "").toLowerCase().trim();
-        const hasOwnerAccess =
-          sessionEmail === "orabitsms@gmail.com" ||
-          activeRoleClean === "owner" ||
-          activeRoleClean === "admin";
-
-        const currentPath = window.location.pathname.toLowerCase();
-        const isTryingToAccessOwner =
-          currentPath.includes("/owner") ||
-          activeTab === "owner_dashboard" ||
-          activeTab === "owner_summary";
-
-        if (!hasOwnerAccess && isTryingToAccessOwner) {
-          setActiveTab("dashboard");
-          window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
-        }
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, [activeTab, userProfile]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -882,68 +741,35 @@ export default function App() {
     return f.status === feedFilter;
   });
 
-  const consoleAppStats = React.useMemo(() => {
+  const appStats = React.useMemo(() => {
+    if (!userSuccessMessages || userSuccessMessages.length === 0) {
+      return [];
+    }
     const counts: Record<string, number> = {};
+    userSuccessMessages.forEach((m) => {
+      const s = (m.service || "OTHER").toUpperCase();
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    const total = userSuccessMessages.length;
+    const colors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
+    const list = Object.entries(counts).map(([name, count], idx) => ({
+      name,
+      count,
+      percent: Math.round((count / total) * 100) + "%",
+      color: colors[idx % colors.length],
+    }));
+    return list.sort((a, b) => b.count - a.count);
+  }, [userSuccessMessages]);
 
-    if (userSuccessMessages && userSuccessMessages.length > 0) {
-      userSuccessMessages.forEach((m) => {
-        const s = (m.service || "OTHER").toUpperCase();
-        counts[s] = (counts[s] || 0) + 1;
-      });
-    }
+  const DEFAULT_APP_STATS = React.useMemo(() => [
+    { name: "FACEBOOK", count: 163, percent: "82%", color: "#3b82f6" },
+    { name: "WHATSAPP", count: 17, percent: "9%", color: "#eab308" },
+    { name: "INSTAGRAM", count: 11, percent: "6%", color: "#10b981" },
+    { name: "DISCORD", count: 6, percent: "3%", color: "#a855f7" },
+    { name: "BIGO", count: 1, percent: "1%", color: "#38bdf8" },
+  ], []);
 
-    if (feedNumbers && feedNumbers.length > 0) {
-      feedNumbers.forEach((f) => {
-        if (f.service) {
-          const s = f.service.toUpperCase();
-          counts[s] = (counts[s] || 0) + 1;
-        }
-      });
-    }
-
-    if (messages && messages.length > 0) {
-      messages.forEach((m) => {
-        if (m.service) {
-          const s = m.service.toUpperCase();
-          counts[s] = (counts[s] || 0) + 1;
-        }
-      });
-    }
-
-    const entries = Object.entries(counts);
-    if (entries.length === 0) {
-      return [
-        { name: "FACEBOOK", count: 0, percent: "0%", color: "#3b82f6" },
-        { name: "WHATSAPP", count: 0, percent: "0%", color: "#eab308" },
-        { name: "INSTAGRAM", count: 0, percent: "0%", color: "#10b981" },
-        { name: "DISCORD", count: 0, percent: "0%", color: "#a855f7" },
-        { name: "BIGO", count: 0, percent: "0%", color: "#38bdf8" },
-      ];
-    }
-
-    const total = entries.reduce((sum, [_, c]) => sum + c, 0);
-    const colorMap: Record<string, string> = {
-      FACEBOOK: "#3b82f6",
-      WHATSAPP: "#eab308",
-      INSTAGRAM: "#10b981",
-      DISCORD: "#a855f7",
-      BIGO: "#38bdf8",
-      TELEGRAM: "#38bdf8",
-      IMO: "#94a3b8",
-    };
-    const defaultColors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
-
-    return entries
-      .map(([name, count], idx) => ({
-        name,
-        count,
-        percent: total > 0 ? Math.round((count / total) * 100) + "%" : "0%",
-        color: colorMap[name] || defaultColors[idx % defaultColors.length],
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [userSuccessMessages, feedNumbers, messages]);
-
-  const appStats = consoleAppStats;
+  const consoleAppStats = appStats.length > 0 ? appStats : DEFAULT_APP_STATS;
 
   const top10Trending = React.useMemo(() => {
     const bdStart = getBD4AMWindowStart();
@@ -2008,7 +1834,7 @@ export default function App() {
         )}
 
         {/* OWNER TAB 1: OWNER DASHBOARD */}
-        {activeTab === "owner_dashboard" && isOwner && (
+        {activeTab === "owner_dashboard" && (
           <OwnerDashboard
             userProfile={userProfile}
             feedNumbers={feedNumbers}
@@ -2024,7 +1850,7 @@ export default function App() {
         )}
 
         {/* OWNER TAB 2: OWNER SUMMARY */}
-        {activeTab === "owner_summary" && isOwner && (
+        {activeTab === "owner_summary" && (
           <OwnerSummary
             userProfile={userProfile}
             feedNumbers={feedNumbers}
