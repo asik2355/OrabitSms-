@@ -1255,7 +1255,7 @@ export default function App() {
                   <span>Number File</span>
                 </button>
 
-                {/* 7. Otp Management */}
+                {/* 7. API Management */}
                 <button
                   onClick={() => {
                     navigateToTab("owner_otp_mgmt");
@@ -1268,7 +1268,7 @@ export default function App() {
                   }`}
                 >
                   <KeyRound className="w-4 h-4 text-amber-400" />
-                  <span>Otp Management</span>
+                  <span>API Management</span>
                 </button>
 
                 {/* 8. Rate Management */}

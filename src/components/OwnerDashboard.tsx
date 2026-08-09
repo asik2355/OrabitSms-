@@ -345,7 +345,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               }`}
             >
               <KeyRound className="w-3.5 h-3.5 text-purple-400" />
-              <span>Otp Management</span>
+              <span>API Management</span>
             </button>
 
             <button
@@ -586,13 +586,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         </div>
       )}
 
-      {/* OTP MANAGEMENT SECTION */}
+      {/* API MANAGEMENT SECTION */}
       {(!activeSection || activeSection === "overview" || activeSection === "otp_mgmt") && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <KeyRound className="w-5 h-5 text-purple-400" /> Otp Management
+                <KeyRound className="w-5 h-5 text-purple-400" /> API Management
               </h2>
               <p className="text-xs text-slate-400">
                 Monitor real-time verification code dispatch, timeout rules, auto-refund triggers, and regex parsers.
