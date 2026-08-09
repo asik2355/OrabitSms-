@@ -57,6 +57,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
 
+  const isOwner = userProfile?.role === "owner" || userProfile?.isOwner;
   const isAgent = userProfile?.role === "agent" || userProfile?.isAgent;
   const agentEmail = (userProfile?.email || "").toLowerCase().trim();
   const agentCode = userProfile?.referralCode || "";
@@ -68,53 +69,121 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     "30 Days",
   ];
 
-  // Aggregate ALL feed numbers across ALL referred clients if logged in as an Agent
+  // Aggregate ALL feed numbers across ALL agents and ALL users if logged in as Owner, or referred clients if Agent
   const effectiveFeedNumbers = useMemo(() => {
-    if (!isAgent) {
-      return feedNumbers;
-    }
-
-    const aggregatedFeeds: FeedNumber[] = [];
-    try {
-      const storedUsers = localStorage.getItem("orabit_registered_users");
-      let referredClientEmails: string[] = [];
-      if (storedUsers) {
-        const list: any[] = JSON.parse(storedUsers);
-        if (Array.isArray(list)) {
-          referredClientEmails = list
-            .filter(
-              (u) =>
-                u.role === "client" &&
-                (u.referredBy?.toLowerCase().trim() === agentEmail ||
-                  (agentCode && u.referredBy?.trim() === agentCode) ||
-                  u.referredByAgentEmail?.toLowerCase().trim() === agentEmail)
-            )
-            .map((u) => u.email.toLowerCase().trim());
-        }
-      }
-
-      // Collect feeds from each referred client's storage key
-      referredClientEmails.forEach((email) => {
-        const key = `orabit_feed_numbers_${email}`;
-        const storedFeed = localStorage.getItem(key);
-        if (storedFeed) {
-          const parsed: FeedNumber[] = JSON.parse(storedFeed);
-          if (Array.isArray(parsed)) {
-            aggregatedFeeds.push(...parsed);
+    if (isOwner) {
+      const aggregatedFeeds: FeedNumber[] = [];
+      try {
+        const storedUsers = localStorage.getItem("orabit_registered_users");
+        let allUserEmails: string[] = [];
+        if (storedUsers) {
+          const list: any[] = JSON.parse(storedUsers);
+          if (Array.isArray(list)) {
+            allUserEmails = list.map((u) => (u.email || "").toLowerCase().trim()).filter(Boolean);
           }
         }
+
+        const processedKeys = new Set<string>();
+
+        // Collect feeds from each user's storage key
+        allUserEmails.forEach((email) => {
+          const key = `orabit_feed_numbers_${email}`;
+          processedKeys.add(key);
+          const storedFeed = localStorage.getItem(key);
+          if (storedFeed) {
+            try {
+              const parsed: FeedNumber[] = JSON.parse(storedFeed);
+              if (Array.isArray(parsed)) {
+                aggregatedFeeds.push(...parsed);
+              }
+            } catch (e) {}
+          }
+        });
+
+        // Collect from all keys in localStorage matching feed_numbers
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith("orabit_feed_numbers") || key.includes("feed_numbers")) && !processedKeys.has(key)) {
+            const storedFeed = localStorage.getItem(key);
+            if (storedFeed) {
+              try {
+                const parsed: FeedNumber[] = JSON.parse(storedFeed);
+                if (Array.isArray(parsed)) {
+                  aggregatedFeeds.push(...parsed);
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error computing owner summary feed numbers:", e);
+      }
+
+      if (feedNumbers.length > 0) {
+        aggregatedFeeds.push(...feedNumbers);
+      }
+
+      // Deduplicate by id or composite key
+      const uniqueFeeds: FeedNumber[] = [];
+      const seen = new Set<string>();
+      aggregatedFeeds.forEach((item) => {
+        const itemKey = item.id ? item.id : `${item.number}_${item.requestedAt}_${item.status}`;
+        if (!seen.has(itemKey)) {
+          seen.add(itemKey);
+          uniqueFeeds.push(item);
+        }
       });
-    } catch (e) {
-      console.error("Error computing referred clients' feed numbers in SummaryDashboard:", e);
+
+      return uniqueFeeds;
     }
 
-    // Include passed feedNumbers as fallback if any
-    if (feedNumbers.length > 0) {
-      aggregatedFeeds.push(...feedNumbers);
+    if (isAgent) {
+      const aggregatedFeeds: FeedNumber[] = [];
+      try {
+        const storedUsers = localStorage.getItem("orabit_registered_users");
+        let referredClientEmails: string[] = [];
+        if (storedUsers) {
+          const list: any[] = JSON.parse(storedUsers);
+          if (Array.isArray(list)) {
+            referredClientEmails = list
+              .filter(
+                (u) =>
+                  u.role === "client" &&
+                  (u.referredBy?.toLowerCase().trim() === agentEmail ||
+                    (agentCode && u.referredBy?.trim() === agentCode) ||
+                    u.referredByAgentEmail?.toLowerCase().trim() === agentEmail)
+              )
+              .map((u) => u.email.toLowerCase().trim());
+          }
+        }
+
+        // Collect feeds from each referred client's storage key
+        referredClientEmails.forEach((email) => {
+          const key = `orabit_feed_numbers_${email}`;
+          const storedFeed = localStorage.getItem(key);
+          if (storedFeed) {
+            try {
+              const parsed: FeedNumber[] = JSON.parse(storedFeed);
+              if (Array.isArray(parsed)) {
+                aggregatedFeeds.push(...parsed);
+              }
+            } catch (e) {}
+          }
+        });
+      } catch (e) {
+        console.error("Error computing referred clients' feed numbers in SummaryDashboard:", e);
+      }
+
+      // Include passed feedNumbers as fallback if any
+      if (feedNumbers.length > 0) {
+        aggregatedFeeds.push(...feedNumbers);
+      }
+
+      return aggregatedFeeds;
     }
 
-    return aggregatedFeeds;
-  }, [isAgent, agentEmail, agentCode, feedNumbers]);
+    return feedNumbers;
+  }, [isOwner, isAgent, agentEmail, agentCode, feedNumbers]);
 
   // Compute live daily summary from the effective feedNumbers
   const liveSummaryData = useMemo(() => {
@@ -146,8 +215,12 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
         mapByDate[dateKey] = { allocation: 0, success: 0, failed: 0 };
       }
       mapByDate[dateKey].allocation += 1;
-      if (fn.status === "SUCCESS") mapByDate[dateKey].success += 1;
-      else if (fn.status === "FAILED") mapByDate[dateKey].failed += 1;
+      const statusUpper = (fn.status || "").toString().toUpperCase();
+      if (statusUpper === "SUCCESS" || statusUpper === "COMPLETED") {
+        mapByDate[dateKey].success += 1;
+      } else if (statusUpper === "FAILED" || statusUpper === "CANCELLED" || statusUpper === "EXPIRED") {
+        mapByDate[dateKey].failed += 1;
+      }
     });
 
     return Object.keys(mapByDate)
@@ -204,6 +277,51 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     if (tableAllocation === 0) return 0;
     return Number(((tableSuccess / tableAllocation) * 100).toFixed(2));
   }, [tableSuccess, tableAllocation]);
+
+  // Owner Agent & User Breakdown Data
+  const ownerBreakdownData = useMemo(() => {
+    if (!isOwner) return [];
+    try {
+      const storedUsers = localStorage.getItem("orabit_registered_users");
+      if (!storedUsers) return [];
+      const list: any[] = JSON.parse(storedUsers);
+      if (!Array.isArray(list)) return [];
+
+      return list.map((user) => {
+        const uEmail = (user.email || "").toLowerCase().trim();
+        const key = `orabit_feed_numbers_${uEmail}`;
+        const storedFeed = localStorage.getItem(key);
+        let userFeeds: FeedNumber[] = [];
+        if (storedFeed) {
+          try {
+            const parsed = JSON.parse(storedFeed);
+            if (Array.isArray(parsed)) userFeeds = parsed;
+          } catch (e) {}
+        }
+
+        const totalAlloc = userFeeds.length;
+        const totalSucc = userFeeds.filter((f) => {
+          const st = (f.status || "").toString().toUpperCase();
+          return st === "SUCCESS" || st === "COMPLETED";
+        }).length;
+
+        const succRate = totalAlloc > 0 ? Number(((totalSucc / totalAlloc) * 100).toFixed(1)) : 0;
+        const totalEarnedUSD = Number((totalSucc * 0.006).toFixed(2));
+
+        return {
+          email: user.email,
+          role: user.role || (user.isAgent ? "agent" : user.isOwner ? "owner" : "client"),
+          referredBy: user.referredBy || user.referredByAgentEmail || "Direct System",
+          totalAllocation: totalAlloc,
+          totalSuccess: totalSucc,
+          successRate: succRate,
+          earnedUSD: totalEarnedUSD,
+        };
+      });
+    } catch (e) {
+      return [];
+    }
+  }, [isOwner]);
 
   // Aggregate stats
   const totalAllocation = useMemo(
@@ -287,13 +405,21 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
-            <span>{isAgent ? "Referred Clients Summary" : "Summary Dashboard"}</span>
+            <span>
+              {isOwner
+                ? "Platform Total Summary (All Agents & Users)"
+                : isAgent
+                ? "Referred Clients Summary"
+                : "Summary Dashboard"}
+            </span>
             <span className="text-[11px] font-mono font-bold bg-[#2EE59D]/15 text-[#2EE59D] border border-[#2EE59D]/30 px-2.5 py-0.5 rounded-full">
-              {isAgent ? "ALL CLIENTS SUMMARY" : "LIVE"}
+              {isOwner ? "ALL AGENTS & USERS SUMMARY" : isAgent ? "ALL CLIENTS SUMMARY" : "LIVE"}
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium">
-            {isAgent
+            {isOwner
+              ? "Aggregated performance metrics and financial overview across all system agents and user accounts."
+              : isAgent
               ? "Aggregated performance metrics and financial overview for all your referred clients."
               : "Performance metrics and financial overview."}
           </p>
@@ -631,6 +757,70 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
           </table>
         </div>
       </div>
+
+      {/* OWNER: AGENT & USER PERFORMANCE BREAKDOWN TABLE */}
+      {isOwner && ownerBreakdownData.length > 0 && (
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#131722]/90 border border-slate-800 space-y-4 shadow-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>Agent & User Account Breakdown</span>
+              </h2>
+              <p className="text-xs text-slate-400">Total OTP allocation, completed count, success rate, and earnings per agent/user account</p>
+            </div>
+            <span className="text-xs font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-500/30 px-3 py-1 rounded-full">
+              Total Accounts: {ownerBreakdownData.length}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="w-full text-left text-xs font-sans">
+              <thead>
+                <tr className="bg-slate-900/90 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-800">
+                  <th className="py-3 px-4">ACCOUNT EMAIL</th>
+                  <th className="py-3 px-4 text-center">ROLE</th>
+                  <th className="py-3 px-4 text-center">REFERRED BY / AGENT</th>
+                  <th className="py-3 px-4 text-center">ALLOCATION</th>
+                  <th className="py-3 px-4 text-center">SUCCESS</th>
+                  <th className="py-3 px-4 text-center">SUCCESS RATE</th>
+                  <th className="py-3 px-4 text-right">TOTAL EARNED</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono">
+                {ownerBreakdownData.map((row) => (
+                  <tr key={row.email} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3 px-4 text-slate-200 font-bold font-sans">
+                      {row.email}
+                    </td>
+                    <td className="py-3 px-4 text-center font-sans">
+                      <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase border ${
+                        row.role === "owner"
+                          ? "bg-amber-950/80 text-amber-400 border-amber-500/30"
+                          : row.role === "agent"
+                          ? "bg-indigo-950/80 text-indigo-400 border-indigo-500/30"
+                          : "bg-emerald-950/80 text-emerald-400 border-emerald-500/30"
+                      }`}>
+                        {row.role}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center text-slate-400 font-sans">{row.referredBy}</td>
+                    <td className="py-3 px-4 text-center text-slate-300 font-bold">{row.totalAllocation}</td>
+                    <td className="py-3 px-4 text-center text-emerald-400 font-bold">{row.totalSuccess}</td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-800 text-amber-300 border border-amber-500/20 font-bold text-[11px]">
+                        {row.successRate}%
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right text-emerald-400 font-bold">
+                      {formatMoney(row.earnedUSD)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
