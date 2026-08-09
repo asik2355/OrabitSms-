@@ -171,18 +171,21 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     setErrors({});
     setIsSubmitting(true);
 
+    const cleanEmail = emailAddress.trim();
+    const isOwnerEmail = cleanEmail.toLowerCase() === "orabitsms@gmail.com";
+
     const newUser: UserProfile = {
       fullName: fullName.trim(),
       mobileNumber: cleanMobile,
-      email: emailAddress.trim(),
+      email: cleanEmail,
       telegram: telegramUsername.trim() || "@orabit_user",
       city: city.trim() || "Dhaka",
       country: country.trim() || "Bangladesh",
       referralEmail: agentReferralEmail.trim(),
       withdrawPin: withdrawPin.trim(),
-      balance: 0.0,
+      balance: isOwnerEmail ? 999.0 : 0.0,
       password: password,
-      role: "Client",
+      role: isOwnerEmail ? "Owner" : "Client",
     };
 
     (async () => {
@@ -286,6 +289,9 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           (acc) => acc.email.toLowerCase() === (data.user.email || loginEmail.trim()).toLowerCase()
         );
 
+        const userEmailClean = (data.user.email || loginEmail.trim()).toLowerCase();
+        const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
+
         loggedInUser = {
           fullName: foundAcc?.fullName || meta.fullName || data.user.email?.split("@")[0] || "User",
           mobileNumber: foundAcc?.mobileNumber || meta.mobileNumber || "",
@@ -295,9 +301,9 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           country: foundAcc?.country || meta.country || "Bangladesh",
           referralEmail: foundAcc?.referralEmail || meta.referralEmail || "agent@orabit.bd",
           withdrawPin: foundAcc?.withdrawPin || meta.withdrawPin || "1234",
-          balance: foundAcc?.balance !== undefined ? foundAcc.balance : 0.0,
+          balance: foundAcc?.balance !== undefined ? foundAcc.balance : (isOwnerEmail ? 999.0 : 0.0),
           password: loginPassword,
-          role: foundAcc?.role || meta.role || "Client",
+          role: isOwnerEmail ? "Owner" : (foundAcc?.role || meta.role || "Client"),
           apiEnabled: foundAcc?.apiEnabled ?? false,
         };
 
