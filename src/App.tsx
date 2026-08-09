@@ -554,6 +554,15 @@ export default function App() {
 
         if (roleRow && roleRow.role) {
           dbRole = roleRow.role.trim();
+        } else {
+          // Auto insert missing user (e.g., created from Supabase Auth Dashboard)
+          const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
+          const defaultRole = isOwnerEmail ? "Owner" : "Client";
+          dbRole = defaultRole;
+          await supabase.from("user_roles").upsert(
+            { email: userEmailClean, role: defaultRole },
+            { onConflict: "email" }
+          );
         }
       } catch (err) {
         console.error("Error querying Supabase user_roles table:", err);

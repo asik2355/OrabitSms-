@@ -357,8 +357,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     setIsSubmitting(false);
 
     if (loggedInUser) {
-      // Fetch role directly from Supabase user_roles table
       const userEmailClean = loggedInUser.email.toLowerCase().trim();
+      const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
+
+      // Check or auto-insert into Supabase user_roles table for users created from Dashboard or web
       try {
         const { data: roleRow } = await supabase
           .from("user_roles")
@@ -376,9 +378,45 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           } else {
             loggedInUser.role = fetchedRole;
           }
+        } else {
+          // User missing in user_roles (e.g. created directly from Supabase Auth Dashboard)
+          const defaultRole = isOwnerEmail ? "Owner" : "Client";
+          loggedInUser.role = defaultRole;
+          if (!loggedInUser.referralEmail) {
+            loggedInUser.referralEmail = "official@orabitsms.xyz";
+          }
+
+          // Auto-insert user into user_roles table
+          await supabase.from("user_roles").upsert(
+            {
+              email: userEmailClean,
+              role: defaultRole,
+            },
+            { onConflict: "email" }
+          );
         }
       } catch (err) {
-        console.error("Failed to query user_roles table during login:", err);
+        console.error("Failed to query/insert user_roles table during login:", err);
+      }
+
+      // Sync user profile state and local storage
+      try {
+        let savedAccounts: UserProfile[] = [];
+        const stored = localStorage.getItem("orabit_registered_users");
+        if (stored) savedAccounts = JSON.parse(stored);
+
+        const index = savedAccounts.findIndex(
+          (acc) => acc.email.toLowerCase() === userEmailClean
+        );
+
+        if (index >= 0) {
+          savedAccounts[index] = { ...savedAccounts[index], ...loggedInUser };
+        } else {
+          savedAccounts.push(loggedInUser);
+        }
+        localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
+      } catch (e) {
+        console.error("Failed to sync registered users to local storage:", e);
       }
 
       showAlert("Login successful! Welcome back to ORABIT.", "success");
