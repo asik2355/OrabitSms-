@@ -437,16 +437,20 @@ export default function App() {
       | "owner_dashboard"
       | "owner_summary"
   ) => {
-    setActiveTab(tab);
+    let targetTab = tab;
+    if ((targetTab === "owner_dashboard" || targetTab === "owner_summary") && !isOwner) {
+      targetTab = "dashboard";
+    }
+    setActiveTab(targetTab);
     try {
       if (userProfile) {
-        let path = `/${tab}`;
-        if (tab === "dashboard") path = "/dashboard";
-        else if (tab === "owner_dashboard") path = "/owner/dashboard";
-        else if (tab === "owner_summary") path = "/owner/summary";
+        let path = `/${targetTab}`;
+        if (targetTab === "dashboard") path = "/dashboard";
+        else if (targetTab === "owner_dashboard") path = "/owner/dashboard";
+        else if (targetTab === "owner_summary") path = "/owner/summary";
 
         if (window.location.pathname !== path) {
-          window.history.pushState({ tab }, "", path);
+          window.history.pushState({ tab: targetTab }, "", path);
         }
       }
     } catch {
@@ -463,9 +467,19 @@ export default function App() {
           const isOwnerUser = userProfile.email?.toLowerCase().trim() === "orabitsms@gmail.com" || userProfile.role?.toLowerCase() === "owner";
           
           if (path === "/owner/dashboard" || path === "/owner-dashboard" || path === "/owner") {
-            setActiveTab("owner_dashboard");
+            if (isOwnerUser) {
+              setActiveTab("owner_dashboard");
+            } else {
+              setActiveTab("dashboard");
+              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+            }
           } else if (path === "/owner/summary" || path === "/owner-summary") {
-            setActiveTab("owner_summary");
+            if (isOwnerUser) {
+              setActiveTab("owner_summary");
+            } else {
+              setActiveTab("dashboard");
+              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+            }
           } else if (path === "/profile") setActiveTab("profile");
           else if (path === "/payment" || path === "/wallet") setActiveTab("payment");
           else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
@@ -741,35 +755,68 @@ export default function App() {
     return f.status === feedFilter;
   });
 
-  const appStats = React.useMemo(() => {
-    if (!userSuccessMessages || userSuccessMessages.length === 0) {
-      return [];
-    }
+  const consoleAppStats = React.useMemo(() => {
     const counts: Record<string, number> = {};
-    userSuccessMessages.forEach((m) => {
-      const s = (m.service || "OTHER").toUpperCase();
-      counts[s] = (counts[s] || 0) + 1;
-    });
-    const total = userSuccessMessages.length;
-    const colors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
-    const list = Object.entries(counts).map(([name, count], idx) => ({
-      name,
-      count,
-      percent: Math.round((count / total) * 100) + "%",
-      color: colors[idx % colors.length],
-    }));
-    return list.sort((a, b) => b.count - a.count);
-  }, [userSuccessMessages]);
 
-  const DEFAULT_APP_STATS = React.useMemo(() => [
-    { name: "FACEBOOK", count: 163, percent: "82%", color: "#3b82f6" },
-    { name: "WHATSAPP", count: 17, percent: "9%", color: "#eab308" },
-    { name: "INSTAGRAM", count: 11, percent: "6%", color: "#10b981" },
-    { name: "DISCORD", count: 6, percent: "3%", color: "#a855f7" },
-    { name: "BIGO", count: 1, percent: "1%", color: "#38bdf8" },
-  ], []);
+    if (userSuccessMessages && userSuccessMessages.length > 0) {
+      userSuccessMessages.forEach((m) => {
+        const s = (m.service || "OTHER").toUpperCase();
+        counts[s] = (counts[s] || 0) + 1;
+      });
+    }
 
-  const consoleAppStats = appStats.length > 0 ? appStats : DEFAULT_APP_STATS;
+    if (feedNumbers && feedNumbers.length > 0) {
+      feedNumbers.forEach((f) => {
+        if (f.service) {
+          const s = f.service.toUpperCase();
+          counts[s] = (counts[s] || 0) + 1;
+        }
+      });
+    }
+
+    if (messages && messages.length > 0) {
+      messages.forEach((m) => {
+        if (m.service) {
+          const s = m.service.toUpperCase();
+          counts[s] = (counts[s] || 0) + 1;
+        }
+      });
+    }
+
+    const entries = Object.entries(counts);
+    if (entries.length === 0) {
+      return [
+        { name: "FACEBOOK", count: 0, percent: "0%", color: "#3b82f6" },
+        { name: "WHATSAPP", count: 0, percent: "0%", color: "#eab308" },
+        { name: "INSTAGRAM", count: 0, percent: "0%", color: "#10b981" },
+        { name: "DISCORD", count: 0, percent: "0%", color: "#a855f7" },
+        { name: "BIGO", count: 0, percent: "0%", color: "#38bdf8" },
+      ];
+    }
+
+    const total = entries.reduce((sum, [_, c]) => sum + c, 0);
+    const colorMap: Record<string, string> = {
+      FACEBOOK: "#3b82f6",
+      WHATSAPP: "#eab308",
+      INSTAGRAM: "#10b981",
+      DISCORD: "#a855f7",
+      BIGO: "#38bdf8",
+      TELEGRAM: "#38bdf8",
+      IMO: "#94a3b8",
+    };
+    const defaultColors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
+
+    return entries
+      .map(([name, count], idx) => ({
+        name,
+        count,
+        percent: total > 0 ? Math.round((count / total) * 100) + "%" : "0%",
+        color: colorMap[name] || defaultColors[idx % defaultColors.length],
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [userSuccessMessages, feedNumbers, messages]);
+
+  const appStats = consoleAppStats;
 
   const top10Trending = React.useMemo(() => {
     const bdStart = getBD4AMWindowStart();
@@ -1834,7 +1881,7 @@ export default function App() {
         )}
 
         {/* OWNER TAB 1: OWNER DASHBOARD */}
-        {activeTab === "owner_dashboard" && (
+        {activeTab === "owner_dashboard" && isOwner && (
           <OwnerDashboard
             userProfile={userProfile}
             feedNumbers={feedNumbers}
@@ -1850,7 +1897,7 @@ export default function App() {
         )}
 
         {/* OWNER TAB 2: OWNER SUMMARY */}
-        {activeTab === "owner_summary" && (
+        {activeTab === "owner_summary" && isOwner && (
           <OwnerSummary
             userProfile={userProfile}
             feedNumbers={feedNumbers}
