@@ -19,6 +19,7 @@ import { LogoutPage } from "./components/LogoutPage";
 import { SummaryDashboard } from "./components/SummaryDashboard";
 import { OwnerDashboard } from "./components/OwnerDashboard";
 import { OwnerSummary } from "./components/OwnerSummary";
+import { supabase } from "./lib/supabase";
 import {
   Search,
   RefreshCw,
@@ -281,7 +282,11 @@ export default function App() {
   const currentUserEmail = userProfile?.email ? userProfile.email.toLowerCase().trim() : "";
   const userFeedStorageKey = currentUserEmail ? `orabit_feed_numbers_${currentUserEmail}` : "orabit_feed_numbers_guest";
 
-  const isOwner = userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com" || userProfile?.role?.toLowerCase() === "owner";
+  const userRoleClean = (userProfile?.role || "").toLowerCase().trim();
+  const isOwner =
+    userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com" ||
+    userRoleClean === "owner" ||
+    userRoleClean === "admin";
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "summary" | "api" | "domain" | "profile" | "payment" | "logout" | "owner_dashboard" | "owner_summary">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -464,16 +469,29 @@ export default function App() {
       try {
         const path = window.location.pathname.toLowerCase();
         if (userProfile) {
-          const isOwnerUser = userProfile.email?.toLowerCase().trim() === "orabitsms@gmail.com" || userProfile.role?.toLowerCase() === "owner";
-          
-          if (path === "/owner/dashboard" || path === "/owner-dashboard" || path === "/owner") {
+          const roleClean = (userProfile.role || "").toLowerCase().trim();
+          const emailClean = (userProfile.email || "").toLowerCase().trim();
+          const isOwnerUser =
+            emailClean === "orabitsms@gmail.com" ||
+            roleClean === "owner" ||
+            roleClean === "admin";
+
+          // Route Guard for /owner links
+          if (
+            path === "/owner/dashboard" ||
+            path === "/owner-dashboard" ||
+            path === "/owner"
+          ) {
             if (isOwnerUser) {
               setActiveTab("owner_dashboard");
             } else {
               setActiveTab("dashboard");
               window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
             }
-          } else if (path === "/owner/summary" || path === "/owner-summary") {
+          } else if (
+            path === "/owner/summary" ||
+            path === "/owner-summary"
+          ) {
             if (isOwnerUser) {
               setActiveTab("owner_summary");
             } else {
@@ -515,6 +533,106 @@ export default function App() {
     window.addEventListener("popstate", syncRouteFromPath);
     return () => window.removeEventListener("popstate", syncRouteFromPath);
   }, [userProfile]);
+
+  // Supabase Auth Session & user_roles Database RBAC Route Guard
+  useEffect(() => {
+    let isMounted = true;
+
+    const enforceSupabaseRouteGuard = async () => {
+      if (!userProfile?.email) return;
+
+      const userEmailClean = userProfile.email.toLowerCase().trim();
+      let dbRole: string | null = null;
+
+      // 1. Fetch role directly from Supabase user_roles table using email (Primary Key)
+      try {
+        const { data: roleRow, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("email", userEmailClean)
+          .maybeSingle();
+
+        if (roleRow && roleRow.role) {
+          dbRole = roleRow.role.trim();
+        }
+      } catch (err) {
+        console.error("Error querying Supabase user_roles table:", err);
+      }
+
+      if (!isMounted) return;
+
+      // If role was fetched from user_roles and differs from current userProfile.role, sync it
+      if (dbRole) {
+        const normalizedDbRole = dbRole.toLowerCase() === "owner" ? "Owner" : dbRole.toLowerCase() === "admin" ? "Admin" : dbRole;
+        if (userProfile.role !== normalizedDbRole) {
+          setUserProfile((prev) => (prev ? { ...prev, role: normalizedDbRole } : null));
+        }
+      }
+
+      const activeRoleClean = (dbRole || userProfile.role || "").toLowerCase().trim();
+      const hasOwnerAccess =
+        userEmailClean === "orabitsms@gmail.com" ||
+        activeRoleClean === "owner" ||
+        activeRoleClean === "admin";
+
+      const currentPath = window.location.pathname.toLowerCase();
+      const isTryingToAccessOwner =
+        currentPath.includes("/owner") ||
+        activeTab === "owner_dashboard" ||
+        activeTab === "owner_summary";
+
+      // Redirect client or non-owner users away from owner links
+      if (!hasOwnerAccess && isTryingToAccessOwner) {
+        setActiveTab("dashboard");
+        window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+      }
+    };
+
+    enforceSupabaseRouteGuard();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user && isMounted) {
+        const sessionEmail = session.user.email?.toLowerCase().trim() || "";
+        let dbRole: string | null = null;
+
+        try {
+          const { data: roleRow } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("email", sessionEmail)
+            .maybeSingle();
+
+          if (roleRow?.role) {
+            dbRole = roleRow.role.trim();
+          }
+        } catch (err) {
+          console.error("Error querying user_roles on Auth state change:", err);
+        }
+
+        const activeRoleClean = (dbRole || session.user.user_metadata?.role || userProfile?.role || "").toLowerCase().trim();
+        const hasOwnerAccess =
+          sessionEmail === "orabitsms@gmail.com" ||
+          activeRoleClean === "owner" ||
+          activeRoleClean === "admin";
+
+        const currentPath = window.location.pathname.toLowerCase();
+        const isTryingToAccessOwner =
+          currentPath.includes("/owner") ||
+          activeTab === "owner_dashboard" ||
+          activeTab === "owner_summary";
+
+        if (!hasOwnerAccess && isTryingToAccessOwner) {
+          setActiveTab("dashboard");
+          window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [activeTab, userProfile]);
 
   useEffect(() => {
     const updateTime = () => {

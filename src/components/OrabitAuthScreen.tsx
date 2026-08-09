@@ -357,6 +357,30 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     setIsSubmitting(false);
 
     if (loggedInUser) {
+      // Fetch role directly from Supabase user_roles table
+      const userEmailClean = loggedInUser.email.toLowerCase().trim();
+      try {
+        const { data: roleRow } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("email", userEmailClean)
+          .maybeSingle();
+
+        if (roleRow && roleRow.role) {
+          const fetchedRole = roleRow.role.trim();
+          const lowerRole = fetchedRole.toLowerCase();
+          if (lowerRole === "owner") {
+            loggedInUser.role = "Owner";
+          } else if (lowerRole === "admin") {
+            loggedInUser.role = "Admin";
+          } else {
+            loggedInUser.role = fetchedRole;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to query user_roles table during login:", err);
+      }
+
       showAlert("Login successful! Welcome back to ORABIT.", "success");
       onLoginSuccess(loggedInUser);
     } else {
