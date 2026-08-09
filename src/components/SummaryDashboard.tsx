@@ -50,30 +50,29 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   feedNumbers = [],
   userProfile,
 }) => {
-  const [dateRange, setDateRange] = useState<string>("Last 7 Days");
+  const [dateRange, setDateRange] = useState<string>("7 Days");
+  const [userSelectedRange, setUserSelectedRange] = useState<boolean>(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
 
   const dateRangeOptions = [
     "Today",
     "Yesterday",
-    "Last 7 Days",
-    "Last 30 Days",
-    "Custom Range",
+    "7 Days",
+    "30 Days",
   ];
 
   // Compute live daily summary from the logged in user's feedNumbers
   const liveSummaryData = useMemo(() => {
-    const todayStr = "2026-08-09";
-    const dates = [
-      "2026-08-03",
-      "2026-08-04",
-      "2026-08-05",
-      "2026-08-06",
-      "2026-08-07",
-      "2026-08-08",
-      todayStr,
-    ];
+    const dates: string[] = [];
+    const baseDate = new Date("2026-08-09T00:00:00Z");
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(baseDate.getTime() - i * 86400000);
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
+      dates.push(`${yyyy}-${mm}-${dd}`);
+    }
 
     const mapByDate: Record<string, { allocation: number; success: number; failed: number }> = {};
     dates.forEach((d) => {
@@ -81,7 +80,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     });
 
     feedNumbers.forEach((fn) => {
-      let dateKey = todayStr;
+      let dateKey = "2026-08-09";
       if (fn.requestedAt) {
         const d = new Date(fn.requestedAt);
         const yyyy = d.getFullYear();
@@ -114,19 +113,43 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       });
   }, [feedNumbers]);
 
-  // Filter data based on date range selection
+  // Filter data based on date range selection for summary cards & charts
   const filteredData = useMemo(() => {
     let list = [...liveSummaryData];
     if (dateRange === "Today") {
-      list = list.filter((item) => item.date === "2026-08-09" || item.date === "2026-08-08");
+      list = list.filter((item) => item.date === "2026-08-09");
     } else if (dateRange === "Yesterday") {
-      list = list.filter((item) => item.date === "2026-08-08" || item.date === "2026-08-07");
+      list = list.filter((item) => item.date === "2026-08-08");
+    } else if (dateRange === "7 Days" || dateRange === "Last 7 Days") {
+      list = list.slice(-7);
+    } else if (dateRange === "30 Days" || dateRange === "Last 30 Days") {
+      list = list.slice(-30);
+    }
+    return list;
+  }, [liveSummaryData, dateRange]);
+
+  // Data displayed in the detailed report table
+  const tableData = useMemo(() => {
+    let list = [...filteredData];
+    // Default view shows last 5 days
+    if (!userSelectedRange && (dateRange === "7 Days" || dateRange === "Last 7 Days")) {
+      list = list.slice(-5);
     }
     if (searchFilter.trim()) {
       list = list.filter((item) => item.date.includes(searchFilter.trim()));
     }
     return list;
-  }, [liveSummaryData, dateRange, searchFilter]);
+  }, [filteredData, userSelectedRange, dateRange, searchFilter]);
+
+  // Table summary totals
+  const tableAllocation = useMemo(() => tableData.reduce((acc, curr) => acc + curr.allocation, 0), [tableData]);
+  const tableSuccess = useMemo(() => tableData.reduce((acc, curr) => acc + curr.success, 0), [tableData]);
+  const tableFailed = useMemo(() => tableData.reduce((acc, curr) => acc + curr.failed, 0), [tableData]);
+  const tableEarningsUSD = useMemo(() => tableData.reduce((acc, curr) => acc + curr.amountUSD, 0), [tableData]);
+  const tableSuccessRate = useMemo(() => {
+    if (tableAllocation === 0) return 0;
+    return Number(((tableSuccess / tableAllocation) * 100).toFixed(2));
+  }, [tableSuccess, tableAllocation]);
 
   // Aggregate stats
   const totalAllocation = useMemo(
@@ -248,6 +271,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                         key={option}
                         onClick={() => {
                           setDateRange(option);
+                          setUserSelectedRange(true);
                           setDropdownOpen(false);
                         }}
                         className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
@@ -502,7 +526,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono">
-              {filteredData.map((row) => (
+              {tableData.map((row) => (
                 <tr key={row.date} className="hover:bg-slate-800/40 transition-colors">
                   <td className="py-3 px-4 text-slate-200 font-bold font-sans">{row.date}</td>
                   <td className="py-3 px-4 text-center text-slate-300 font-bold">{row.allocation}</td>
@@ -522,11 +546,11 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
             <tfoot>
               <tr className="bg-slate-900/90 text-white font-bold border-t-2 border-emerald-500/40 font-mono">
                 <td className="py-3 px-4 text-emerald-400 uppercase tracking-wider font-sans font-black">TOTAL</td>
-                <td className="py-3 px-4 text-center text-white">{totalAllocation}</td>
-                <td className="py-3 px-4 text-center text-emerald-400">{totalSuccess}</td>
-                <td className="py-3 px-4 text-center text-rose-400">{totalFailed}</td>
-                <td className="py-3 px-4 text-center text-amber-300">{overallSuccessRate}%</td>
-                <td className="py-3 px-4 text-right text-emerald-400 text-sm">{formatMoney(totalEarningsUSD)}</td>
+                <td className="py-3 px-4 text-center text-white">{tableAllocation}</td>
+                <td className="py-3 px-4 text-center text-emerald-400">{tableSuccess}</td>
+                <td className="py-3 px-4 text-center text-rose-400">{tableFailed}</td>
+                <td className="py-3 px-4 text-center text-amber-300">{tableSuccessRate}%</td>
+                <td className="py-3 px-4 text-right text-emerald-400 text-sm">{formatMoney(tableEarningsUSD)}</td>
               </tr>
             </tfoot>
           </table>
