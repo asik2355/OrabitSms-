@@ -57,7 +57,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [telegramUsername, setTelegramUsername] = useState("");
-  const [agentReferralEmail, setAgentReferralEmail] = useState("");
+  const [agentReferralEmail, setAgentReferralEmail] = useState("official@orabitsms.xyz");
   const [password, setPassword] = useState("");
   const [withdrawPin, setWithdrawPin] = useState("");
 
@@ -142,12 +142,9 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
-    if (!agentReferralEmail.trim() || !emailRegex.test(agentReferralEmail.trim())) {
-      newErrors.agentReferralEmail = true;
-      setErrors(newErrors);
-      showAlert("Valid Agent Referral Email is required to register", "error");
-      return;
-    }
+    const cleanReferralEmail = agentReferralEmail.trim() && emailRegex.test(agentReferralEmail.trim())
+      ? agentReferralEmail.trim()
+      : "official@orabitsms.xyz";
 
     if (!password || password.length < 8) {
       newErrors.password = true;
@@ -181,7 +178,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       telegram: telegramUsername.trim() || "@orabit_user",
       city: city.trim() || "Dhaka",
       country: country.trim() || "Bangladesh",
-      referralEmail: agentReferralEmail.trim(),
+      referralEmail: cleanReferralEmail,
       withdrawPin: withdrawPin.trim(),
       balance: isOwnerEmail ? 999.0 : 0.0,
       password: password,
@@ -192,17 +189,16 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       let sbErrorMsg = "";
       try {
         const { error } = await supabase.auth.signUp({
-          email: emailAddress.trim(),
+          email: cleanEmail,
           password: password,
           options: {
-            captchaToken: captchaToken,
             data: {
               fullName: fullName.trim(),
               mobileNumber: cleanMobile,
               telegram: telegramUsername.trim() || "@orabit_user",
               city: city.trim() || "Dhaka",
               country: country.trim() || "Bangladesh",
-              referralEmail: agentReferralEmail.trim(),
+              referralEmail: cleanReferralEmail,
               withdrawPin: withdrawPin.trim(),
               role: "Client",
             },
@@ -211,6 +207,12 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
         if (error) {
           sbErrorMsg = error.message;
         }
+
+        // Upsert default role into Supabase user_roles table
+        await supabase.from("user_roles").upsert(
+          { email: cleanEmail.toLowerCase(), role: isOwnerEmail ? "Owner" : "Client" },
+          { onConflict: "email" }
+        );
       } catch (err) {
         console.warn("Supabase registration warning:", err);
       }
@@ -237,7 +239,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
 
       setIsSubmitting(false);
       if (sbErrorMsg) {
-        showAlert(`Notice: ${sbErrorMsg}. Created account!`, "success");
+        showAlert(`Notice: ${sbErrorMsg}. Account created successfully!`, "success");
       } else {
         showAlert("🎉 Registration successful! Welcome to ORABIT Network.", "success");
       }
@@ -264,15 +266,13 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
 
     let loggedInUser: UserProfile | null = null;
     let authErrorMsg = "";
+    const cleanLoginEmail = loginEmail.trim().toLowerCase();
 
     // 1. Try Supabase Authentication
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail.trim(),
+        email: cleanLoginEmail,
         password: loginPassword,
-        options: {
-          captchaToken: captchaToken,
-        },
       });
 
       if (data?.user && !error) {
@@ -286,20 +286,19 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
         }
 
         const foundAcc = savedAccounts.find(
-          (acc) => acc.email.toLowerCase() === (data.user.email || loginEmail.trim()).toLowerCase()
+          (acc) => acc.email.toLowerCase() === cleanLoginEmail
         );
 
-        const userEmailClean = (data.user.email || loginEmail.trim()).toLowerCase();
-        const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
+        const isOwnerEmail = cleanLoginEmail === "orabitsms@gmail.com";
 
         loggedInUser = {
           fullName: foundAcc?.fullName || meta.fullName || data.user.email?.split("@")[0] || "User",
           mobileNumber: foundAcc?.mobileNumber || meta.mobileNumber || "",
-          email: data.user.email || loginEmail.trim(),
+          email: data.user.email || cleanLoginEmail,
           telegram: foundAcc?.telegram || meta.telegram || "@orabit_user",
           city: foundAcc?.city || meta.city || "Dhaka",
           country: foundAcc?.country || meta.country || "Bangladesh",
-          referralEmail: foundAcc?.referralEmail || meta.referralEmail || "agent@orabit.bd",
+          referralEmail: foundAcc?.referralEmail || meta.referralEmail || "official@orabitsms.xyz",
           withdrawPin: foundAcc?.withdrawPin || meta.withdrawPin || "1234",
           balance: foundAcc?.balance !== undefined ? foundAcc.balance : (isOwnerEmail ? 999.0 : 0.0),
           password: loginPassword,
@@ -327,7 +326,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     captchaRef.current?.reset();
     setCaptchaToken("");
 
-    // 2. Check local registered accounts if Supabase didn't authenticate
+    // 2. Check local registered accounts if Supabase didn't authenticate directly
     if (!loggedInUser) {
       let savedAccounts: UserProfile[] = [];
       try {
@@ -338,7 +337,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       }
 
       const foundAcc = savedAccounts.find(
-        (acc) => acc.email.toLowerCase() === loginEmail.trim().toLowerCase()
+        (acc) => acc.email.toLowerCase() === cleanLoginEmail
       );
 
       if (foundAcc) {
@@ -349,6 +348,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
         }
         loggedInUser = {
           ...foundAcc,
+          referralEmail: foundAcc.referralEmail || "official@orabitsms.xyz",
           role: foundAcc.role || "Client",
         };
       }
