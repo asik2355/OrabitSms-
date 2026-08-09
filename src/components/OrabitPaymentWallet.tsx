@@ -52,10 +52,14 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
   currency = "BDT",
   usdExchangeRate = 100,
 }) => {
+  const accountKey = userProfile?.email ? userProfile.email.toLowerCase().trim() : "default";
+  const methodsStorageKey = `orabit_payment_methods_${accountKey}`;
+  const historyStorageKey = `orabit_withdraw_history_${accountKey}`;
+
   // Load saved payment methods
   const [methods, setMethods] = useState<PaymentMethodsData>(() => {
     try {
-      const saved = localStorage.getItem("orabit_payment_methods");
+      const saved = localStorage.getItem(methodsStorageKey) || localStorage.getItem("orabit_payment_methods");
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
@@ -71,13 +75,12 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     return DEFAULT_METHODS;
   });
 
-  // Load saved withdrawal history (Defaults to empty list - no dummy mock history)
+  // Load saved withdrawal history
   const [history, setHistory] = useState<TransactionHistoryItem[]>(() => {
     try {
-      const saved = localStorage.getItem("orabit_withdraw_history");
+      const saved = localStorage.getItem(historyStorageKey) || localStorage.getItem("orabit_withdraw_history");
       if (saved) {
         const parsed: TransactionHistoryItem[] = JSON.parse(saved);
-        // Filter out legacy dummy records tx-1, tx-2 or dummy test entries
         return parsed.filter(
           (item) => item.type === "withdrawal" && item.id !== "tx-1" && item.id !== "tx-2" && !item.accountOrAddress.includes("****")
         );
@@ -87,6 +90,34 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     }
     return DEFAULT_HISTORY;
   });
+
+  // Sync methods & history when accountKey changes
+  useEffect(() => {
+    try {
+      const savedM = localStorage.getItem(methodsStorageKey);
+      if (savedM) {
+        const parsed = JSON.parse(savedM);
+        setMethods({
+          bkash: parsed.bkash && !parsed.bkash.includes("****") ? parsed.bkash : "",
+          nagad: parsed.nagad && !parsed.nagad.includes("****") ? parsed.nagad : "",
+          binanceUid: parsed.binanceUid && parsed.binanceUid !== "128938402" ? parsed.binanceUid : "",
+          bep20: parsed.bep20 && !parsed.bep20.includes("****") ? parsed.bep20 : "",
+        });
+      } else {
+        setMethods(DEFAULT_METHODS);
+      }
+
+      const savedH = localStorage.getItem(historyStorageKey);
+      if (savedH) {
+        const parsed = JSON.parse(savedH);
+        setHistory(parsed.filter((item: any) => item.type === "withdrawal" && item.id !== "tx-1" && item.id !== "tx-2"));
+      } else {
+        setHistory(DEFAULT_HISTORY);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [accountKey]);
 
   // Modals & Forms state
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -110,20 +141,20 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
   // Save payment methods to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem("orabit_payment_methods", JSON.stringify(methods));
+      localStorage.setItem(methodsStorageKey, JSON.stringify(methods));
     } catch (e) {
       console.error(e);
     }
-  }, [methods]);
+  }, [methods, methodsStorageKey]);
 
   // Save withdrawal history to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem("orabit_withdraw_history", JSON.stringify(history));
+      localStorage.setItem(historyStorageKey, JSON.stringify(history));
     } catch (e) {
       console.error(e);
     }
-  }, [history]);
+  }, [history, historyStorageKey]);
 
   // Open Edit Modal with current values
   const openEditModal = (targetKey?: keyof PaymentMethodsData) => {

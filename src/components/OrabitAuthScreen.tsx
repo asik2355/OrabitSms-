@@ -274,19 +274,42 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
 
       if (data?.user && !error) {
         const meta = data.user.user_metadata || {};
+        let savedAccounts: UserProfile[] = [];
+        try {
+          const stored = localStorage.getItem("orabit_registered_users");
+          if (stored) savedAccounts = JSON.parse(stored);
+        } catch (e) {
+          console.error(e);
+        }
+
+        const foundAcc = savedAccounts.find(
+          (acc) => acc.email.toLowerCase() === (data.user.email || loginEmail.trim()).toLowerCase()
+        );
+
         loggedInUser = {
-          fullName: meta.fullName || data.user.email?.split("@")[0] || "User",
-          mobileNumber: meta.mobileNumber || "",
+          fullName: foundAcc?.fullName || meta.fullName || data.user.email?.split("@")[0] || "User",
+          mobileNumber: foundAcc?.mobileNumber || meta.mobileNumber || "",
           email: data.user.email || loginEmail.trim(),
-          telegram: meta.telegram || "@orabit_user",
-          city: meta.city || "Dhaka",
-          country: meta.country || "Bangladesh",
-          referralEmail: meta.referralEmail || "agent@orabit.bd",
-          withdrawPin: meta.withdrawPin || "1234",
-          balance: 0.0,
+          telegram: foundAcc?.telegram || meta.telegram || "@orabit_user",
+          city: foundAcc?.city || meta.city || "Dhaka",
+          country: foundAcc?.country || meta.country || "Bangladesh",
+          referralEmail: foundAcc?.referralEmail || meta.referralEmail || "agent@orabit.bd",
+          withdrawPin: foundAcc?.withdrawPin || meta.withdrawPin || "1234",
+          balance: foundAcc?.balance !== undefined ? foundAcc.balance : 0.0,
           password: loginPassword,
-          role: meta.role || "Client",
+          role: foundAcc?.role || meta.role || "Client",
+          apiEnabled: foundAcc?.apiEnabled ?? false,
         };
+
+        // Ensure user is stored in registered users
+        if (!foundAcc) {
+          savedAccounts.push(loggedInUser);
+          try {
+            localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
+          } catch (e) {
+            console.error(e);
+          }
+        }
       } else if (error) {
         authErrorMsg = error.message;
       }

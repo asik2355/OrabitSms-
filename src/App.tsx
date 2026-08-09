@@ -275,29 +275,45 @@ export default function App() {
     return null;
   });
 
+  // Account-scoped feedNumbers key
+  const currentUserEmail = userProfile?.email ? userProfile.email.toLowerCase().trim() : "";
+  const userFeedStorageKey = currentUserEmail ? `orabit_feed_numbers_${currentUserEmail}` : "orabit_feed_numbers_guest";
+
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "summary" | "api" | "domain" | "profile" | "payment" | "logout">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
-  const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(() => {
+  const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);
+
+  // Sync feed numbers when logged in account changes
+  useEffect(() => {
+    if (!currentUserEmail) {
+      setFeedNumbers([]);
+      return;
+    }
     try {
-      const saved = localStorage.getItem("orabit_feed_numbers");
+      const saved = localStorage.getItem(userFeedStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          setFeedNumbers(parsed);
+          return;
+        }
       }
     } catch (e) {
       console.error("Failed to load feed numbers from storage", e);
     }
-    return INITIAL_FEEDS;
-  });
+    setFeedNumbers([]);
+  }, [currentUserEmail, userFeedStorageKey]);
 
+  // Save feed numbers per account
   useEffect(() => {
+    if (!currentUserEmail) return;
     try {
-      localStorage.setItem("orabit_feed_numbers", JSON.stringify(feedNumbers));
+      localStorage.setItem(userFeedStorageKey, JSON.stringify(feedNumbers));
     } catch (e) {
       console.error("Failed to save feed numbers to storage", e);
     }
-  }, [feedNumbers]);
+  }, [feedNumbers, userFeedStorageKey, currentUserEmail]);
 
   // Preload all service logos and branding images on app start
   useEffect(() => {
@@ -378,11 +394,22 @@ export default function App() {
   // UTC Clock
   const [utcTime, setUtcTime] = useState("");
 
-  // Save profile state to localStorage whenever it updates
+  // Save profile state and sync with registered users database in localStorage
   useEffect(() => {
     try {
-      if (userProfile) {
+      if (userProfile && userProfile.email) {
         localStorage.setItem("orabit_user_profile", JSON.stringify(userProfile));
+        const stored = localStorage.getItem("orabit_registered_users");
+        const savedAccounts: UserProfile[] = stored ? JSON.parse(stored) : [];
+        const idx = savedAccounts.findIndex(
+          (acc) => acc.email.toLowerCase() === userProfile.email.toLowerCase()
+        );
+        if (idx >= 0) {
+          savedAccounts[idx] = { ...savedAccounts[idx], ...userProfile };
+        } else {
+          savedAccounts.push(userProfile);
+        }
+        localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
       } else {
         localStorage.removeItem("orabit_user_profile");
       }
@@ -1735,7 +1762,12 @@ export default function App() {
 
         {/* TAB 3.5: SUMMARY DASHBOARD */}
         {activeTab === "summary" && (
-          <SummaryDashboard currency={currency} usdExchangeRate={usdExchangeRate} />
+          <SummaryDashboard
+            currency={currency}
+            usdExchangeRate={usdExchangeRate}
+            feedNumbers={feedNumbers}
+            userProfile={userProfile}
+          />
         )}
 
         {/* TAB 4: ORABITSMS API DOCUMENTATION */}

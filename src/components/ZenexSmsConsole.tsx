@@ -249,9 +249,13 @@ const INITIAL_FEEDS: FeedNumber[] = [
 
 interface ZenexSmsConsoleProps {
   domainName: string;
+  userEmail?: string;
 }
 
-export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) => {
+export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, userEmail }) => {
+  const accountKey = userEmail ? userEmail.toLowerCase().trim() : "guest";
+  const feedKey = `orabit_feed_numbers_${accountKey}`;
+
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api">("dashboard");
   const [messages, setMessages] = useState<SmsMessage[]>(MOCK_LIVE_MESSAGES);
 
@@ -270,7 +274,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
 
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(() => {
     try {
-      const saved = localStorage.getItem("orabit_feed_numbers");
+      const saved = localStorage.getItem(feedKey) || localStorage.getItem("orabit_feed_numbers");
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -280,6 +284,23 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
     }
     return INITIAL_FEEDS;
   });
+
+  // Re-sync when userEmail changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(feedKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setFeedNumbers(parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setFeedNumbers([]);
+  }, [feedKey]);
 
   const userSuccessMessages = React.useMemo(() => {
     return feedNumbers.filter((f) => f.status === "SUCCESS");
@@ -293,11 +314,11 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName }) 
 
   useEffect(() => {
     try {
-      localStorage.setItem("orabit_feed_numbers", JSON.stringify(feedNumbers));
+      localStorage.setItem(feedKey, JSON.stringify(feedNumbers));
     } catch (e) {
       console.error("Failed to save feed numbers in console", e);
     }
-  }, [feedNumbers]);
+  }, [feedNumbers, feedKey]);
   const [searchQuery, setSearchQuery] = useState("");
   const [feedFilter, setFeedFilter] = useState<"ALL" | "SUCCESS" | "PENDING" | "FAILED">("ALL");
   const [autoSyncSeconds, setAutoSyncSeconds] = useState(2);

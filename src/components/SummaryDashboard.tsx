@@ -26,9 +26,13 @@ import {
   CartesianGrid,
 } from "recharts";
 
+import { FeedNumber } from "../types";
+
 interface SummaryDashboardProps {
   currency: "USD" | "BDT";
   usdExchangeRate?: number;
+  feedNumbers?: FeedNumber[];
+  userProfile?: any;
 }
 
 interface DailySummary {
@@ -40,19 +44,11 @@ interface DailySummary {
   amountUSD: number;
 }
 
-const INITIAL_SUMMARY_DATA: DailySummary[] = [
-  { date: "2026-08-03", allocation: 193, success: 32, failed: 161, rate: 16.58, amountUSD: 0.23 },
-  { date: "2026-08-04", allocation: 134, success: 19, failed: 115, rate: 14.18, amountUSD: 0.12 },
-  { date: "2026-08-05", allocation: 33, success: 7, failed: 26, rate: 21.21, amountUSD: 0.05 },
-  { date: "2026-08-06", allocation: 12, success: 7, failed: 5, rate: 58.33, amountUSD: 0.05 },
-  { date: "2026-08-07", allocation: 0, success: 0, failed: 0, rate: 0.0, amountUSD: 0.00 },
-  { date: "2026-08-08", allocation: 16, success: 0, failed: 16, rate: 0.0, amountUSD: 0.00 },
-  { date: "2026-08-09", allocation: 0, success: 0, failed: 0, rate: 0.0, amountUSD: 0.00 },
-];
-
 export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   currency,
   usdExchangeRate = 100,
+  feedNumbers = [],
+  userProfile,
 }) => {
   const [dateRange, setDateRange] = useState<string>("Last 7 Days");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -66,19 +62,71 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     "Custom Range",
   ];
 
+  // Compute live daily summary from the logged in user's feedNumbers
+  const liveSummaryData = useMemo(() => {
+    const todayStr = "2026-08-09";
+    const dates = [
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+      "2026-08-06",
+      "2026-08-07",
+      "2026-08-08",
+      todayStr,
+    ];
+
+    const mapByDate: Record<string, { allocation: number; success: number; failed: number }> = {};
+    dates.forEach((d) => {
+      mapByDate[d] = { allocation: 0, success: 0, failed: 0 };
+    });
+
+    feedNumbers.forEach((fn) => {
+      let dateKey = todayStr;
+      if (fn.requestedAt) {
+        const d = new Date(fn.requestedAt);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        dateKey = `${yyyy}-${mm}-${dd}`;
+      }
+      if (!mapByDate[dateKey]) {
+        mapByDate[dateKey] = { allocation: 0, success: 0, failed: 0 };
+      }
+      mapByDate[dateKey].allocation += 1;
+      if (fn.status === "SUCCESS") mapByDate[dateKey].success += 1;
+      else if (fn.status === "FAILED") mapByDate[dateKey].failed += 1;
+    });
+
+    return Object.keys(mapByDate)
+      .sort()
+      .map((date) => {
+        const item = mapByDate[date];
+        const rate = item.allocation > 0 ? Number(((item.success / item.allocation) * 100).toFixed(2)) : 0;
+        const amountUSD = Number((item.success * 0.006).toFixed(2));
+        return {
+          date,
+          allocation: item.allocation,
+          success: item.success,
+          failed: item.failed,
+          rate,
+          amountUSD,
+        };
+      });
+  }, [feedNumbers]);
+
   // Filter data based on date range selection
   const filteredData = useMemo(() => {
-    let list = [...INITIAL_SUMMARY_DATA];
+    let list = [...liveSummaryData];
     if (dateRange === "Today") {
-      list = list.filter((item) => item.date === "2026-08-08");
+      list = list.filter((item) => item.date === "2026-08-09" || item.date === "2026-08-08");
     } else if (dateRange === "Yesterday") {
-      list = list.filter((item) => item.date === "2026-08-07");
+      list = list.filter((item) => item.date === "2026-08-08" || item.date === "2026-08-07");
     }
     if (searchFilter.trim()) {
       list = list.filter((item) => item.date.includes(searchFilter.trim()));
     }
     return list;
-  }, [dateRange, searchFilter]);
+  }, [liveSummaryData, dateRange, searchFilter]);
 
   // Aggregate stats
   const totalAllocation = useMemo(

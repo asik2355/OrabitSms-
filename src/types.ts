@@ -154,3 +154,29 @@ export interface SiteConfig {
 
 export type ViewMode = "desktop" | "tablet" | "mobile";
 export type TabType = "builder" | "theme" | "ai_tools" | "domain_launch" | "export" | "sms_dashboard";
+
+export interface FeedNumber {
+  id: string;
+  number: string;
+  status: "SUCCESS" | "PENDING" | "FAILED";
+  country: string;
+  operator: string;
+  timeAgo: string;
+  service: string;
+  otpCode?: string;
+  rawMessage?: string;
+  requestedAt?: number;
+}
+
+export interface SmsMessage {
+  id: string;
+  timeAgo: string;
+  operator: string;
+  country: string;
+  countryIso: string;
+  service: string;
+  serviceColor: string;
+  number: string;
+  otpCode: string;
+  rawMessage: string;
+}
