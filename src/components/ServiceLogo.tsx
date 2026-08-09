@@ -17,6 +17,17 @@ export const PRELOAD_SERVICE_LOGOS = [
   "https://i.ibb.co/MkxNTZMp/20260808-224420.png", // Telegram
 ];
 
+// Instant module-level image cache preloading
+if (typeof window !== "undefined") {
+  PRELOAD_SERVICE_LOGOS.forEach((url) => {
+    const img = new Image();
+    img.src = url;
+    if (img.decode) {
+      img.decode().catch(() => {});
+    }
+  });
+}
+
 interface ServiceLogoProps {
   name: string;
   className?: string;
