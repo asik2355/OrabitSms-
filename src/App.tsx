@@ -1357,6 +1357,7 @@ export default function App() {
                   <Users className="w-3.5 h-3.5 text-indigo-400" /> Agent Menu
                 </p>
 
+                {/* 1. Dashboard */}
                 <button
                   onClick={() => {
                     navigateToTab("agent_dashboard");
@@ -1368,10 +1369,11 @@ export default function App() {
                       : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
                   }`}
                 >
-                  <Users className="w-4 h-4 text-indigo-400" />
-                  <span>Agent Dashboard</span>
+                  <LayoutGrid className="w-4 h-4 text-indigo-400" />
+                  <span>Dashboard</span>
                 </button>
 
+                {/* 2. Summary */}
                 <button
                   onClick={() => {
                     navigateToTab("agent_summary");
@@ -1384,7 +1386,132 @@ export default function App() {
                   }`}
                 >
                   <BarChart3 className="w-4 h-4 text-indigo-400" />
-                  <span>Agent Summary</span>
+                  <span>Summary</span>
+                </button>
+
+                {/* 3. Realtime */}
+                <button
+                  onClick={() => {
+                    navigateToTab("console");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "console"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <Terminal className="w-4 h-4 text-indigo-400" />
+                  <span>Realtime</span>
+                </button>
+
+                {/* 4. User Payment */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_payment_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_payment_mgmt"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 text-indigo-400" />
+                  <span>User Payment</span>
+                </button>
+
+                {/* 5. User Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_user_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_user_mgmt"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <UserCheck className="w-4 h-4 text-indigo-400" />
+                  <span>User Management</span>
+                </button>
+
+                {/* 6. Api Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_otp_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_otp_mgmt"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <KeyRound className="w-4 h-4 text-indigo-400" />
+                  <span>Api Management</span>
+                </button>
+
+                {/* 7. Profile */}
+                <button
+                  onClick={() => {
+                    navigateToTab("profile");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "profile"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <User className="w-4 h-4 text-indigo-400" />
+                  <span>Profile</span>
+                </button>
+
+                {/* 8. Payment */}
+                <button
+                  onClick={() => {
+                    navigateToTab("payment");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "payment"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 text-indigo-400" />
+                  <span>Payment</span>
+                </button>
+
+                {/* Currency */}
+                <button
+                  onClick={() => {
+                    setCurrencyModalOpen(true);
+                    setSidebarOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-white transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <Coins className="w-4 h-4 text-indigo-400" />
+                    <span>Currency</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-950/80 border border-indigo-500/30 px-2 py-0.5 rounded-full">
+                    {currency === "USD" ? "USD ($)" : "BDT (৳)"}
+                  </span>
+                </button>
+
+                {/* 9. Logout */}
+                <button
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    navigateToTab("logout");
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30 transition-all cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 text-rose-400" />
+                  <span>Logout</span>
                 </button>
               </div>
             )}
@@ -1463,8 +1590,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Section 2: Account (Visible for Non-Owner accounts) */}
-            {!isOwner && (
+            {/* Section 2: Account (Visible for Non-Owner & Non-Agent accounts) */}
+            {!isOwner && !isAgent && (
               <div className="space-y-0.5">
                 <p className="text-[11px] font-semibold text-slate-400 px-3 py-1 uppercase tracking-wider">
                   Account
@@ -2204,7 +2331,7 @@ export default function App() {
           activeTab === "owner_otp_mgmt" ||
           activeTab === "owner_rate_mgmt" ||
           activeTab === "owner_payment_mgmt") && (
-          isOwner ? (
+          (isOwner || isAgent) ? (
             <OwnerDashboard
               userProfile={userProfile}
               feedNumbers={feedNumbers}

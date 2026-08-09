@@ -66,6 +66,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   onNavigateTab,
   onUpdateUserBalance,
 }) => {
+  const isOwner = userProfile?.role === "owner" || userProfile?.isOwner || userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com";
+  const isAgent = userProfile?.role === "agent" || userProfile?.isAgent;
+  const agentEmail = (userProfile?.email || "").toLowerCase().trim();
+  const agentCode = userProfile?.referralCode || "";
+
   const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserEmail, setSelectedUserEmail] = useState<string | null>(null);
@@ -192,18 +197,31 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     return `$ ${amountUSD.toFixed(2)}`;
   };
 
-  // Filtered Users
+  // Filtered Users (Restricted to referred clients if Agent)
+  const baseUsers = useMemo(() => {
+    if (isAgent && !isOwner) {
+      return registeredUsers.filter((u) => {
+        const refEmail = (u.referralEmail || u.referredBy || u.referredByAgentEmail || "").toLowerCase().trim();
+        return (
+          refEmail === agentEmail ||
+          (agentCode && (u.referredBy?.trim() === agentCode || u.referralEmail?.trim() === agentCode))
+        );
+      });
+    }
+    return registeredUsers;
+  }, [registeredUsers, isAgent, isOwner, agentEmail, agentCode]);
+
   const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return registeredUsers;
+    if (!searchQuery.trim()) return baseUsers;
     const q = searchQuery.toLowerCase().trim();
-    return registeredUsers.filter(
+    return baseUsers.filter(
       (u) =>
         u.fullName.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
         u.mobileNumber.includes(q) ||
         (u.country && u.country.toLowerCase().includes(q))
     );
-  }, [registeredUsers, searchQuery]);
+  }, [baseUsers, searchQuery]);
 
   // Handle add balance to user
   const handleTopup = (email: string) => {
@@ -254,14 +272,14 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  ORABIT SMS Portal
+                  {isAgent && !isOwner ? "ORABIT Agent Portal" : "ORABIT SMS Portal"}
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> System Owner
+                  <ShieldCheck className="w-3 h-3" /> {isAgent && !isOwner ? "Agent Partner" : "System Owner"}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Logged in as <span className="text-emerald-400 font-semibold">{userProfile?.email || "orabitsms@gmail.com"}</span> • Full System Privilege Access
+                Logged in as <span className="text-emerald-400 font-semibold">{userProfile?.email || "orabitsms@gmail.com"}</span> • {isAgent && !isOwner ? "Referred Clients Management Access" : "Full System Privilege Access"}
               </p>
             </div>
           </div>
@@ -269,7 +287,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           {/* Quick Sub-Navigation Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shrink-0">
             <button
-              onClick={() => onNavigateTab("owner_dashboard")}
+              onClick={() => onNavigateTab(isAgent && !isOwner ? "agent_dashboard" : "owner_dashboard")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 !activeSection || activeSection === "overview"
                   ? "bg-[#2EE59D] text-slate-950 shadow-md"
@@ -281,24 +299,26 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             </button>
 
             <button
-              onClick={() => onNavigateTab("owner_summary")}
+              onClick={() => onNavigateTab(isAgent && !isOwner ? "agent_summary" : "owner_summary")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all whitespace-nowrap"
             >
               <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
               <span>Summary</span>
             </button>
 
-            <button
-              onClick={() => onNavigateTab("owner_agent_mgmt")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                activeSection === "agent_mgmt"
-                  ? "bg-indigo-600 text-white font-bold shadow-md"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Agent Management</span>
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => onNavigateTab("owner_agent_mgmt")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  activeSection === "agent_mgmt"
+                    ? "bg-indigo-600 text-white font-bold shadow-md"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Agent Management</span>
+              </button>
+            )}
 
             <button
               onClick={() => onNavigateTab("owner_user_mgmt")}
@@ -312,29 +332,33 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               <span>User Management</span>
             </button>
 
-            <button
-              onClick={() => onNavigateTab("owner_panel_mgmt")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                activeSection === "panel_mgmt"
-                  ? "bg-amber-600 text-white font-bold shadow-md"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span>Panel Management</span>
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => onNavigateTab("owner_panel_mgmt")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  activeSection === "panel_mgmt"
+                    ? "bg-amber-600 text-white font-bold shadow-md"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                <span>Panel Management</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => onNavigateTab("owner_number_file")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                activeSection === "number_file"
-                  ? "bg-cyan-600 text-white font-bold shadow-md"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Number File</span>
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => onNavigateTab("owner_number_file")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  activeSection === "number_file"
+                    ? "bg-cyan-600 text-white font-bold shadow-md"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+                }`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Number File</span>
+              </button>
+            )}
 
             <button
               onClick={() => onNavigateTab("owner_otp_mgmt")}
@@ -348,17 +372,19 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               <span>API Management</span>
             </button>
 
-            <button
-              onClick={() => onNavigateTab("owner_rate_mgmt")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                activeSection === "rate_mgmt"
-                  ? "bg-rose-600 text-white font-bold shadow-md"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
-              }`}
-            >
-              <Percent className="w-3.5 h-3.5 text-rose-400" />
-              <span>Rate Management</span>
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => onNavigateTab("owner_rate_mgmt")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  activeSection === "rate_mgmt"
+                    ? "bg-rose-600 text-white font-bold shadow-md"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+                }`}
+              >
+                <Percent className="w-3.5 h-3.5 text-rose-400" />
+                <span>Rate Management</span>
+              </button>
+            )}
 
             <button
               onClick={() => onNavigateTab("owner_payment_mgmt")}
@@ -369,7 +395,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               }`}
             >
               <CreditCard className="w-3.5 h-3.5 text-blue-400" />
-              <span>Payment Management</span>
+              <span>User Payment</span>
             </button>
           </div>
         </div>
@@ -592,10 +618,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <KeyRound className="w-5 h-5 text-purple-400" /> API Management
+                <KeyRound className="w-5 h-5 text-purple-400" /> {isAgent && !isOwner ? "Referred Clients API Management" : "API Management"}
               </h2>
               <p className="text-xs text-slate-400">
-                Monitor real-time verification code dispatch, timeout rules, auto-refund triggers, and regex parsers.
+                {isAgent && !isOwner
+                  ? "Monitor real-time verification code dispatch, timeout rules, auto-refund triggers, and regex parsers for your referred clients."
+                  : "Monitor real-time verification code dispatch, timeout rules, auto-refund triggers, and regex parsers."}
               </p>
             </div>
             <span className="px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-xs font-bold font-mono">
@@ -674,10 +702,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-blue-400" /> Payment & Deposit Management
+                <CreditCard className="w-5 h-5 text-blue-400" /> {isAgent && !isOwner ? "User Payment Management" : "Payment & Deposit Management"}
               </h2>
               <p className="text-xs text-slate-400">
-                Review and approve client deposit requests, bKash/Nagad transactions, and manual topups.
+                {isAgent && !isOwner
+                  ? "Review and approve deposit requests and manual balance topups for your referred users."
+                  : "Review and approve client deposit requests, bKash/Nagad transactions, and manual topups."}
               </p>
             </div>
             <span className="px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold font-mono">
@@ -850,9 +880,14 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-emerald-400" /> Registered Accounts Management
+              <Users className="w-5 h-5 text-emerald-400" />
+              {isAgent && !isOwner ? "Referred User Management" : "Registered Accounts Management"}
             </h2>
-            <p className="text-xs text-slate-400">View registered client profiles and add funds to accounts</p>
+            <p className="text-xs text-slate-400">
+              {isAgent && !isOwner
+                ? "View your referred client profiles, check balances, and top up funds"
+                : "View registered client profiles and add funds to accounts"}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
