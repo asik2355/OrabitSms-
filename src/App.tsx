@@ -476,6 +476,19 @@ export default function App() {
       | "owner_summary"
       | "agent_dashboard"
   ) => {
+    // ROUTE PROTECTION: If owner or agent attempts to access client tabs (dashboard, getnum, console), redirect to their respective dashboard
+    if ((tab === "dashboard" || tab === "getnum" || tab === "console") && (isOwner || isAgent)) {
+      const targetTab = isOwner ? "owner_dashboard" : "agent_dashboard";
+      const targetPath = isOwner ? "/owner/dashboard" : "/agent/dashboard";
+      setActiveTab(targetTab);
+      try {
+        if (window.location.pathname !== targetPath) {
+          window.history.replaceState({ tab: targetTab }, "", targetPath);
+        }
+      } catch {}
+      return;
+    }
+
     // ROUTE PROTECTION: If client attempts to access owner dashboard/summary, redirect to client dashboard
     if ((tab === "owner_dashboard" || tab === "owner_summary") && !isOwner) {
       setActiveTab("dashboard");
@@ -1146,23 +1159,25 @@ export default function App() {
               </div>
             )}
 
-            {/* Main Active Pill: Dashboard */}
-            <div>
-              <button
-                onClick={() => {
-                  navigateToTab("dashboard");
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all shadow-md ${
-                  activeTab === "dashboard"
-                    ? "bg-[#2EE59D] text-slate-950 shadow-emerald-500/20"
-                    : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
-                }`}
-              >
-                <LayoutGrid className="w-4.5 h-4.5" />
-                <span>Dashboard</span>
-              </button>
-            </div>
+            {/* Main Active Pill: Dashboard (Visible only for Clients) */}
+            {!isOwner && !isAgent && (
+              <div>
+                <button
+                  onClick={() => {
+                    navigateToTab("dashboard");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all shadow-md ${
+                    activeTab === "dashboard"
+                      ? "bg-[#2EE59D] text-slate-950 shadow-emerald-500/20"
+                      : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <LayoutGrid className="w-4.5 h-4.5" />
+                  <span>Dashboard</span>
+                </button>
+              </div>
+            )}
 
             {/* Section 1: Dialer Panel */}
             <div className="space-y-0.5">
@@ -1170,35 +1185,39 @@ export default function App() {
                 Dialer Panel
               </p>
 
-              <button
-                onClick={() => {
-                  navigateToTab("getnum");
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === "getnum"
-                    ? "bg-[#2EE59D] text-slate-950 font-bold"
-                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                }`}
-              >
-                <Hash className="w-4 h-4 text-slate-400" />
-                <span>Get Number</span>
-              </button>
+              {!isOwner && !isAgent && (
+                <>
+                  <button
+                    onClick={() => {
+                      navigateToTab("getnum");
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      activeTab === "getnum"
+                        ? "bg-[#2EE59D] text-slate-950 font-bold"
+                        : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                    }`}
+                  >
+                    <Hash className="w-4 h-4 text-slate-400" />
+                    <span>Get Number</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  navigateToTab("console");
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === "console"
-                    ? "bg-[#2EE59D] text-slate-950 font-bold"
-                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                }`}
-              >
-                <Terminal className="w-4 h-4 text-slate-400" />
-                <span>Console</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      navigateToTab("console");
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      activeTab === "console"
+                        ? "bg-[#2EE59D] text-slate-950 font-bold"
+                        : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                    }`}
+                  >
+                    <Terminal className="w-4 h-4 text-slate-400" />
+                    <span>Console</span>
+                  </button>
+                </>
+              )}
 
               <button
                 onClick={() => {

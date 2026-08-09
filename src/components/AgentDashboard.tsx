@@ -341,12 +341,6 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
             <Clock className="w-4 h-4 text-amber-400" />
             <span>{currentTime || "12:42:37 UTC+0"}</span>
           </div>
-          <button
-            onClick={() => onNavigateTab("dashboard")}
-            className="px-3.5 py-2 rounded-xl bg-[#1d2230] hover:bg-[#252c3e] border border-[#2c344a] text-slate-200 text-xs font-bold transition-all"
-          >
-            Client View
-          </button>
           {onLogout && (
             <button
               onClick={onLogout}
