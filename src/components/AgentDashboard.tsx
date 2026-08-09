@@ -497,7 +497,25 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Quick Sub-Navigation Pills for Agent */}
+          <div className="flex items-center gap-2 bg-[#171a23] p-1.5 rounded-xl border border-[#262a37]">
+            <button
+              onClick={() => onNavigateTab("agent_dashboard")}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Agent Dashboard</span>
+            </button>
+            <button
+              onClick={() => onNavigateTab("agent_summary")}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all"
+            >
+              <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Agent Summary</span>
+            </button>
+          </div>
+
           <div className="hidden sm:flex items-center gap-2 bg-[#171a23] border border-[#262a37] px-3 py-2 rounded-xl text-xs font-mono text-slate-300">
             <Clock className="w-4 h-4 text-amber-400" />
             <span>{currentTime || "12:42:37 UTC+0"}</span>

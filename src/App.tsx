@@ -69,6 +69,11 @@ import {
   Moon,
   Crown,
   Ghost,
+  UserCheck,
+  FileSpreadsheet,
+  KeyRound,
+  Percent,
+  Coins,
 } from "lucide-react";
 import {
   AreaChart,
@@ -320,7 +325,15 @@ export default function App() {
     | "logout"
     | "owner_dashboard"
     | "owner_summary"
+    | "owner_agent_mgmt"
+    | "owner_user_mgmt"
+    | "owner_panel_mgmt"
+    | "owner_number_file"
+    | "owner_otp_mgmt"
+    | "owner_rate_mgmt"
+    | "owner_payment_mgmt"
     | "agent_dashboard"
+    | "agent_summary"
   >("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
@@ -474,23 +487,48 @@ export default function App() {
       | "logout"
       | "owner_dashboard"
       | "owner_summary"
+      | "owner_agent_mgmt"
+      | "owner_user_mgmt"
+      | "owner_panel_mgmt"
+      | "owner_number_file"
+      | "owner_otp_mgmt"
+      | "owner_rate_mgmt"
+      | "owner_payment_mgmt"
       | "agent_dashboard"
+      | "agent_summary"
   ) => {
+    let targetTab = tab;
+    if (tab === "summary") {
+      if (isOwner) targetTab = "owner_summary";
+      else if (isAgent) targetTab = "agent_summary";
+    }
+
     // ROUTE PROTECTION: If owner or agent attempts to access client tabs (dashboard, getnum, console), redirect to their respective dashboard
     if ((tab === "dashboard" || tab === "getnum" || tab === "console") && (isOwner || isAgent)) {
-      const targetTab = isOwner ? "owner_dashboard" : "agent_dashboard";
-      const targetPath = isOwner ? "/owner/dashboard" : "/agent/dashboard";
-      setActiveTab(targetTab);
+      const redirectTab = isOwner ? "owner_dashboard" : "agent_dashboard";
+      const redirectPath = isOwner ? "/owner/dashboard" : "/agent/dashboard";
+      setActiveTab(redirectTab);
       try {
-        if (window.location.pathname !== targetPath) {
-          window.history.replaceState({ tab: targetTab }, "", targetPath);
+        if (window.location.pathname !== redirectPath) {
+          window.history.replaceState({ tab: redirectTab }, "", redirectPath);
         }
       } catch {}
       return;
     }
 
-    // ROUTE PROTECTION: If client attempts to access owner dashboard/summary, redirect to client dashboard
-    if ((tab === "owner_dashboard" || tab === "owner_summary") && !isOwner) {
+    // ROUTE PROTECTION: If client attempts to access owner tabs, redirect to client dashboard
+    if (
+      (targetTab === "owner_dashboard" ||
+        targetTab === "owner_summary" ||
+        targetTab === "owner_agent_mgmt" ||
+        targetTab === "owner_user_mgmt" ||
+        targetTab === "owner_panel_mgmt" ||
+        targetTab === "owner_number_file" ||
+        targetTab === "owner_otp_mgmt" ||
+        targetTab === "owner_rate_mgmt" ||
+        targetTab === "owner_payment_mgmt") &&
+      !isOwner
+    ) {
       setActiveTab("dashboard");
       try {
         if (window.location.pathname !== "/dashboard") {
@@ -500,8 +538,8 @@ export default function App() {
       return;
     }
 
-    // ROUTE PROTECTION: If non-agent attempts to access agent dashboard, redirect to client dashboard
-    if (tab === "agent_dashboard" && !isAgent && !isOwner) {
+    // ROUTE PROTECTION: If non-agent/non-owner attempts to access agent dashboard/summary
+    if ((targetTab === "agent_dashboard" || targetTab === "agent_summary") && !isAgent && !isOwner) {
       setActiveTab("dashboard");
       try {
         if (window.location.pathname !== "/dashboard") {
@@ -511,17 +549,18 @@ export default function App() {
       return;
     }
 
-    setActiveTab(tab);
+    setActiveTab(targetTab);
     try {
       if (userProfile) {
-        let path = `/${tab}`;
-        if (tab === "dashboard") path = "/dashboard";
-        else if (tab === "owner_dashboard") path = "/owner/dashboard";
-        else if (tab === "owner_summary") path = "/owner/summary";
-        else if (tab === "agent_dashboard") path = "/agent/dashboard";
+        let path = `/${targetTab}`;
+        if (targetTab === "dashboard") path = "/dashboard";
+        else if (targetTab === "owner_dashboard") path = "/owner/dashboard";
+        else if (targetTab === "owner_summary") path = "/owner/summary";
+        else if (targetTab === "agent_dashboard") path = "/agent/dashboard";
+        else if (targetTab === "agent_summary") path = "/agent/summary";
 
         if (window.location.pathname !== path) {
-          window.history.pushState({ tab }, "", path);
+          window.history.pushState({ tab: targetTab }, "", path);
         }
       }
     } catch {
@@ -562,12 +601,29 @@ export default function App() {
               setActiveTab("dashboard");
               window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
             }
+          } else if (path === "/agent/summary" || path === "/agent-summary") {
+            if (isAgentUser || isOwnerUser) {
+              setActiveTab("agent_summary");
+            } else {
+              // PROTECTED ROUTE: REDIRECT CLIENT AWAY TO /dashboard
+              setActiveTab("dashboard");
+              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+            }
           } else if (path === "/profile") setActiveTab("profile");
           else if (path === "/payment" || path === "/wallet") setActiveTab("payment");
           else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
           else if (path === "/console") setActiveTab("console");
-          else if (path === "/summary") setActiveTab("summary");
-          else if (path === "/api" || path === "/apidocs") setActiveTab("api");
+          else if (path === "/summary") {
+            if (isOwnerUser) {
+              setActiveTab("owner_summary");
+              window.history.replaceState({ tab: "owner_summary" }, "", "/owner/summary");
+            } else if (isAgentUser) {
+              setActiveTab("agent_summary");
+              window.history.replaceState({ tab: "agent_summary" }, "", "/agent/summary");
+            } else {
+              setActiveTab("summary");
+            }
+          } else if (path === "/api" || path === "/apidocs") setActiveTab("api");
           else if (path === "/domain") setActiveTab("domain");
           else if (path === "/logout" || path === "/signout") setActiveTab("logout");
           else {
@@ -1103,6 +1159,7 @@ export default function App() {
                   <Crown className="w-3.5 h-3.5 text-amber-400" /> Owner Menu
                 </p>
 
+                {/* 1. Dashboard */}
                 <button
                   onClick={() => {
                     navigateToTab("owner_dashboard");
@@ -1114,10 +1171,11 @@ export default function App() {
                       : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
                   }`}
                 >
-                  <ShieldCheck className="w-4 h-4 text-amber-400" />
-                  <span>Owner Dashboard</span>
+                  <LayoutGrid className="w-4 h-4 text-amber-400" />
+                  <span>Dashboard</span>
                 </button>
 
+                {/* 2. Summary */}
                 <button
                   onClick={() => {
                     navigateToTab("owner_summary");
@@ -1130,13 +1188,170 @@ export default function App() {
                   }`}
                 >
                   <BarChart3 className="w-4 h-4 text-amber-400" />
-                  <span>Owner Summary</span>
+                  <span>Summary</span>
+                </button>
+
+                {/* 3. Agent Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_agent_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_agent_mgmt"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span>Agent Management</span>
+                </button>
+
+                {/* 4. User Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_user_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_user_mgmt"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <UserCheck className="w-4 h-4 text-amber-400" />
+                  <span>User Management</span>
+                </button>
+
+                {/* 5. Panel Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_panel_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_panel_mgmt"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <Sliders className="w-4 h-4 text-amber-400" />
+                  <span>Panel Management</span>
+                </button>
+
+                {/* 6. Number File */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_number_file");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_number_file"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                  <span>Number File</span>
+                </button>
+
+                {/* 7. Otp Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_otp_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_otp_mgmt"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  <span>Otp Management</span>
+                </button>
+
+                {/* 8. Rate Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_rate_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_rate_mgmt"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <Percent className="w-4 h-4 text-amber-400" />
+                  <span>Rate Management</span>
+                </button>
+
+                {/* 9. Payment Management */}
+                <button
+                  onClick={() => {
+                    navigateToTab("owner_payment_mgmt");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "owner_payment_mgmt"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 text-amber-400" />
+                  <span>Payment Management</span>
+                </button>
+
+                {/* 10. Profile */}
+                <button
+                  onClick={() => {
+                    navigateToTab("profile");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "profile"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <User className="w-4 h-4 text-amber-400" />
+                  <span>Profile</span>
+                </button>
+
+                {/* 11. Currency */}
+                <button
+                  onClick={() => {
+                    setCurrencyModalOpen(true);
+                    setSidebarOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-white transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <Coins className="w-4 h-4 text-amber-400" />
+                    <span>Currency</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/80 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                    {currency === "USD" ? "USD ($)" : "BDT (৳)"}
+                  </span>
+                </button>
+
+                {/* 12. Logout */}
+                <button
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    navigateToTab("logout");
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30 transition-all cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 text-rose-400" />
+                  <span>Logout</span>
                 </button>
               </div>
             )}
 
-            {/* Agent Section (Visible for Agent Account or Owner) */}
-            {(isAgent || isOwner) && (
+            {/* Agent Section (Visible for Agent Account) */}
+            {isAgent && !isOwner && (
               <div className="space-y-1 bg-gradient-to-b from-indigo-500/10 to-slate-900/60 p-2.5 rounded-2xl border border-indigo-500/30">
                 <p className="text-[11px] font-black text-indigo-400 px-3 py-1 uppercase tracking-wider flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-indigo-400" /> Agent Menu
@@ -1155,6 +1370,21 @@ export default function App() {
                 >
                   <Users className="w-4 h-4 text-indigo-400" />
                   <span>Agent Dashboard</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    navigateToTab("agent_summary");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "agent_summary"
+                      ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-500/20"
+                      : "text-slate-200 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4 text-indigo-400" />
+                  <span>Agent Summary</span>
                 </button>
               </div>
             )}
@@ -1179,125 +1409,125 @@ export default function App() {
               </div>
             )}
 
-            {/* Section 1: Dialer Panel */}
-            <div className="space-y-0.5">
-              <p className="text-[11px] font-semibold text-slate-400 px-3 py-1 uppercase tracking-wider">
-                Dialer Panel
-              </p>
+            {/* Section 1: Dialer Panel (Visible only for Client accounts) */}
+            {!isOwner && !isAgent && (
+              <div className="space-y-0.5">
+                <p className="text-[11px] font-semibold text-slate-400 px-3 py-1 uppercase tracking-wider">
+                  Dialer Panel
+                </p>
 
-              {!isOwner && !isAgent && (
-                <>
-                  <button
-                    onClick={() => {
-                      navigateToTab("getnum");
-                      setSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      activeTab === "getnum"
-                        ? "bg-[#2EE59D] text-slate-950 font-bold"
-                        : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                    }`}
-                  >
-                    <Hash className="w-4 h-4 text-slate-400" />
-                    <span>Get Number</span>
-                  </button>
+                <button
+                  onClick={() => {
+                    navigateToTab("getnum");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "getnum"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold"
+                      : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                  }`}
+                >
+                  <Hash className="w-4 h-4 text-slate-400" />
+                  <span>Get Number</span>
+                </button>
 
-                  <button
-                    onClick={() => {
-                      navigateToTab("console");
-                      setSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      activeTab === "console"
-                        ? "bg-[#2EE59D] text-slate-950 font-bold"
-                        : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                    }`}
-                  >
-                    <Terminal className="w-4 h-4 text-slate-400" />
-                    <span>Console</span>
-                  </button>
-                </>
-              )}
+                <button
+                  onClick={() => {
+                    navigateToTab("console");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "console"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold"
+                      : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                  }`}
+                >
+                  <Terminal className="w-4 h-4 text-slate-400" />
+                  <span>Console</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  navigateToTab("summary");
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === "summary"
-                    ? "bg-[#2EE59D] text-slate-950 font-bold"
-                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                }`}
-              >
-                <BarChart3 className="w-4 h-4 text-slate-400" />
-                <span>Summary</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    navigateToTab("summary");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "summary"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold"
+                      : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4 text-slate-400" />
+                  <span>Summary</span>
+                </button>
+              </div>
+            )}
 
-            {/* Section 2: Account */}
-            <div className="space-y-0.5">
-              <p className="text-[11px] font-semibold text-slate-400 px-3 py-1 uppercase tracking-wider">
-                Account
-              </p>
+            {/* Section 2: Account (Visible for Non-Owner accounts) */}
+            {!isOwner && (
+              <div className="space-y-0.5">
+                <p className="text-[11px] font-semibold text-slate-400 px-3 py-1 uppercase tracking-wider">
+                  Account
+                </p>
 
-              <button
-                onClick={() => {
-                  navigateToTab("profile");
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === "profile"
-                    ? "bg-[#2EE59D] text-slate-950 font-bold"
-                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                }`}
-              >
-                <User className="w-4 h-4 text-slate-400" />
-                <span>Profile</span>
-              </button>
+                <button
+                  onClick={() => {
+                    navigateToTab("profile");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "profile"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold"
+                      : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                  }`}
+                >
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span>Profile</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  navigateToTab("payment");
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === "payment"
-                    ? "bg-[#2EE59D] text-slate-950 font-bold"
-                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                }`}
-              >
-                <CreditCard className="w-4 h-4 text-slate-400" />
-                <span>Payment</span>
-              </button>
+                <button
+                  onClick={() => {
+                    navigateToTab("payment");
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === "payment"
+                      ? "bg-[#2EE59D] text-slate-950 font-bold"
+                      : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 text-slate-400" />
+                  <span>Payment</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  setCurrencyModalOpen(true);
-                  setSidebarOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800/50 hover:text-white transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <DollarSign className="w-4 h-4 text-emerald-400" />
-                  <span>Currency</span>
-                </div>
-                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                  {currency === "USD" ? "USD ($)" : "BDT (৳)"}
-                </span>
-              </button>
+                <button
+                  onClick={() => {
+                    setCurrencyModalOpen(true);
+                    setSidebarOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800/50 hover:text-white transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                    <span>Currency</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                    {currency === "USD" ? "USD ($)" : "BDT (৳)"}
+                  </span>
+                </button>
 
-              <button
-                onClick={() => {
-                  setSidebarOpen(false);
-                  navigateToTab("logout");
-                }}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30 transition-all cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 text-rose-400" />
-                <span>Logout</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    navigateToTab("logout");
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30 transition-all cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 text-rose-400" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
 
             {/* Bottom Developer Card */}
             <div className="mt-auto pt-2">
@@ -1965,14 +2195,38 @@ export default function App() {
           </div>
         )}
 
-        {/* OWNER TAB 1: OWNER DASHBOARD */}
-        {activeTab === "owner_dashboard" && (
+        {/* OWNER DASHBOARD & MANAGEMENT TABS */}
+        {(activeTab === "owner_dashboard" ||
+          activeTab === "owner_agent_mgmt" ||
+          activeTab === "owner_user_mgmt" ||
+          activeTab === "owner_panel_mgmt" ||
+          activeTab === "owner_number_file" ||
+          activeTab === "owner_otp_mgmt" ||
+          activeTab === "owner_rate_mgmt" ||
+          activeTab === "owner_payment_mgmt") && (
           isOwner ? (
             <OwnerDashboard
               userProfile={userProfile}
               feedNumbers={feedNumbers}
               currency={currency}
               usdExchangeRate={usdExchangeRate}
+              activeSection={
+                activeTab === "owner_agent_mgmt"
+                  ? "agent_mgmt"
+                  : activeTab === "owner_user_mgmt"
+                  ? "user_mgmt"
+                  : activeTab === "owner_panel_mgmt"
+                  ? "panel_mgmt"
+                  : activeTab === "owner_number_file"
+                  ? "number_file"
+                  : activeTab === "owner_otp_mgmt"
+                  ? "otp_mgmt"
+                  : activeTab === "owner_rate_mgmt"
+                  ? "rate_mgmt"
+                  : activeTab === "owner_payment_mgmt"
+                  ? "payment_mgmt"
+                  : "overview"
+              }
               onNavigateTab={(t) => navigateToTab(t)}
               onUpdateUserBalance={(email, addAmt) => {
                 if (userProfile && userProfile.email.toLowerCase() === email.toLowerCase()) {
@@ -2016,13 +2270,14 @@ export default function App() {
           )
         )}
 
-        {/* AGENT TAB: AGENT DASHBOARD */}
+        {/* AGENT TAB 1: AGENT DASHBOARD */}
         {activeTab === "agent_dashboard" && (
           (isAgent || isOwner) ? (
             <AgentDashboard
               userProfile={userProfile}
               currency={currency}
               usdExchangeRate={usdExchangeRate}
+              onNavigateTab={(t) => navigateToTab(t as any)}
             />
           ) : (
             <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
@@ -2037,13 +2292,37 @@ export default function App() {
           )
         )}
 
-        {/* TAB 3.5: SUMMARY DASHBOARD */}
+        {/* AGENT TAB 2: AGENT SUMMARY */}
+        {activeTab === "agent_summary" && (
+          (isAgent || isOwner) ? (
+            <SummaryDashboard
+              currency={currency}
+              usdExchangeRate={usdExchangeRate}
+              feedNumbers={feedNumbers}
+              userProfile={userProfile}
+              onNavigateTab={(t) => navigateToTab(t as any)}
+            />
+          ) : (
+            <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+              <p className="text-rose-400 font-bold text-sm">Access Restricted: Agent role required.</p>
+              <button
+                onClick={() => navigateToTab("dashboard")}
+                className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl"
+              >
+                Go to Client Dashboard
+              </button>
+            </div>
+          )
+        )}
+
+        {/* CLIENT TAB 3.5: SUMMARY DASHBOARD */}
         {activeTab === "summary" && (
           <SummaryDashboard
             currency={currency}
             usdExchangeRate={usdExchangeRate}
             feedNumbers={feedNumbers}
             userProfile={userProfile}
+            onNavigateTab={(t) => navigateToTab(t as any)}
           />
         )}
 

@@ -25,6 +25,18 @@ import {
   UserCheck,
   Lock,
   Mail,
+  Sliders,
+  FileSpreadsheet,
+  KeyRound,
+  Percent,
+  CreditCard,
+  Layers,
+  Settings,
+  Coins,
+  Globe,
+  SlidersHorizontal,
+  CheckSquare,
+  FileText,
 } from "lucide-react";
 
 interface OwnerDashboardProps {
@@ -32,7 +44,16 @@ interface OwnerDashboardProps {
   feedNumbers: FeedNumber[];
   currency: "USD" | "BDT";
   usdExchangeRate: number;
-  onNavigateTab: (tab: "owner_dashboard" | "owner_summary") => void;
+  activeSection?:
+    | "overview"
+    | "agent_mgmt"
+    | "user_mgmt"
+    | "panel_mgmt"
+    | "number_file"
+    | "otp_mgmt"
+    | "rate_mgmt"
+    | "payment_mgmt";
+  onNavigateTab: (tab: any) => void;
   onUpdateUserBalance?: (userEmail: string, addAmount: number) => void;
 }
 
@@ -41,6 +62,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   feedNumbers,
   currency,
   usdExchangeRate,
+  activeSection = "overview",
   onNavigateTab,
   onUpdateUserBalance,
 }) => {
@@ -245,21 +267,109 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </div>
 
           {/* Quick Sub-Navigation Pills */}
-          <div className="flex items-center gap-2 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shrink-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shrink-0">
             <button
               onClick={() => onNavigateTab("owner_dashboard")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold bg-[#2EE59D] text-slate-950 shadow-md transition-all"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                !activeSection || activeSection === "overview"
+                  ? "bg-[#2EE59D] text-slate-950 shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
             >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Owner Dashboard</span>
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
             </button>
 
             <button
               onClick={() => onNavigateTab("owner_summary")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all whitespace-nowrap"
             >
-              <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <span>Owner Summary</span>
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Summary</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("owner_agent_mgmt")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeSection === "agent_mgmt"
+                  ? "bg-indigo-600 text-white font-bold shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Agent Management</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("owner_user_mgmt")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeSection === "user_mgmt"
+                  ? "bg-emerald-600 text-white font-bold shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>User Management</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("owner_panel_mgmt")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeSection === "panel_mgmt"
+                  ? "bg-amber-600 text-white font-bold shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5 text-amber-400" />
+              <span>Panel Management</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("owner_number_file")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeSection === "number_file"
+                  ? "bg-cyan-600 text-white font-bold shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Number File</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("owner_otp_mgmt")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeSection === "otp_mgmt"
+                  ? "bg-purple-600 text-white font-bold shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5 text-purple-400" />
+              <span>Otp Management</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("owner_rate_mgmt")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeSection === "rate_mgmt"
+                  ? "bg-rose-600 text-white font-bold shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              <Percent className="w-3.5 h-3.5 text-rose-400" />
+              <span>Rate Management</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateTab("owner_payment_mgmt")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                activeSection === "payment_mgmt"
+                  ? "bg-blue-600 text-white font-bold shadow-md"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5 text-blue-400" />
+              <span>Payment Management</span>
             </button>
           </div>
         </div>
@@ -381,7 +491,222 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         )}
       </div>
 
+      {/* PANEL MANAGEMENT SECTION */}
+      {(!activeSection || activeSection === "overview" || activeSection === "panel_mgmt") && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-amber-400" /> Panel Management
+              </h2>
+              <p className="text-xs text-slate-400">
+                Configure SMS Gateway panel nodes, API keys, server endpoints, and capacity routing.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold font-mono">
+              Nodes: 4 Active • Load: 12%
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-semibold uppercase tracking-wider">Gateway Panel A</span>
+                <span className="text-emerald-400 font-bold font-mono">● Online</span>
+              </div>
+              <p className="text-sm font-bold text-white font-mono">api.orabitsms.xyz/v1</p>
+              <div className="text-[11px] text-slate-400 space-y-1">
+                <div>Latency: <span className="text-emerald-400 font-mono font-bold">42ms</span></div>
+                <div>Capacity: <span className="text-white font-mono">1,200 req/min</span></div>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-semibold uppercase tracking-wider">Gateway Panel B</span>
+                <span className="text-emerald-400 font-bold font-mono">● Online</span>
+              </div>
+              <p className="text-sm font-bold text-white font-mono">api.orabitsms.xyz/v2</p>
+              <div className="text-[11px] text-slate-400 space-y-1">
+                <div>Latency: <span className="text-emerald-400 font-mono font-bold">38ms</span></div>
+                <div>Capacity: <span className="text-white font-mono">2,500 req/min</span></div>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-semibold uppercase tracking-wider">Failover Node</span>
+                <span className="text-amber-400 font-bold font-mono">⚡ Standby</span>
+              </div>
+              <p className="text-sm font-bold text-white font-mono">backup.orabitsms.xyz</p>
+              <div className="text-[11px] text-slate-400 space-y-1">
+                <div>Auto-Switch: <span className="text-emerald-400 font-bold">Enabled</span></div>
+                <div>Health Check: <span className="text-white font-mono">Passing</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NUMBER FILE MANAGEMENT SECTION */}
+      {(!activeSection || activeSection === "overview" || activeSection === "number_file") && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-cyan-400" /> Number File Management
+              </h2>
+              <p className="text-xs text-slate-400">
+                Manage phone number inventory pools, country file feeds, carrier batch allocations, and bulk imports.
+              </p>
+            </div>
+            <button className="px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Upload Number File
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 font-mono text-xs">
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[10px] font-sans font-semibold uppercase">Active Number Pool</span>
+              <p className="text-lg font-bold text-cyan-400">{feedNumbers.length}</p>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[10px] font-sans font-semibold uppercase">Pending Numbers</span>
+              <p className="text-lg font-bold text-amber-400">{feedNumbers.filter(f => f.status === "pending").length}</p>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[10px] font-sans font-semibold uppercase">Completed Numbers</span>
+              <p className="text-lg font-bold text-emerald-400">{feedNumbers.filter(f => f.status === "success").length}</p>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[10px] font-sans font-semibold uppercase">Cancelled / Expired</span>
+              <p className="text-lg font-bold text-rose-400">{feedNumbers.filter(f => f.status === "failed" || f.status === "cancelled").length}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OTP MANAGEMENT SECTION */}
+      {(!activeSection || activeSection === "overview" || activeSection === "otp_mgmt") && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-purple-400" /> Otp Management
+              </h2>
+              <p className="text-xs text-slate-400">
+                Monitor real-time verification code dispatch, timeout rules, auto-refund triggers, and regex parsers.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-xs font-bold font-mono">
+              Auto-Refund: Enabled (180s)
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-slate-400 font-semibold">OTP Expiry Timer</span>
+                <p className="text-white font-mono font-bold">180 Seconds</p>
+              </div>
+              <Settings className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-slate-400 font-semibold">Auto Refund On Timeout</span>
+                <p className="text-emerald-400 font-bold">ACTIVE</p>
+              </div>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-slate-400 font-semibold">Parser Mode</span>
+                <p className="text-white font-mono font-bold">Smart Regex v3</p>
+              </div>
+              <Zap className="w-4 h-4 text-amber-400" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RATE MANAGEMENT SECTION */}
+      {(!activeSection || activeSection === "overview" || activeSection === "rate_mgmt") && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Percent className="w-5 h-5 text-rose-400" /> Rate & Currency Management
+              </h2>
+              <p className="text-xs text-slate-400">
+                Manage global USD/BDT conversion exchange rate and service pricing tiers.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold font-mono">
+              1 USD = {usdExchangeRate} BDT
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+              <span className="text-slate-400 font-semibold uppercase text-[10px]">USD / BDT Exchange Rate</span>
+              <p className="text-xl font-bold font-mono text-emerald-400">৳{usdExchangeRate.toFixed(2)} / $1.00</p>
+              <p className="text-[11px] text-slate-500">Applied automatically across all deposit and service calculations.</p>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+              <span className="text-slate-400 font-semibold uppercase text-[10px]">Agent Commission Rate</span>
+              <p className="text-xl font-bold font-mono text-indigo-400">10.00%</p>
+              <p className="text-[11px] text-slate-500">Standard agent margin earned on client SMS completions.</p>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+              <span className="text-slate-400 font-semibold uppercase text-[10px]">Default Service Margin</span>
+              <p className="text-xl font-bold font-mono text-amber-400">15.00%</p>
+              <p className="text-[11px] text-slate-500">Base profit margin for standard service pricing.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAYMENT MANAGEMENT SECTION */}
+      {(!activeSection || activeSection === "overview" || activeSection === "payment_mgmt") && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-blue-400" /> Payment & Deposit Management
+              </h2>
+              <p className="text-xs text-slate-400">
+                Review and approve client deposit requests, bKash/Nagad transactions, and manual topups.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold font-mono">
+              Gateways: bKash • Nagad • Crypto
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 font-semibold text-[10px] uppercase">bKash Merchant</span>
+              <p className="text-white font-mono font-bold">+8801700000000</p>
+              <span className="text-emerald-400 text-[10px]">● Auto-Verification Active</span>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 font-semibold text-[10px] uppercase">Nagad Merchant</span>
+              <p className="text-white font-mono font-bold">+8801800000000</p>
+              <span className="text-emerald-400 text-[10px]">● Auto-Verification Active</span>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 font-semibold text-[10px] uppercase">Crypto (USDT TRC20)</span>
+              <p className="text-white font-mono font-bold text-[10px] truncate">TOrabitSmsSystemAddress123</p>
+              <span className="text-emerald-400 text-[10px]">● Instant Confirmation</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Agent Management Section */}
+      {(!activeSection || activeSection === "overview" || activeSection === "agent_mgmt") && (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
           <div>
@@ -517,8 +842,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Client Accounts Management Table */}
+      {(!activeSection || activeSection === "overview" || activeSection === "user_mgmt") && (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -640,6 +967,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 };

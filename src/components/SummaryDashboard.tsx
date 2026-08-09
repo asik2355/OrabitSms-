@@ -33,6 +33,7 @@ interface SummaryDashboardProps {
   usdExchangeRate?: number;
   feedNumbers?: FeedNumber[];
   userProfile?: any;
+  onNavigateTab?: (tab: string) => void;
 }
 
 interface DailySummary {
@@ -49,6 +50,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   usdExchangeRate = 100,
   feedNumbers = [],
   userProfile,
+  onNavigateTab,
 }) => {
   const [dateRange, setDateRange] = useState<string>("7 Days");
   const [userSelectedRange, setUserSelectedRange] = useState<boolean>(false);
@@ -297,50 +299,69 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
           </p>
         </div>
 
-        {/* DATE RANGE FILTER DROPDOWN */}
-        <div className="relative">
-          <div className="p-3 rounded-2xl bg-[#131722]/90 border border-slate-800 flex items-center gap-3 shadow-lg">
-            <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="text-xs text-slate-400 font-medium hidden sm:inline">Date range</span>
-            
-            <div className="relative">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {isAgent && onNavigateTab && (
+            <div className="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 shrink-0">
               <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-emerald-500/40 hover:border-emerald-400 text-xs font-bold text-white flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                onClick={() => onNavigateTab("agent_dashboard")}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all"
               >
-                <span>{dateRange}</span>
-                <ChevronDown className={`w-3.5 h-3.5 text-emerald-400 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
+                <span>Agent Dashboard</span>
               </button>
+              <button
+                onClick={() => onNavigateTab("agent_summary")}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#2EE59D] text-slate-950 shadow-md transition-all"
+              >
+                <span>Agent Summary</span>
+              </button>
+            </div>
+          )}
 
-              {/* DROPDOWN MENU */}
-              {dropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-[#181d2b] border border-slate-700/80 shadow-2xl z-40 p-1.5 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
-                    {dateRangeOptions.map((option) => (
-                      <button
-                        key={option}
-                        onClick={() => {
-                          setDateRange(option);
-                          setUserSelectedRange(true);
-                          setDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
-                          dateRange === option
-                            ? "bg-[#2EE59D]/20 text-[#2EE59D]"
-                            : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                        }`}
-                      >
-                        <span>{option}</span>
-                        {dateRange === option && <Check className="w-3.5 h-3.5 text-[#2EE59D]" />}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+          {/* DATE RANGE FILTER DROPDOWN */}
+          <div className="relative">
+            <div className="p-3 rounded-2xl bg-[#131722]/90 border border-slate-800 flex items-center gap-3 shadow-lg">
+              <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs text-slate-400 font-medium hidden sm:inline">Date range</span>
+              
+              <div className="relative">
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 border border-emerald-500/40 hover:border-emerald-400 text-xs font-bold text-white flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                >
+                  <span>{dateRange}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-emerald-400 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* DROPDOWN MENU */}
+                {dropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setDropdownOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-[#181d2b] border border-slate-700/80 shadow-2xl z-40 p-1.5 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                      {dateRangeOptions.map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => {
+                            setDateRange(option);
+                            setUserSelectedRange(true);
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
+                            dateRange === option
+                              ? "bg-[#2EE59D]/20 text-[#2EE59D]"
+                              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                          }`}
+                        >
+                          <span>{option}</span>
+                          {dateRange === option && <Check className="w-3.5 h-3.5 text-[#2EE59D]" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
