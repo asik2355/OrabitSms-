@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import { getUserRoleFromSupabase } from "../lib/userRoles";
 import { OrabitLogo } from "./OrabitLogo";
 import { TurnstileCaptcha } from "./TurnstileCaptcha";
 import {
@@ -354,12 +355,22 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       }
     }
 
-    setIsSubmitting(false);
-
     if (loggedInUser) {
+      // Fetch user role from Supabase user_roles table
+      try {
+        const fetchedRole = await getUserRoleFromSupabase(loggedInUser.email);
+        if (fetchedRole) {
+          loggedInUser.role = fetchedRole === "owner" ? "Owner" : "Client";
+        }
+      } catch (err) {
+        console.warn("Failed to query user_roles table on login:", err);
+      }
+
+      setIsSubmitting(false);
       showAlert("Login successful! Welcome back to ORABIT.", "success");
       onLoginSuccess(loggedInUser);
     } else {
+      setIsSubmitting(false);
       showAlert(
         authErrorMsg ? `Login failed: ${authErrorMsg}` : "Account not found! Please register an account first.",
         "error"

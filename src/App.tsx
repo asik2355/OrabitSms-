@@ -10,6 +10,7 @@ import {
   DEFAULT_STEX_API_KEY,
 } from "./lib/stexApi";
 import { OrabitAuthScreen, UserProfile } from "./components/OrabitAuthScreen";
+import { getUserRoleFromSupabase } from "./lib/userRoles";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
 import { OrabitApiDoc } from "./components/OrabitApiDoc";
@@ -281,7 +282,24 @@ export default function App() {
   const currentUserEmail = userProfile?.email ? userProfile.email.toLowerCase().trim() : "";
   const userFeedStorageKey = currentUserEmail ? `orabit_feed_numbers_${currentUserEmail}` : "orabit_feed_numbers_guest";
 
-  const isOwner = userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com" || userProfile?.role?.toLowerCase() === "owner";
+  const isOwner = userProfile?.role?.toLowerCase() === "owner" || userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com";
+
+  // Automatically sync/check user role from Supabase user_roles table
+  useEffect(() => {
+    if (!userProfile?.email) return;
+    let isMounted = true;
+    getUserRoleFromSupabase(userProfile.email).then((fetchedRole) => {
+      if (isMounted && fetchedRole) {
+        const normalizedRole = fetchedRole === "owner" ? "Owner" : "Client";
+        if (normalizedRole !== userProfile.role) {
+          setUserProfile((prev) => (prev ? { ...prev, role: normalizedRole } : null));
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.email]);
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "summary" | "api" | "domain" | "profile" | "payment" | "logout" | "owner_dashboard" | "owner_summary">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -422,7 +440,7 @@ export default function App() {
     }
   }, [userProfile]);
 
-  // Navigate to tab with browser URL history update
+  // Navigate to tab with browser URL history update and RBAC Route Protection
   const navigateToTab = (
     tab:
       | "dashboard"
@@ -437,6 +455,17 @@ export default function App() {
       | "owner_dashboard"
       | "owner_summary"
   ) => {
+    // ROUTE PROTECTION: If client attempts to access owner dashboard/summary, redirect to client dashboard
+    if ((tab === "owner_dashboard" || tab === "owner_summary") && !isOwner) {
+      setActiveTab("dashboard");
+      try {
+        if (window.location.pathname !== "/dashboard") {
+          window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+        }
+      } catch {}
+      return;
+    }
+
     setActiveTab(tab);
     try {
       if (userProfile) {
@@ -454,18 +483,30 @@ export default function App() {
     }
   };
 
-  // Sync route on mount and window popstate (browser back/forward or direct link access)
+  // Sync route on mount and window popstate with RBAC Protection
   useEffect(() => {
     const syncRouteFromPath = () => {
       try {
         const path = window.location.pathname.toLowerCase();
         if (userProfile) {
-          const isOwnerUser = userProfile.email?.toLowerCase().trim() === "orabitsms@gmail.com" || userProfile.role?.toLowerCase() === "owner";
+          const isOwnerUser = userProfile.role?.toLowerCase() === "owner" || userProfile.email?.toLowerCase().trim() === "orabitsms@gmail.com";
           
           if (path === "/owner/dashboard" || path === "/owner-dashboard" || path === "/owner") {
-            setActiveTab("owner_dashboard");
+            if (isOwnerUser) {
+              setActiveTab("owner_dashboard");
+            } else {
+              // REDIRECT CLIENT TO CLIENT DASHBOARD (/dashboard)
+              setActiveTab("dashboard");
+              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+            }
           } else if (path === "/owner/summary" || path === "/owner-summary") {
-            setActiveTab("owner_summary");
+            if (isOwnerUser) {
+              setActiveTab("owner_summary");
+            } else {
+              // REDIRECT CLIENT TO CLIENT DASHBOARD (/dashboard)
+              setActiveTab("dashboard");
+              window.history.replaceState({ tab: "dashboard" }, "", "/dashboard");
+            }
           } else if (path === "/profile") setActiveTab("profile");
           else if (path === "/payment" || path === "/wallet") setActiveTab("payment");
           else if (path === "/getnum" || path === "/get-number") setActiveTab("getnum");
@@ -500,7 +541,7 @@ export default function App() {
     syncRouteFromPath();
     window.addEventListener("popstate", syncRouteFromPath);
     return () => window.removeEventListener("popstate", syncRouteFromPath);
-  }, [userProfile]);
+  }, [userProfile, isOwner]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -1835,29 +1876,53 @@ export default function App() {
 
         {/* OWNER TAB 1: OWNER DASHBOARD */}
         {activeTab === "owner_dashboard" && (
-          <OwnerDashboard
-            userProfile={userProfile}
-            feedNumbers={feedNumbers}
-            currency={currency}
-            usdExchangeRate={usdExchangeRate}
-            onNavigateTab={(t) => navigateToTab(t)}
-            onUpdateUserBalance={(email, addAmt) => {
-              if (userProfile && userProfile.email.toLowerCase() === email.toLowerCase()) {
-                setUserProfile((prev) => (prev ? { ...prev, balance: (prev.balance || 0) + addAmt } : null));
-              }
-            }}
-          />
+          isOwner ? (
+            <OwnerDashboard
+              userProfile={userProfile}
+              feedNumbers={feedNumbers}
+              currency={currency}
+              usdExchangeRate={usdExchangeRate}
+              onNavigateTab={(t) => navigateToTab(t)}
+              onUpdateUserBalance={(email, addAmt) => {
+                if (userProfile && userProfile.email.toLowerCase() === email.toLowerCase()) {
+                  setUserProfile((prev) => (prev ? { ...prev, balance: (prev.balance || 0) + addAmt } : null));
+                }
+              }}
+            />
+          ) : (
+            <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+              <p className="text-rose-400 font-bold text-sm">Access Restricted: Owner role required.</p>
+              <button
+                onClick={() => navigateToTab("dashboard")}
+                className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl"
+              >
+                Go to Client Dashboard
+              </button>
+            </div>
+          )
         )}
 
         {/* OWNER TAB 2: OWNER SUMMARY */}
         {activeTab === "owner_summary" && (
-          <OwnerSummary
-            userProfile={userProfile}
-            feedNumbers={feedNumbers}
-            currency={currency}
-            usdExchangeRate={usdExchangeRate}
-            onNavigateTab={(t) => navigateToTab(t)}
-          />
+          isOwner ? (
+            <OwnerSummary
+              userProfile={userProfile}
+              feedNumbers={feedNumbers}
+              currency={currency}
+              usdExchangeRate={usdExchangeRate}
+              onNavigateTab={(t) => navigateToTab(t)}
+            />
+          ) : (
+            <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+              <p className="text-rose-400 font-bold text-sm">Access Restricted: Owner role required.</p>
+              <button
+                onClick={() => navigateToTab("dashboard")}
+                className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl"
+              >
+                Go to Client Dashboard
+              </button>
+            </div>
+          )
         )}
 
         {/* TAB 3.5: SUMMARY DASHBOARD */}
