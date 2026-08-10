@@ -6,6 +6,7 @@ import {
   bulkSyncFeedNumbersToSupabase,
 } from "../lib/supabaseFeed";
 import { incrementUserSuccessAndBalanceInSupabase } from "../lib/userProfiles";
+import { TimeAgoBadge, formatTimeAgo } from "./TimeAgoBadge";
 import { useAuth } from "../context/AuthContext";
 import { safeLocalStorageSet, safeLocalStorageGet } from "../lib/storageUtils";
 import {
@@ -589,16 +590,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
             const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
             if (reqTimestamp) {
               const elapsedMs = now - reqTimestamp;
-              const elapsedMins = Math.floor(elapsedMs / 60000);
 
-              if (item.status === "SUCCESS") {
-                const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago`;
-                if (item.timeAgo !== timeAgoStr) {
-                  updated = true;
-                  return { ...item, timeAgo: timeAgoStr };
-                }
-              } else if (item.status === "FAILED") {
-                const timeAgoStr = elapsedMins < 1 ? "Expired (15m)" : `${elapsedMins}m ago (Expired)`;
+              if (item.status === "SUCCESS" || item.status === "FAILED") {
+                const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);
                 if (item.timeAgo !== timeAgoStr) {
                   updated = true;
                   return { ...item, timeAgo: timeAgoStr };
@@ -609,12 +603,11 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                   return {
                     ...item,
                     status: "FAILED" as const,
-                    timeAgo: `${elapsedMins}m ago (Expired)`,
+                    timeAgo: formatTimeAgo(reqTimestamp),
                     rawMessage: "No SMS received within 15 minutes",
                   };
                 } else {
-                  const remainingMins = Math.max(1, 15 - elapsedMins);
-                  const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago (${remainingMins}m left)`;
+                  const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);
                   if (item.timeAgo !== timeAgoStr) {
                     updated = true;
                     return { ...item, timeAgo: timeAgoStr };
@@ -625,6 +618,10 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
             return item;
           });
+
+          if (updated && userEmail) {
+            bulkSyncFeedNumbersToSupabase(userEmail, newFeed);
+          }
 
           return updated ? newFeed : prevFeed;
         });
@@ -1541,24 +1538,28 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
             </div>
 
             {/* Feed Items */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               {filteredFeed.map((item) => (
                 <div
                   key={item.id}
-                  className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-wrap items-center justify-between gap-3"
+                  className="p-2.5 sm:p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between gap-2"
                 >
-                  <div className="space-y-1">
-                    <div className="font-mono text-sm font-bold text-white tracking-wider">
+                  <div className="space-y-0.5">
+                    <div className="font-mono text-[11px] sm:text-xs font-bold text-white tracking-wide">
                       {item.number}
                     </div>
-                    <div className="text-[10px] text-slate-500 font-mono">
-                      Timeout • {item.timeAgo}
+                    <div className="flex items-center gap-1">
+                      <TimeAgoBadge
+                        requestedAt={item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null)}
+                        timeAgo={item.timeAgo}
+                        status={item.status}
+                      />
                     </div>
                   </div>
 
-                  <div className="text-right space-y-1">
+                  <div className="text-right space-y-0.5">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                      className={`text-[8px] sm:text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
                         item.status === "FAILED"
                           ? "bg-rose-950 text-rose-400 border border-rose-800/60"
                           : item.status === "SUCCESS"
@@ -1568,7 +1569,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                     >
                       {item.status}
                     </span>
-                    <div className="text-[10px] text-slate-400 font-mono">
+                    <div className="text-[9px] sm:text-[10px] text-slate-400 font-mono">
                       {item.country} • {item.operator}
                     </div>
                   </div>

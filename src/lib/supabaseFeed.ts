@@ -33,28 +33,26 @@ WITH CHECK (true);
 CREATE INDEX IF NOT EXISTS idx_user_feed_numbers_email ON public.user_feed_numbers(user_email);
 `;
 
+import { formatTimeAgo } from "../components/TimeAgoBadge";
+
 /**
  * Helper to transform DB row into FeedNumber object
  */
 function mapRowToFeedNumber(row: any): FeedNumber {
   const reqTs = row.requested_at ? Number(row.requested_at) : Date.now();
   const elapsedMs = Date.now() - reqTs;
-  const elapsedMins = Math.floor(elapsedMs / 60000);
 
-  let dynamicTimeAgo = row.time_ago || "Just now";
-  if (row.status === "SUCCESS") {
-    dynamicTimeAgo = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago`;
-  } else if (row.status === "FAILED") {
-    dynamicTimeAgo = elapsedMins < 1 ? "Expired (15m)" : `${elapsedMins}m ago (Expired)`;
-  } else if (row.status === "PENDING") {
-    const remainingMins = Math.max(1, 15 - elapsedMins);
-    dynamicTimeAgo = elapsedMins < 1 ? "Just now (15m left)" : `${elapsedMins}m ago (${remainingMins}m left)`;
+  let finalStatus: "SUCCESS" | "PENDING" | "FAILED" = row.status as any;
+  if (finalStatus === "PENDING" && elapsedMs >= 15 * 60 * 1000) {
+    finalStatus = "FAILED";
   }
+
+  const dynamicTimeAgo = formatTimeAgo(reqTs, row.time_ago);
 
   return {
     id: row.id,
     number: row.number,
-    status: row.status as "SUCCESS" | "PENDING" | "FAILED",
+    status: finalStatus,
     country: row.country || "Global Pool",
     operator: row.operator || "GSM Network",
     service: row.service || "SMS OTP",

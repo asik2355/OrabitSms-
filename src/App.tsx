@@ -21,6 +21,7 @@ import {
 } from "./lib/supabaseFeed";
 import { incrementUserSuccessAndBalanceInSupabase } from "./lib/userProfiles";
 import { safeLocalStorageSet, safeLocalStorageGet } from "./lib/storageUtils";
+import { TimeAgoBadge, formatTimeAgo } from "./components/TimeAgoBadge";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
 import { OrabitApiDoc } from "./components/OrabitApiDoc";
@@ -912,16 +913,9 @@ export default function App() {
             const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
             if (reqTimestamp) {
               const elapsedMs = now - reqTimestamp;
-              const elapsedMins = Math.floor(elapsedMs / 60000);
 
-              if (item.status === "SUCCESS") {
-                const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago`;
-                if (item.timeAgo !== timeAgoStr) {
-                  updated = true;
-                  return { ...item, timeAgo: timeAgoStr };
-                }
-              } else if (item.status === "FAILED") {
-                const timeAgoStr = elapsedMins < 1 ? "Expired (15m)" : `${elapsedMins}m ago (Expired)`;
+              if (item.status === "SUCCESS" || item.status === "FAILED") {
+                const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);
                 if (item.timeAgo !== timeAgoStr) {
                   updated = true;
                   return { ...item, timeAgo: timeAgoStr };
@@ -932,12 +926,11 @@ export default function App() {
                   return {
                     ...item,
                     status: "FAILED" as const,
-                    timeAgo: `${elapsedMins}m ago (Expired)`,
+                    timeAgo: formatTimeAgo(reqTimestamp),
                     rawMessage: "No SMS received within 15 minutes",
                   };
                 } else {
-                  const remainingMins = Math.max(1, 15 - elapsedMins);
-                  const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago (${remainingMins}m left)`;
+                  const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);
                   if (item.timeAgo !== timeAgoStr) {
                     updated = true;
                     return { ...item, timeAgo: timeAgoStr };
@@ -2548,24 +2541,24 @@ export default function App() {
                     return (
                       <div
                         key={item.id}
-                        className="p-3 sm:p-3.5 rounded-xl bg-[#090d18] border border-slate-800/80 hover:border-slate-700 transition-all grid grid-cols-12 items-center gap-2"
+                        className="p-2.5 sm:p-3 rounded-xl bg-[#090d18] border border-slate-800/80 hover:border-slate-700 transition-all grid grid-cols-12 items-center gap-1.5"
                       >
                         {/* NUMBER INFO COLUMN */}
-                        <div className="col-span-5 space-y-1">
-                          <div className="font-mono text-xs sm:text-sm font-extrabold text-white tracking-wider flex items-center gap-1.5">
+                        <div className="col-span-5 space-y-0.5">
+                          <div className="font-mono text-[11px] sm:text-xs font-bold text-white tracking-wide flex items-center gap-1">
                             <span>{displayNum}</span>
                             <button
                               onClick={() => copyToClipboard(displayNum, `Copied ${displayNum}`)}
                               className="text-slate-500 hover:text-slate-200 cursor-pointer"
                               title="Copy number"
                             >
-                              <Copy className="w-3 h-3" />
+                              <Copy className="w-2.5 h-2.5" />
                             </button>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="flex flex-wrap items-center gap-1">
                             <span
-                              className={`text-[9px] font-mono font-black px-2 py-0.5 rounded uppercase tracking-wider ${
+                              className={`text-[8px] sm:text-[9px] font-mono font-bold px-1.5 py-0.2 rounded uppercase tracking-tight ${
                                 item.status === "FAILED"
                                   ? "bg-rose-950/80 text-rose-400 border border-rose-800/60"
                                   : item.status === "SUCCESS"
@@ -2583,12 +2576,12 @@ export default function App() {
                                   const msgToCopy = item.rawMessage || `<#> ${item.otpCode} is your verification code`;
                                   copyToClipboard(msgToCopy, `Copied ${msgToCopy}`);
                                 }}
-                                className="inline-flex items-center gap-1.5 bg-[#121829] border border-amber-500/40 hover:border-amber-400 px-2 py-0.5 rounded-md text-amber-300 font-mono font-bold text-[10px] shadow-sm transition-all cursor-pointer group"
+                                className="inline-flex items-center gap-1 bg-[#121829] border border-amber-500/40 hover:border-amber-400 px-1.5 py-0.2 rounded text-amber-300 font-mono font-bold text-[9px] shadow-sm transition-all cursor-pointer group"
                                 title="Click to copy full raw message"
                               >
-                                <ServiceLogo name={item.service} className="w-3.5 h-3.5 shrink-0" />
+                                <ServiceLogo name={item.service} className="w-3 h-3 shrink-0" />
                                 <span>{item.otpCode}</span>
-                                <Copy className="w-3 h-3 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+                                <Copy className="w-2.5 h-2.5 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
                               </button>
                             )}
                           </div>
@@ -2596,19 +2589,21 @@ export default function App() {
 
                         {/* COUNTRY / OPERATOR COLUMN */}
                         <div className="col-span-4 space-y-0.5">
-                          <div className="text-xs font-bold text-slate-200">
+                          <div className="text-[11px] font-medium text-slate-200 truncate">
                             {item.country}
                           </div>
-                          <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                          <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1 truncate">
                             <span>{item.operator}</span>
                           </div>
                         </div>
 
                         {/* ACTIVITY COLUMN */}
-                        <div className="col-span-3 text-right">
-                          <span className="text-[10px] font-mono font-medium text-slate-400 bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded">
-                            {item.timeAgo}
-                          </span>
+                        <div className="col-span-3 text-right flex justify-end items-center">
+                          <TimeAgoBadge
+                            requestedAt={item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null)}
+                            timeAgo={item.timeAgo}
+                            status={item.status}
+                          />
                         </div>
                       </div>
                     );
