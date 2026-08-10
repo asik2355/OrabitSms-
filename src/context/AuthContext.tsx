@@ -34,7 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [validationError, setValidationError] = useState<string | null>(null);
 
   /**
-   * Clears local storage and signs out from Supabase
+   * Clears local storage, resets loading/validation states and signs out from Supabase
    */
   const signOut = useCallback(async () => {
     try {
@@ -44,46 +44,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       localStorage.removeItem("orabit_user_profile");
       setUserProfile(null);
-      setValidationError(null);
+      setLoading(false);
+      setIsValidating(false);
     }
   }, []);
 
   /**
    * Server-Side Validation:
-   * Uses `supabase.auth.getUser()` to verify token authenticity and ensure the user account
-   * still exists in Supabase Auth/Database.
+   * Uses `supabase.auth.getUser()` with a timeout fallback to verify token authenticity and ensure
+   * the user account still exists in Supabase Auth/Database.
    * If the user was deleted from Supabase or the token is invalid/revoked, it immediately
-   * clears local session (ghost session) and signs out.
+   * clears local session (ghost session) and redirects to login.
    */
   const validateServerSession = useCallback(async (): Promise<boolean> => {
+    const saved = localStorage.getItem("orabit_user_profile");
+    if (!saved) {
+      setLoading(false);
+      setIsValidating(false);
+      return false;
+    }
+
     setIsValidating(true);
-    setValidationError(null);
 
     try {
-      // 1. Get current session from Supabase client
-      const { data: sessionData } = await supabase.auth.getSession();
+      // 6-second timeout promise to avoid infinite network hanging
+      const getUserWithTimeout = Promise.race([
+        supabase.auth.getUser(),
+        new Promise<{ data: { user: null }; error: any }>((_, reject) =>
+          setTimeout(() => reject(new Error("Supabase auth validation timeout")), 6000)
+        ),
+      ]);
 
-      if (sessionData?.session) {
-        // 2. Perform Server-Side Validation via supabase.auth.getUser()
-        // This sends a request to Supabase backend to verify if user account is active & exists.
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+      const { data: userData, error: userError } = await getUserWithTimeout;
 
-        if (userError || !userData?.user) {
-          console.warn(
-            "Ghost session detected! User account is deleted or token is invalid on Supabase server:",
-            userError?.message || "User not found"
-          );
-          setValidationError("Session expired or user account was removed from server.");
-          await signOut();
-          setIsValidating(false);
-          return false;
-        }
+      if (userError || !userData?.user) {
+        console.warn(
+          "Ghost session detected! User account was deleted or token is invalid on Supabase server:",
+          userError?.message || "User not found"
+        );
+        setValidationError("Session expired or user account was removed from server.");
+        await signOut();
+        return false;
+      }
 
-        const validUser = userData.user;
-        const validEmail = validUser.email?.toLowerCase().trim();
+      const validUser = userData.user;
+      const validEmail = validUser.email?.toLowerCase().trim();
 
-        // 3. Optional: Sync user role from Supabase user_roles table
-        if (validEmail) {
+      if (validEmail) {
+        try {
           const fetchedRole = await getUserRoleFromSupabase(validEmail);
           let normalizedRole = "Client";
           if (fetchedRole === "owner" || validEmail === "orabitsms@gmail.com") normalizedRole = "Owner";
@@ -98,37 +106,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: validUser.id,
             };
           });
-        }
-
-        setIsValidating(false);
-        return true;
-      } else {
-        // If there's local userProfile stored but no Supabase session or user profile check
-        // Check if userProfile is present
-        const saved = localStorage.getItem("orabit_user_profile");
-        if (saved) {
-          // Verify with getUser() if possible
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          if (userError || !userData?.user) {
-            console.warn("No valid Supabase user session found for local profile. Clearing ghost session...");
-            await signOut();
-            setIsValidating(false);
-            return false;
-          }
+        } catch (e) {
+          console.error("Error fetching user role:", e);
         }
       }
+
+      setValidationError(null);
+      return true;
     } catch (err: any) {
       console.error("Server-side auth validation exception:", err);
-      // In case of severe auth error, sign out to prevent ghost sessions
-      if (err?.status === 401 || err?.message?.includes("invalid") || err?.message?.includes("not found")) {
-        await signOut();
-        setIsValidating(false);
-        return false;
-      }
+      setValidationError("Session validation failed. Please log in again.");
+      await signOut();
+      return false;
+    } finally {
+      setIsValidating(false);
+      setLoading(false);
     }
-
-    setIsValidating(false);
-    return true;
   }, [signOut]);
 
   // Initial validation on mount
@@ -136,17 +129,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let isMounted = true;
 
     const initAuth = async () => {
-      if (localStorage.getItem("orabit_user_profile")) {
-        await validateServerSession();
-      }
-      if (isMounted) {
-        setLoading(false);
+      try {
+        if (localStorage.getItem("orabit_user_profile")) {
+          await validateServerSession();
+        }
+      } catch (e) {
+        console.error("initAuth error:", e);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          setIsValidating(false);
+        }
       }
     };
 
     initAuth();
 
-    // Subscribe to auth state changes (e.g., token refreshed, user signed out)
+    // Subscribe to auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
         await signOut();
@@ -186,12 +185,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = (profile: UserProfile) => {
     setUserProfile(profile);
+    setValidationError(null);
     try {
       localStorage.setItem("orabit_user_profile", JSON.stringify(profile));
     } catch (e) {
       console.error("Failed to set user profile on login:", e);
     }
-    // Verify server session right after login
     validateServerSession();
   };
 

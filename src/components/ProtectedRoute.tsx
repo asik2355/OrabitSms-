@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, domainName }) => {
-  const { userProfile, loading, isValidating, validateServerSession, login, validationError } = useAuth();
+  const { userProfile, loading, validateServerSession, login, validationError } = useAuth();
 
   // Validate server-side session whenever protected route mounts or userProfile changes
   useEffect(() => {
@@ -18,7 +18,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, domain
     }
   }, [userProfile?.email]);
 
-  if (loading || (isValidating && !userProfile)) {
+  // Show loading indicator ONLY if initial boot loading is active AND user profile exists
+  if (loading && userProfile) {
     return (
       <div className="min-h-screen w-full bg-[#060b1a] text-slate-100 flex flex-col items-center justify-center p-6 space-y-4">
         <div className="relative flex items-center justify-center">
@@ -32,13 +33,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, domain
     );
   }
 
-  // If ghost session was cleared or user profile is missing, render Login Screen
+  // If no user profile exists or ghost session was cleared, immediately show Login Screen
   if (!userProfile) {
     return (
       <div>
         {validationError && (
-          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-4 py-2 text-xs font-mono text-center flex items-center justify-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-4 py-3 text-xs font-mono text-center flex items-center justify-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 text-base" />
             <span>{validationError}</span>
           </div>
         )}
