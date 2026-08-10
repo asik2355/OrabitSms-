@@ -10,6 +10,9 @@ import {
   DEFAULT_STEX_API_KEY,
 } from "./lib/stexApi";
 import { OrabitAuthScreen, UserProfile } from "./components/OrabitAuthScreen";
+import { useAuth } from "./context/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { supabase } from "./lib/supabase";
 import { getUserRoleFromSupabase } from "./lib/userRoles";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
@@ -334,20 +337,8 @@ const INITIAL_MESSAGES: SmsMessage[] = [];
 const INITIAL_FEEDS: FeedNumber[] = [];
 
 export default function App() {
+  const { userProfile, setUserProfile, signOut, login, validateServerSession } = useAuth();
   const [domainName, setDomainName] = useState("orabitsms.site");
-  
-  // Persistent User Profile from LocalStorage
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem("orabit_user_profile");
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error("Failed to load user profile from storage", e);
-    }
-    return null;
-  });
 
   // Account-scoped feedNumbers key
   const currentUserEmail = userProfile?.email ? userProfile.email.toLowerCase().trim() : "";
@@ -1241,7 +1232,7 @@ export default function App() {
   if (!userProfile) {
     return (
       <OrabitAuthScreen
-        onLoginSuccess={(u) => setUserProfile(u)}
+        onLoginSuccess={(u) => login(u)}
         domainName={domainName}
       />
     );
@@ -1253,14 +1244,9 @@ export default function App() {
       <div className="min-h-screen w-full bg-[#0a0d18] text-slate-100 flex items-center justify-center p-4 selection:bg-emerald-500 selection:text-slate-950">
         <LogoutPage
           userProfile={userProfile}
-          onConfirmLogout={() => {
-            try {
-              localStorage.removeItem("orabit_user_profile");
-              window.history.pushState({}, "", "/login");
-            } catch (e) {
-              console.error(e);
-            }
-            setUserProfile(null);
+          onConfirmLogout={async () => {
+            await signOut();
+            window.history.pushState({}, "", "/login");
           }}
           onCancel={() => navigateToTab("dashboard")}
           currency={currency}
@@ -1271,9 +1257,10 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen w-full font-sans flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950 transition-colors duration-200 ${
-      theme === "light" ? "bg-slate-100 text-slate-900" : "bg-[#0d1117] text-slate-100"
-    }`}>
+    <ProtectedRoute domainName={domainName}>
+      <div className={`min-h-screen w-full font-sans flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950 transition-colors duration-200 ${
+        theme === "light" ? "bg-slate-100 text-slate-900" : "bg-[#0d1117] text-slate-100"
+      }`}>
       {/* GLOBAL TOP NAVIGATION BAR */}
       <header className={`sticky top-0 z-40 border-b backdrop-blur-md px-2.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between shadow-xl transition-colors duration-200 ${
         theme === "light" ? "bg-white/95 border-slate-200 text-slate-900" : "bg-slate-900/95 border-slate-800/90 text-slate-100"
@@ -2944,5 +2931,6 @@ export default function App() {
         </div>
       </footer>
     </div>
+    </ProtectedRoute>
   );
 }
