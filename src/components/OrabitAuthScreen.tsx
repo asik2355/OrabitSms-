@@ -2,7 +2,6 @@ import React, { useState, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { getUserRoleFromSupabase } from "../lib/userRoles";
 import { OrabitLogo } from "./OrabitLogo";
-import { TurnstileCaptcha } from "./TurnstileCaptcha";
 import {
   User,
   Phone,
@@ -72,10 +71,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
   // Login Only State
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-
-  // Captcha State
-  const [captchaToken, setCaptchaToken] = useState<string>("");
-  const captchaRef = useRef<{ reset: () => void } | null>(null);
 
   // Feedback State
   const [alert, setAlert] = useState<{ message: string; type: "error" | "success" } | null>(null);
@@ -171,11 +166,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
-    if (!captchaToken) {
-      showAlert("Please complete the Captcha security check to register.", "error");
-      return;
-    }
-
     setErrors({});
     setIsSubmitting(true);
 
@@ -205,7 +195,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           email: emailAddress.trim(),
           password: password,
           options: {
-            captchaToken: captchaToken,
             data: {
               fullName: fullName.trim(),
               mobileNumber: cleanMobile,
@@ -224,10 +213,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       } catch (err) {
         console.warn("Supabase registration warning:", err);
       }
-
-      // Reset captcha token after attempt
-      captchaRef.current?.reset();
-      setCaptchaToken("");
 
       try {
         const stored = localStorage.getItem("orabit_registered_users");
@@ -265,26 +250,16 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
-    if (!captchaToken) {
-      showAlert("Please complete the Captcha security check to log in.", "error");
-      return;
-    }
-
     setIsSubmitting(true);
 
     let loggedInUser: UserProfile | null = null;
     let authErrorMsg = "";
 
-    // 1. Try Supabase Authentication with captchaToken
+    // 1. Try Supabase Authentication
     try {
-      const activeToken = captchaToken.trim();
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim(),
         password: loginPassword,
-        options: {
-          captchaToken: activeToken,
-        },
       });
 
       if (data?.user && !error) {
@@ -330,72 +305,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
         }
       } else if (error) {
         authErrorMsg = error.message;
-
-        // If Supabase returns a Captcha error (e.g. "Captcha protection is disabled" or "Invalid captcha"),
-        // attempt fallback login without captchaToken option so backend mismatch doesn't block users
-        const lowerErr = (error.message || "").toLowerCase();
-        if (lowerErr.includes("captcha") || lowerErr.includes("turnstile")) {
-          console.warn("Supabase returned captcha error, trying fallback login without captcha option...");
-          try {
-            const fallbackRes = await supabase.auth.signInWithPassword({
-              email: loginEmail.trim(),
-              password: loginPassword,
-            });
-
-            if (fallbackRes.data?.user && !fallbackRes.error) {
-              const meta = fallbackRes.data.user.user_metadata || {};
-              let savedAccounts: UserProfile[] = [];
-              try {
-                const stored = localStorage.getItem("orabit_registered_users");
-                if (stored) savedAccounts = JSON.parse(stored);
-              } catch (e) {
-                console.error(e);
-              }
-
-              const foundAcc = savedAccounts.find(
-                (acc) => acc.email.toLowerCase() === (fallbackRes.data.user.email || loginEmail.trim()).toLowerCase()
-              );
-
-              const userEmailClean = (fallbackRes.data.user.email || loginEmail.trim()).toLowerCase();
-              const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
-
-              loggedInUser = {
-                fullName: foundAcc?.fullName || meta.fullName || fallbackRes.data.user.email?.split("@")[0] || "User",
-                mobileNumber: foundAcc?.mobileNumber || meta.mobileNumber || "",
-                email: fallbackRes.data.user.email || loginEmail.trim(),
-                telegram: foundAcc?.telegram || meta.telegram || "@orabit_user",
-                city: foundAcc?.city || meta.city || "Dhaka",
-                country: foundAcc?.country || meta.country || "Bangladesh",
-                referralEmail: foundAcc?.referralEmail || meta.referralEmail || "agent@orabit.bd",
-                withdrawPin: foundAcc?.withdrawPin || meta.withdrawPin || "1234",
-                balance: foundAcc?.balance !== undefined ? foundAcc.balance : (isOwnerEmail ? 999.0 : 0.0),
-                password: loginPassword,
-                role: isOwnerEmail ? "Owner" : (foundAcc?.role || meta.role || "Client"),
-                apiEnabled: foundAcc?.apiEnabled ?? false,
-              };
-
-              if (!foundAcc) {
-                savedAccounts.push(loggedInUser);
-                try {
-                  localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
-                } catch (e) {
-                  console.error(e);
-                }
-              }
-              authErrorMsg = "";
-            }
-          } catch (fbErr) {
-            console.warn("Fallback login error:", fbErr);
-          }
-        }
       }
     } catch (err) {
       console.warn("Supabase login attempt:", err);
     }
-
-    // Reset captcha token after attempt
-    captchaRef.current?.reset();
-    setCaptchaToken("");
 
     // 2. Check local registered accounts if Supabase didn't authenticate
     if (!loggedInUser) {
@@ -764,14 +677,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                 </div>
               </div>
 
-              {/* Security Verification Captcha */}
-              <TurnstileCaptcha
-                widgetRef={captchaRef}
-                onVerify={(token) => setCaptchaToken(token)}
-                onExpire={() => setCaptchaToken("")}
-                onError={() => setCaptchaToken("")}
-              />
-
               {/* Submit Button */}
               <button
                 type="submit"
@@ -829,14 +734,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                   </button>
                 </div>
               </div>
-
-              {/* Security Verification Captcha */}
-              <TurnstileCaptcha
-                widgetRef={captchaRef}
-                onVerify={(token) => setCaptchaToken(token)}
-                onExpire={() => setCaptchaToken("")}
-                onError={() => setCaptchaToken("")}
-              />
 
               {/* Sign In Button */}
               <button
