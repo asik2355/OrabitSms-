@@ -503,14 +503,21 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
           <div className="flex items-center gap-2 bg-[#171a23] p-1.5 rounded-xl border border-[#262a37]">
             <button
               onClick={() => onNavigateTab("agent_dashboard")}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all cursor-pointer"
             >
               <Users className="w-3.5 h-3.5" />
               <span>Agent Dashboard</span>
             </button>
             <button
+              onClick={() => onNavigateTab("owner_user_mgmt")}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
+              <span>User Management</span>
+            </button>
+            <button
               onClick={() => onNavigateTab("agent_summary")}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer"
             >
               <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
               <span>Agent Summary</span>
@@ -733,30 +740,26 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
         </div>
       </div>
 
-      {/* Referred Clients Control & Team Users Management */}
-      <TeamUsersManager
-        currentUser={userProfile}
-        users={allUsers}
-        onUpdateUser={(updatedUser) => {
-          setAllUsers((prev) => {
-            const list = [...prev];
-            const idx = list.findIndex(
-              (u) => u.email.toLowerCase() === updatedUser.email.toLowerCase()
-            );
-            if (idx >= 0) list[idx] = updatedUser;
-            else list.push(updatedUser);
-            return list;
-          });
-          showToast(`Updated user profile for ${updatedUser.fullName}`, "success");
-        }}
-        onAddBalance={(email, amount) => {
-          setTopupUserEmail(email);
-          setTopupAmount(amount.toString());
-          handleClientTopup(email);
-        }}
-        currency={currency}
-        usdExchangeRate={usdExchangeRate}
-      />
+      {/* Referred Clients Quick Card banner directing to User Management tab */}
+      <div className="bg-[#171922] border border-[#262a37] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white">Referred Team & Clients Control</h3>
+            <p className="text-xs text-slate-400">
+              Manage member profiles, set custom OTP rates, and toggle status in User Management.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => onNavigateTab("owner_user_mgmt")}
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer"
+        >
+          <UserCheck className="w-4 h-4" /> Open User Management
+        </button>
+      </div>
     </div>
   );
 };

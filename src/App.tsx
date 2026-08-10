@@ -119,19 +119,43 @@ interface FeedNumber {
 function extractOtpFromText(rawText: string): string {
   if (!rawText) return "318215";
 
-  // 1. Hyphenated 6-digit code e.g. "212-123" or "492-018"
-  const hyphenated = rawText.match(/\b\d{3}-\d{3}\b/);
-  if (hyphenated) return hyphenated[0];
+  // 1. Spaced 6-digit code e.g. "082 945" or "212 123"
+  const spacedSix = rawText.match(/\b\d{3}\s\d{3}\b/);
+  if (spacedSix) return spacedSix[0].replace(/\s/g, "");
 
-  // 2. Prefixed code format e.g. "G-123456" or "FB-78291"
+  // 2. Hyphenated 6-digit code e.g. "212-123" or "082-945"
+  const hyphenated = rawText.match(/\b\d{3}-\d{3}\b/);
+  if (hyphenated) return hyphenated[0].replace("-", "");
+
+  // 3. Any 3-4 digits + space/hyphen + 3-4 digits e.g. "082 945", "1234 567"
+  const spacedDigits = rawText.match(/\b\d{3,4}[\s-]\d{3,4}\b/);
+  if (spacedDigits) return spacedDigits[0].replace(/[\s-]/g, "");
+
+  // 4. Code following keywords e.g. "code: 082 945", "is 082 945", "Instagram code: 082 945"
+  const keywordMatch = rawText.match(/(?:code|otp|is|pin|verificacion)[\s:-]+(\d{3}[\s-]?\d{3}|\d{4,8})/i);
+  if (keywordMatch && keywordMatch[1]) {
+    return keywordMatch[1].replace(/[\s-]/g, "");
+  }
+
+  // 5. Code preceding keywords e.g. "082 945 is your Instagram code"
+  const codeBeforeWords = rawText.match(/(\d{3}[\s-]?\d{3}|\d{4,8})[\s:-]+is your/i);
+  if (codeBeforeWords && codeBeforeWords[1]) {
+    return codeBeforeWords[1].replace(/[\s-]/g, "");
+  }
+
+  // 6. Prefixed code format e.g. "G-123456" or "FB-78291"
   const prefixedCode = rawText.match(/\b[A-Z]{1,3}-\d{4,8}\b/i);
   if (prefixedCode) return prefixedCode[0];
 
-  // 3. Any 4 to 8 digit numbers in the text e.g. "318215", "782910"
+  // 7. Any 4 to 8 digit numbers in the text e.g. "318215", "782910"
   const digits = rawText.match(/\b\d{4,8}\b/);
   if (digits) return digits[0];
 
-  // 4. Alphanumeric code (like ZBYKMCDOL)
+  // 8. Any spaced 3+3 digits
+  const anySpaced = rawText.match(/\d{3}\s+\d{3}/);
+  if (anySpaced) return anySpaced[0].replace(/\s+/g, "");
+
+  // 9. Alphanumeric code (like ZBYKMCDOL)
   const alphaMatch = rawText.match(/\b[A-Z0-9]{5,10}\b/);
   if (alphaMatch) return alphaMatch[0];
 
@@ -2144,7 +2168,26 @@ export default function App() {
         {activeTab === "getnum" && (
           <div className="space-y-5">
             {/* TOP CARD: ENTER NUMBER RANGE */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#111524] border border-slate-800/90 space-y-4 shadow-xl">
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#111524] border border-slate-800/90 space-y-4 shadow-xl relative overflow-hidden">
+              {/* ANIMATED LOGO HEADER BRANDING FOR GET NUMBER */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                <div className="flex items-center gap-3">
+                  <OrabitLogo size="sm" showSubtitle={true} subtitleText="Live GSM Provisioner" />
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono font-bold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    LIVE SIGNAL
+                  </div>
+                </div>
+
+                {/* Animated Orbiting Badge */}
+                <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                  <span className="text-slate-500 text-[11px]">Active Range:</span>
+                  <span className="text-emerald-300 font-bold bg-[#0a0d18] px-2.5 py-1 rounded-lg border border-emerald-500/30 shadow-inner">
+                    {targetRange || "22507XXX"}
+                  </span>
+                </div>
+              </div>
+
               {/* Range Input Box */}
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold text-slate-500 text-sm">#</span>
@@ -2198,15 +2241,30 @@ export default function App() {
                 </div>
               )}
 
-              {/* Get Number Button */}
-              <div className="flex justify-end pt-1">
+              {/* Get Number Button with Animated Logo Design */}
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                  <motion.div
+                    animate={{ rotate: [0, 360] }}
+                    transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
+                    className="w-6 h-6 rounded-full bg-[#0a0d18] border border-emerald-400/60 flex items-center justify-center text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.3)]"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                  </motion.div>
+                  <span className="text-[11px] text-slate-300 font-semibold hidden sm:inline">Ultra-Fast 0.5s Provisioning</span>
+                </div>
+
                 <button
                   onClick={handleGetNumber}
                   disabled={provisioning}
-                  className="bg-emerald-400 hover:bg-emerald-300 active:scale-95 text-slate-950 font-black text-xs sm:text-sm py-2.5 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="relative group bg-emerald-400 hover:bg-emerald-300 active:scale-95 text-slate-950 font-black text-xs sm:text-sm py-2.5 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 overflow-hidden"
                 >
-                  <PhoneCall className={`w-4 h-4 fill-slate-950 ${provisioning ? "animate-spin" : ""}`} />
-                  <span>{provisioning ? "Connecting..." : "Get Number"}</span>
+                  <div className="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                  <div className="relative flex items-center justify-center">
+                    <span className="absolute -inset-1 rounded-full bg-slate-900/20 animate-ping opacity-75" />
+                    <PhoneCall className={`w-4 h-4 text-slate-950 fill-slate-950 relative z-10 ${provisioning ? "animate-spin" : "group-hover:rotate-12 transition-transform"}`} />
+                  </div>
+                  <span className="relative z-10">{provisioning ? "Connecting..." : "Get Number"}</span>
                 </button>
               </div>
             </div>

@@ -55,23 +55,48 @@ export interface StexConsoleResponse {
 
 /**
  * Helper to extract 4-6 digit OTP code from raw SMS text.
+ * Handles continuous digits (082945), spaced digits (082 945), hyphenated (082-945), prefixed (FB-12345), etc.
  */
 export function extractOtpFromMessage(rawText: string): string {
   if (!rawText) return "------";
 
-  // 1. Hyphenated 6-digit code e.g. "212-123" or "492-018"
+  // 1. Spaced 6-digit code e.g. "082 945" or "212 123"
+  const spacedSix = rawText.match(/\b\d{3}\s\d{3}\b/);
+  if (spacedSix) return spacedSix[0].replace(/\s/g, "");
+
+  // 2. Hyphenated 6-digit code e.g. "212-123" or "082-945"
   const hyphenated = rawText.match(/\b\d{3}-\d{3}\b/);
-  if (hyphenated) return hyphenated[0];
+  if (hyphenated) return hyphenated[0].replace("-", "");
 
-  // 2. Prefixed code e.g. "FB-83951" or "G-123456"
-  const prefixed = rawText.match(/\b[A-Z]{1,3}-\d{4,8}\b/i);
-  if (prefixed) return prefixed[0];
+  // 3. Any 3-4 digits + space/hyphen + 3-4 digits e.g. "082 945", "1234 567"
+  const spacedDigits = rawText.match(/\b\d{3,4}[\s-]\d{3,4}\b/);
+  if (spacedDigits) return spacedDigits[0].replace(/[\s-]/g, "");
 
-  // 3. 4 to 8 digit sequence e.g. "83951", "032240", "318215"
+  // 4. Code following keywords e.g. "code: 082 945", "is 082 945", "Instagram code: 082 945"
+  const keywordMatch = rawText.match(/(?:code|otp|is|pin|verificacion)[\s:-]+(\d{3}[\s-]?\d{3}|\d{4,8})/i);
+  if (keywordMatch && keywordMatch[1]) {
+    return keywordMatch[1].replace(/[\s-]/g, "");
+  }
+
+  // 5. Code preceding keywords e.g. "082 945 is your Instagram code"
+  const codeBeforeWords = rawText.match(/(\d{3}[\s-]?\d{3}|\d{4,8})[\s:-]+is your/i);
+  if (codeBeforeWords && codeBeforeWords[1]) {
+    return codeBeforeWords[1].replace(/[\s-]/g, "");
+  }
+
+  // 6. Prefixed code e.g. "FB-83951" or "G-123456"
+  const prefixed = rawText.match(/\b[A-Z]{1,3}[-\s]\d{4,8}\b/i);
+  if (prefixed) return prefixed[0].replace(/\s+/g, "");
+
+  // 7. Standalone 4 to 8 digit sequence e.g. "082945", "318215"
   const digits = rawText.match(/\b\d{4,8}\b/);
   if (digits) return digits[0];
 
-  // 4. Alphanumeric code
+  // 8. Any 3 digits + space + 3 digits anywhere in text
+  const anySpaced33 = rawText.match(/\d{3}\s+\d{3}/);
+  if (anySpaced33) return anySpaced33[0].replace(/\s+/g, "");
+
+  // 9. Alphanumeric code
   const alpha = rawText.match(/\b[A-Z0-9]{5,10}\b/);
   if (alpha) return alpha[0];
 
@@ -120,12 +145,12 @@ export function maskMessageOtp(raw: string): string {
   if (!raw) return "";
 
   // If already contains asterisks or masked pattern, return as is
-  if (raw.includes("*****") || raw.includes("***-***")) return raw;
+  if (raw.includes("*****") || raw.includes("*** ***") || raw.includes("***-***")) return raw;
 
   let masked = raw;
 
-  // 1. Hyphenated 6 digits e.g. "212-123" -> "***-***"
-  masked = masked.replace(/\b\d{3}-\d{3}\b/g, "***-***");
+  // 1. Spaced or hyphenated 6 digits e.g. "082 945" or "082-945" -> "*** ***"
+  masked = masked.replace(/\b\d{3}[\s-]\d{3}\b/g, "*** ***");
 
   // 2. Prefixed codes e.g. "G-123456" -> "G-*****", "FB-78291" -> "FB-*****"
   masked = masked.replace(/\b([A-Z]{1,3}-)\d{4,8}\b/gi, "$1*****");
