@@ -40,14 +40,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   currency = "BDT",
   usdExchangeRate = 100,
 }) => {
-  // Split fullName into first and last name if possible
-  const nameParts = (userProfile.fullName || "Alif Sheikh").split(" ");
-  const defaultFirstName = nameParts[0] || "Alif";
-  const defaultLastName = nameParts.slice(1).join(" ") || "Sheikh";
-
   // Form State
-  const [firstName, setFirstName] = useState(defaultFirstName);
-  const [lastName, setLastName] = useState(defaultLastName);
+  const [fullName, setFullName] = useState(userProfile.fullName || "Alif Sheikh");
   const [mobileNumber, setMobileNumber] = useState(userProfile.mobileNumber || "0175257721");
   const [bio, setBio] = useState("");
   const [country, setCountry] = useState(userProfile.country || "Bangladesh");
@@ -110,10 +104,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const handleSaveChangesClick = (e: React.FormEvent) => {
     e.preventDefault();
     // Update parent user profile directly without OTP
-    const updatedFull = `${firstName} ${lastName}`.trim();
     onUpdateProfile({
       ...userProfile,
-      fullName: updatedFull,
+      fullName: fullName.trim(),
       mobileNumber: mobileNumber,
       country: country,
       telegram: telegramUsername,
@@ -148,20 +141,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-12">
       {/* PROFILE TOP HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-800 border border-slate-800 shadow-xl">
+      <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-800 border border-slate-800 shadow-xl">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
             <User className="w-5 h-5" />
           </div>
-          <h1 className="text-xl font-black text-white tracking-tight">Account Settings</h1>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            ACTIVE ACCOUNT
-          </span>
-
+        <div className="flex items-center gap-2">
           {onLogout && (
             <button
               onClick={onLogout}
@@ -192,7 +179,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             WELCOME BACK,
           </div>
           <div className="text-xl font-extrabold text-white">
-            {firstName} {lastName}
+            {fullName}
           </div>
           <div className="text-xs text-slate-400 flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-slate-500" />
@@ -262,28 +249,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
         <form onSubmit={handleSaveChangesClick} className="space-y-4 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* FIRST NAME */}
+            {/* FULL NAME */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                FIRST NAME
+                FULL NAME
               </label>
               <input
                 type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500 transition-all font-medium"
-              />
-            </div>
-
-            {/* LAST NAME */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                LAST NAME
-              </label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500 transition-all font-medium"
               />
             </div>
