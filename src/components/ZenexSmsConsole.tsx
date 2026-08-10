@@ -597,7 +597,8 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     return f.status === feedFilter;
   });
 
-  const appStats = React.useMemo(() => {
+  // Personal top performers for logged-in user on Dashboard
+  const userTopPerformers = React.useMemo(() => {
     if (!userSuccessMessages || userSuccessMessages.length === 0) {
       return [];
     }
@@ -616,6 +617,37 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     }));
     return list.sort((a, b) => b.count - a.count);
   }, [userSuccessMessages]);
+
+  // Global Console Top Apps Distribution calculated from the last 300 messages across all users/API
+  const appStats = React.useMemo(() => {
+    if (!messages || messages.length === 0) {
+      return [];
+    }
+    const counts: Record<string, number> = {};
+    messages.forEach((m) => {
+      const s = (m.service || "OTHER").toUpperCase();
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    const total = messages.length;
+    const colorMap: Record<string, string> = {
+      FACEBOOK: "#3b82f6",
+      WHATSAPP: "#eab308",
+      INSTAGRAM: "#10b981",
+      DISCORD: "#a855f7",
+      BIGO: "#38bdf8",
+      TELEGRAM: "#38bdf8",
+      CLOUDOTP: "#ec4899",
+    };
+    const defaultColors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
+
+    const list = Object.entries(counts).map(([name, count], idx) => ({
+      name,
+      count,
+      percent: Math.round((count / total) * 100) + "%",
+      color: colorMap[name] || defaultColors[idx % defaultColors.length],
+    }));
+    return list.sort((a, b) => b.count - a.count);
+  }, [messages]);
 
   const DEFAULT_APP_STATS = React.useMemo(() => [
     { name: "FACEBOOK", count: 163, percent: "82%", color: "#3b82f6" },
@@ -921,8 +953,8 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {appStats && appStats.length > 0 ? (
-                      appStats.slice(0, 5).map((item) => {
+                    {userTopPerformers && userTopPerformers.length > 0 ? (
+                      userTopPerformers.slice(0, 5).map((item) => {
                         const rateBDT = getServiceRateBDT(item.name);
                         const earningsUsd = (item.count * rateBDT) / 100;
                         return (
