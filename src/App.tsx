@@ -400,7 +400,30 @@ export default function App() {
   >("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
-  const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(INITIAL_MESSAGES);
+  const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(() => {
+    try {
+      const bdStart = getBD4AMWindowStart();
+      const saved = localStorage.getItem("orabit_24h_all_hits_v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.windowStart === bdStart && Array.isArray(parsed.hits) && parsed.hits.length > 0) {
+          return parsed.hits;
+        }
+      }
+    } catch (e) {
+      console.error("Error loading 24h hits from storage", e);
+    }
+    return INITIAL_MESSAGES;
+  });
+
+  useEffect(() => {
+    try {
+      const bdStart = getBD4AMWindowStart();
+      localStorage.setItem("orabit_24h_all_hits_v1", JSON.stringify({ windowStart: bdStart, hits: all24hHits }));
+    } catch (e) {
+      console.error("Failed to save 24h hits to storage", e);
+    }
+  }, [all24hHits]);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);
 
   // Sync feed numbers when logged in account changes

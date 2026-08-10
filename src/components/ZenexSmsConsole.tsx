@@ -297,7 +297,30 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api">("dashboard");
   const [messages, setMessages] = useState<SmsMessage[]>(MOCK_LIVE_MESSAGES);
-  const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(MOCK_LIVE_MESSAGES);
+  const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(() => {
+    try {
+      const bdStart = getBD4AMWindowStart();
+      const saved = localStorage.getItem("orabit_24h_all_hits_v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.windowStart === bdStart && Array.isArray(parsed.hits) && parsed.hits.length > 0) {
+          return parsed.hits;
+        }
+      }
+    } catch (e) {
+      console.error("Error loading 24h hits in console", e);
+    }
+    return MOCK_LIVE_MESSAGES;
+  });
+
+  useEffect(() => {
+    try {
+      const bdStart = getBD4AMWindowStart();
+      localStorage.setItem("orabit_24h_all_hits_v1", JSON.stringify({ windowStart: bdStart, hits: all24hHits }));
+    } catch (e) {
+      console.error("Failed to save 24h hits in console", e);
+    }
+  }, [all24hHits]);
 
   const getServiceRateBDT = (serviceName: string): number => {
     const norm = (serviceName || "").toUpperCase().trim();
@@ -827,6 +850,20 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
         });
       }
     });
+
+    if (result.length < 10) {
+      GLOBAL_TRENDING.forEach((defItem) => {
+        if (!usedNames.has(defItem.name) && result.length < 10) {
+          usedNames.add(defItem.name);
+          result.push({
+            id: result.length + 1,
+            name: defItem.name,
+            color: defItem.color,
+            count: defItem.count,
+          });
+        }
+      });
+    }
 
     return result;
   }, [all24hHits, messages, userSuccessMessages]);
