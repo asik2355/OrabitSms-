@@ -297,6 +297,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api">("dashboard");
   const [messages, setMessages] = useState<SmsMessage[]>(MOCK_LIVE_MESSAGES);
+  const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(MOCK_LIVE_MESSAGES);
 
   const getServiceRateBDT = (serviceName: string): number => {
     const norm = (serviceName || "").toUpperCase().trim();
@@ -446,6 +447,20 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
             const existingIds = new Set(prevMsgs.map((m) => m.id));
             const fresh = liveConsoleMsgs.filter((m) => !existingIds.has(m.id));
             const base = fresh.length > 0 ? [...fresh, ...prevMsgs] : (prevMsgs.length === 0 ? liveConsoleMsgs : prevMsgs);
+            return base
+              .filter((m) => {
+                const t = m.timestamp;
+                if (t && t < bdStart) return false;
+                return true;
+              })
+              .slice(0, 300);
+          });
+
+          setAll24hHits((prevHits) => {
+            const bdStart = getBD4AMWindowStart();
+            const existingIds = new Set(prevHits.map((m) => m.id));
+            const fresh = liveConsoleMsgs.filter((m) => !existingIds.has(m.id));
+            const base = fresh.length > 0 ? [...fresh, ...prevHits] : (prevHits.length === 0 ? liveConsoleMsgs : prevHits);
             return base.filter((m) => {
               const t = m.timestamp;
               if (t && t < bdStart) return false;
@@ -764,8 +779,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
       serviceCounts[s] = (serviceCounts[s] || 0) + 1;
     };
 
-    if (messages && messages.length > 0) {
-      messages.forEach(processMessage);
+    const dataSource = all24hHits.length > 0 ? all24hHits : messages;
+    if (dataSource && dataSource.length > 0) {
+      dataSource.forEach(processMessage);
     }
     if (userSuccessMessages && userSuccessMessages.length > 0) {
       userSuccessMessages.forEach(processMessage);
@@ -809,7 +825,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     });
 
     return result;
-  }, [messages, userSuccessMessages]);
+  }, [all24hHits, messages, userSuccessMessages]);
 
   const carrierStats = React.useMemo(() => {
     if (!messages || messages.length === 0) {
