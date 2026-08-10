@@ -33,7 +33,7 @@ interface TurnstileCaptchaProps {
 }
 
 export const TURNSTILE_SITE_KEY =
-  import.meta.env.VITE_TURNSTILE_SITE_KEY || "0x4AAAAAAEJRiOpuwNpODIuQ";
+  import.meta.env.VITE_TURNSTILE_SITE_KEY || "0x4AAAAAAEJRiOpuwNpODIu";
 
 export const TurnstileCaptcha: React.FC<TurnstileCaptchaProps> = ({
   siteKey = TURNSTILE_SITE_KEY,
