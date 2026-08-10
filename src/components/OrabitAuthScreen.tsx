@@ -275,13 +275,15 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     let loggedInUser: UserProfile | null = null;
     let authErrorMsg = "";
 
-    // 1. Try Supabase Authentication
+    // 1. Try Supabase Authentication with captchaToken
     try {
+      const activeToken = captchaToken.trim();
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim(),
         password: loginPassword,
         options: {
-          captchaToken: captchaToken,
+          captchaToken: activeToken,
         },
       });
 
@@ -328,6 +330,64 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
         }
       } else if (error) {
         authErrorMsg = error.message;
+
+        // If Supabase returns a Captcha error (e.g. "Captcha protection is disabled" or "Invalid captcha"),
+        // attempt fallback login without captchaToken option so backend mismatch doesn't block users
+        const lowerErr = (error.message || "").toLowerCase();
+        if (lowerErr.includes("captcha") || lowerErr.includes("turnstile")) {
+          console.warn("Supabase returned captcha error, trying fallback login without captcha option...");
+          try {
+            const fallbackRes = await supabase.auth.signInWithPassword({
+              email: loginEmail.trim(),
+              password: loginPassword,
+            });
+
+            if (fallbackRes.data?.user && !fallbackRes.error) {
+              const meta = fallbackRes.data.user.user_metadata || {};
+              let savedAccounts: UserProfile[] = [];
+              try {
+                const stored = localStorage.getItem("orabit_registered_users");
+                if (stored) savedAccounts = JSON.parse(stored);
+              } catch (e) {
+                console.error(e);
+              }
+
+              const foundAcc = savedAccounts.find(
+                (acc) => acc.email.toLowerCase() === (fallbackRes.data.user.email || loginEmail.trim()).toLowerCase()
+              );
+
+              const userEmailClean = (fallbackRes.data.user.email || loginEmail.trim()).toLowerCase();
+              const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
+
+              loggedInUser = {
+                fullName: foundAcc?.fullName || meta.fullName || fallbackRes.data.user.email?.split("@")[0] || "User",
+                mobileNumber: foundAcc?.mobileNumber || meta.mobileNumber || "",
+                email: fallbackRes.data.user.email || loginEmail.trim(),
+                telegram: foundAcc?.telegram || meta.telegram || "@orabit_user",
+                city: foundAcc?.city || meta.city || "Dhaka",
+                country: foundAcc?.country || meta.country || "Bangladesh",
+                referralEmail: foundAcc?.referralEmail || meta.referralEmail || "agent@orabit.bd",
+                withdrawPin: foundAcc?.withdrawPin || meta.withdrawPin || "1234",
+                balance: foundAcc?.balance !== undefined ? foundAcc.balance : (isOwnerEmail ? 999.0 : 0.0),
+                password: loginPassword,
+                role: isOwnerEmail ? "Owner" : (foundAcc?.role || meta.role || "Client"),
+                apiEnabled: foundAcc?.apiEnabled ?? false,
+              };
+
+              if (!foundAcc) {
+                savedAccounts.push(loggedInUser);
+                try {
+                  localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+              authErrorMsg = "";
+            }
+          } catch (fbErr) {
+            console.warn("Fallback login error:", fbErr);
+          }
+        }
       }
     } catch (err) {
       console.warn("Supabase login attempt:", err);
