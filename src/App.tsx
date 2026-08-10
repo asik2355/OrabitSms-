@@ -19,6 +19,7 @@ import {
   saveFeedNumberToSupabase,
   bulkSyncFeedNumbersToSupabase,
 } from "./lib/supabaseFeed";
+import { incrementUserSuccessAndBalanceInSupabase } from "./lib/userProfiles";
 import { safeLocalStorageSet, safeLocalStorageGet } from "./lib/storageUtils";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
@@ -873,8 +874,12 @@ export default function App() {
                 : (item.service && item.service !== "SMS OTP" ? item.service : "INSTAGRAM");
 
               const earnedRate = getServiceRateBDT(finalService);
-              if (earnedRate > 0) {
-                setUserProfile((prev) => (prev ? { ...prev, balance: prev.balance + earnedRate } : null));
+              if (currentUserEmail) {
+                incrementUserSuccessAndBalanceInSupabase(currentUserEmail, earnedRate).then((res) => {
+                  if (res) {
+                    setUserProfile((prev) => (prev ? { ...prev, balance: res.newBalance, totalSuccess: res.newTotalSuccess } : null));
+                  }
+                });
               }
 
               const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);

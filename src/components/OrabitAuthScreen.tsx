@@ -25,12 +25,13 @@ export interface UserProfile {
   fullName: string;
   mobileNumber: string;
   email: string;
-  telegram: string;
+  telegram?: string;
   country: string;
   city?: string;
-  referralEmail: string;
-  withdrawPin: string;
+  referralEmail?: string;
+  withdrawPin?: string;
   balance: number;
+  totalSuccess?: number;
   password?: string;
   apiEnabled?: boolean;
   role?: string;

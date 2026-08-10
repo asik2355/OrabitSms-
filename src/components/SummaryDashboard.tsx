@@ -344,10 +344,25 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     [filteredData]
   );
 
+  // For regular clients, use persistent totalSuccess and balance from userProfile so auto-deleted numbers don't drop totals
+  const effectiveTotalSuccess = useMemo(() => {
+    if (!isOwner && !isAgent && userProfile?.totalSuccess !== undefined) {
+      return Math.max(userProfile.totalSuccess, totalSuccess);
+    }
+    return totalSuccess;
+  }, [isOwner, isAgent, userProfile?.totalSuccess, totalSuccess]);
+
+  const effectiveTotalEarningsUSD = useMemo(() => {
+    if (!isOwner && !isAgent && userProfile?.balance !== undefined) {
+      return userProfile.balance / usdExchangeRate;
+    }
+    return totalEarningsUSD;
+  }, [isOwner, isAgent, userProfile?.balance, usdExchangeRate, totalEarningsUSD]);
+
   const overallSuccessRate = useMemo(() => {
     if (totalAllocation === 0) return 0;
-    return Number(((totalSuccess / totalAllocation) * 100).toFixed(2));
-  }, [totalSuccess, totalAllocation]);
+    return Number(((effectiveTotalSuccess / totalAllocation) * 100).toFixed(2));
+  }, [effectiveTotalSuccess, totalAllocation]);
 
   // Chart dataset with short formatted dates
   const chartData = useMemo(() => {
@@ -544,8 +559,8 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
-              {formatMoney(totalEarningsUSD)}
+            <div className="text-3xl font-black text-[#2EE59D] font-mono group-hover:text-amber-300 transition-colors">
+              {formatMoney(effectiveTotalEarningsUSD)}
             </div>
             <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
               <TrendingUp className="w-3 h-3" />
@@ -565,7 +580,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
           </div>
           <div className="space-y-1">
             <div className="text-3xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
-              {totalSuccess}
+              {effectiveTotalSuccess}
             </div>
             <div className="text-[11px] font-medium text-slate-400">
               out of <span className="font-bold text-white">{totalAllocation}</span>

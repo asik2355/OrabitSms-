@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from "../lib/supabase";
 import { UserProfile } from "../components/OrabitAuthScreen";
 import { getUserRoleFromSupabase } from "../lib/userRoles";
+import { fetchUserProfileFromSupabase } from "../lib/userProfiles";
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -97,7 +98,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (validEmail) {
         try {
-          const fetchedRole = await getUserRoleFromSupabase(validEmail);
+          const [fetchedRole, dbProfile] = await Promise.all([
+            getUserRoleFromSupabase(validEmail),
+            fetchUserProfileFromSupabase(validEmail),
+          ]);
+
           let normalizedRole = "Client";
           if (fetchedRole === "owner" || validEmail === "orabitsms@gmail.com") normalizedRole = "Owner";
           else if (fetchedRole === "agent") normalizedRole = "Agent";
@@ -109,10 +114,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: validEmail,
               role: normalizedRole,
               uid: validUser.id,
+              balance: dbProfile?.balance !== undefined ? dbProfile.balance : prev.balance,
+              totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : prev.totalSuccess,
             };
           });
         } catch (e) {
-          console.error("Error fetching user role:", e);
+          console.error("Error fetching user role or profile:", e);
         }
       }
 

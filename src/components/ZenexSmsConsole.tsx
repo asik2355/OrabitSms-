@@ -5,6 +5,8 @@ import {
   saveFeedNumberToSupabase,
   bulkSyncFeedNumbersToSupabase,
 } from "../lib/supabaseFeed";
+import { incrementUserSuccessAndBalanceInSupabase } from "../lib/userProfiles";
+import { useAuth } from "../context/AuthContext";
 import { safeLocalStorageSet, safeLocalStorageGet } from "../lib/storageUtils";
 import {
   requestStexNumber,
@@ -113,17 +115,19 @@ function getBD4AMWindowStart() {
   return windowStartBD.getTime() - 6 * 60 * 60 * 1000;
 }
 
+import { OrabitApiDoc } from "./OrabitApiDoc";
+
 const GLOBAL_TRENDING = [
-  { id: 1, name: "FACEBOOK", color: "#3b82f6", icon: "💬" },
-  { id: 2, name: "WHATSAPP", color: "#22c55e", icon: "🟢" },
-  { id: 3, name: "TELEGRAM", color: "#38bdf8", icon: "✈️" },
-  { id: 4, name: "INSTAGRAM", color: "#e1306c", icon: "📷" },
-  { id: 5, name: "IMO", color: "#94a3b8", icon: "🛡️" },
-  { id: 6, name: "AUTHMSG", color: "#a855f7", icon: "🔐" },
-  { id: 7, name: "CLOUDOTP", color: "#ec4899", icon: "☁️" },
-  { id: 8, name: "DISCORD", color: "#6366f1", icon: "🎮" },
-  { id: 9, name: "BIGO", color: "#38bdf8", icon: "📹" },
-  { id: 10, name: "FAIRPARI", color: "#f59e0b", icon: "🎲" },
+  { id: 1, name: "FACEBOOK", color: "#3b82f6", icon: "💬", count: 0 },
+  { id: 2, name: "WHATSAPP", color: "#22c55e", icon: "🟢", count: 0 },
+  { id: 3, name: "TELEGRAM", color: "#38bdf8", icon: "✈️", count: 0 },
+  { id: 4, name: "INSTAGRAM", color: "#e1306c", icon: "📷", count: 0 },
+  { id: 5, name: "IMO", color: "#94a3b8", icon: "🛡️", count: 0 },
+  { id: 6, name: "AUTHMSG", color: "#a855f7", icon: "🔐", count: 0 },
+  { id: 7, name: "CLOUDOTP", color: "#ec4899", icon: "☁️", count: 0 },
+  { id: 8, name: "DISCORD", color: "#6366f1", icon: "🎮", count: 0 },
+  { id: 9, name: "BIGO", color: "#38bdf8", icon: "📹", count: 0 },
+  { id: 10, name: "FAIRPARI", color: "#f59e0b", icon: "🎲", count: 0 },
 ];
 
 function detectServiceAndColor(rawMessage: string, sidFallback?: string) {
@@ -300,6 +304,8 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   const accountKey = userEmail ? userEmail.toLowerCase().trim() : "guest";
   const feedKey = `orabit_feed_numbers_${accountKey}`;
 
+  const { userProfile, setUserProfile } = useAuth();
+
   const [activeTab, setActiveTab] = useState<"dashboard" | "console" | "getnum" | "api">("dashboard");
   const [messages, setMessages] = useState<SmsMessage[]>(MOCK_LIVE_MESSAGES);
   const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(() => {
@@ -381,10 +387,18 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   }, [feedNumbers]);
 
   const todayRevenueBDT = React.useMemo(() => {
+    if (userProfile?.balance !== undefined) {
+      return userProfile.balance;
+    }
     return userSuccessMessages.reduce((sum, msg) => sum + getServiceRateBDT(msg.service), 0);
-  }, [userSuccessMessages]);
+  }, [userProfile?.balance, userSuccessMessages]);
 
-  const todayOtpsCount = userSuccessMessages.length;
+  const todayOtpsCount = React.useMemo(() => {
+    if (userProfile?.totalSuccess !== undefined) {
+      return Math.max(userProfile.totalSuccess, userSuccessMessages.length);
+    }
+    return userSuccessMessages.length;
+  }, [userProfile?.totalSuccess, userSuccessMessages.length]);
 
   useEffect(() => {
     try {
@@ -535,6 +549,15 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
               const finalService = (autoDetected && autoDetected !== "SMS OTP" && autoDetected !== "OTHER")
                 ? autoDetected
                 : (item.service && item.service !== "SMS OTP" ? item.service : "INSTAGRAM");
+
+              const earnedRate = getServiceRateBDT(finalService);
+              if (userEmail) {
+                incrementUserSuccessAndBalanceInSupabase(userEmail, earnedRate).then((res) => {
+                  if (res) {
+                    setUserProfile((prev) => (prev ? { ...prev, balance: res.newBalance, totalSuccess: res.newTotalSuccess } : null));
+                  }
+                });
+              }
 
               const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
               const elapsedMins = reqTimestamp ? Math.floor((now - reqTimestamp) / 60000) : 0;
