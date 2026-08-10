@@ -1016,6 +1016,7 @@ export default function App() {
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
         setProvisionMsg(`✓ Number Allocated: ${finalFormattedNumber}`);
+        setTimeout(() => setProvisionMsg(null), 4000);
 
         // Automatically copy to clipboard
         try {
@@ -1030,10 +1031,12 @@ export default function App() {
       } else {
         const errMsg = result.message || "No numbers available in this range. Try a different range.";
         setProvisionMsg(`❌ ${errMsg}`);
+        setTimeout(() => setProvisionMsg(null), 5000);
       }
     } catch (err: any) {
       console.error("handleGetNumber exception:", err);
       setProvisionMsg("❌ Connection Error. Please try again.");
+      setTimeout(() => setProvisionMsg(null), 5000);
     } finally {
       setProvisioning(false);
     }
@@ -2585,7 +2588,6 @@ export default function App() {
                             {item.country}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                            <span className="text-cyan-400 font-bold">((o))</span>
                             <span>{item.operator}</span>
                           </div>
                         </div>

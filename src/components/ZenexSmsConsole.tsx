@@ -658,6 +658,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
         setProvisionMsg(`✓ Successfully Provisioned: ${finalFormattedNumber}`);
+        setTimeout(() => setProvisionMsg(null), 4000);
 
         try {
           await navigator.clipboard.writeText(finalFormattedNumber);
@@ -669,10 +670,12 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
       } else {
         const errMsg = result.message || "No numbers available in this range. Try a different range.";
         setProvisionMsg(`❌ ${errMsg}`);
+        setTimeout(() => setProvisionMsg(null), 5000);
       }
     } catch (err: any) {
       console.error("ZenexSmsConsole handleGetNumber error:", err);
       setProvisionMsg("❌ API Connection Error.");
+      setTimeout(() => setProvisionMsg(null), 5000);
     } finally {
       setProvisioning(false);
     }
