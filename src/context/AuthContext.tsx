@@ -7,7 +7,6 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   isValidating: boolean;
-  validationError: string | null;
   setUserProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   validateServerSession: () => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -29,12 +28,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   });
 
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [isValidating, setIsValidating] = useState<boolean>(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
 
   /**
-   * Clears local storage, resets loading/validation states and signs out from Supabase
+   * Clears local storage, resets session states silently and signs out from Supabase
    */
   const signOut = useCallback(async () => {
     try {
@@ -50,15 +48,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   /**
-   * Server-Side Validation:
-   * Uses `supabase.auth.getUser()` with a timeout fallback to verify token authenticity and ensure
-   * the user account still exists in Supabase Auth/Database.
-   * If the user was deleted from Supabase or the token is invalid/revoked, it immediately
-   * clears local session (ghost session) and redirects to login.
+   * Silent Server-Side Validation:
+   * Runs `supabase.auth.getUser()` silently in the background.
+   * If the user was deleted from Supabase or the token is invalid/revoked,
+   * it silently clears local session and redirects to login with zero extra UI/notices.
    */
   const validateServerSession = useCallback(async (): Promise<boolean> => {
     const saved = localStorage.getItem("orabit_user_profile");
     if (!saved) {
+      setUserProfile(null);
       setLoading(false);
       setIsValidating(false);
       return false;
@@ -67,7 +65,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsValidating(true);
 
     try {
-      // 6-second timeout promise to avoid infinite network hanging
       const getUserWithTimeout = Promise.race([
         supabase.auth.getUser(),
         new Promise<{ data: { user: null }; error: any }>((_, reject) =>
@@ -78,11 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: userData, error: userError } = await getUserWithTimeout;
 
       if (userError || !userData?.user) {
-        console.warn(
-          "Ghost session detected! User account was deleted or token is invalid on Supabase server:",
-          userError?.message || "User not found"
-        );
-        setValidationError("Session expired or user account was removed from server.");
+        console.warn("Ghost session detected on Supabase server. Silently logging out...");
         await signOut();
         return false;
       }
@@ -111,11 +104,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      setValidationError(null);
       return true;
     } catch (err: any) {
       console.error("Server-side auth validation exception:", err);
-      setValidationError("Session validation failed. Please log in again.");
       await signOut();
       return false;
     } finally {
@@ -156,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    // Re-validate session when browser tab regains focus
+    // Re-validate session silently when browser tab regains focus
     const handleFocus = () => {
       if (localStorage.getItem("orabit_user_profile")) {
         validateServerSession();
@@ -185,7 +176,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = (profile: UserProfile) => {
     setUserProfile(profile);
-    setValidationError(null);
     try {
       localStorage.setItem("orabit_user_profile", JSON.stringify(profile));
     } catch (e) {
@@ -200,7 +190,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userProfile,
         loading,
         isValidating,
-        validationError,
         setUserProfile,
         validateServerSession,
         signOut,
