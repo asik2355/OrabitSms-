@@ -19,6 +19,7 @@ import {
   saveFeedNumberToSupabase,
   bulkSyncFeedNumbersToSupabase,
 } from "./lib/supabaseFeed";
+import { safeLocalStorageSet, safeLocalStorageGet } from "./lib/storageUtils";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
 import { OrabitApiDoc } from "./components/OrabitApiDoc";
@@ -399,7 +400,7 @@ export default function App() {
   const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(() => {
     try {
       const bdStart = getBD4AMWindowStart();
-      const saved = localStorage.getItem("orabit_24h_all_hits_v1");
+      const saved = safeLocalStorageGet("orabit_24h_all_hits_v1");
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.windowStart === bdStart && Array.isArray(parsed.hits) && parsed.hits.length > 0) {
@@ -407,7 +408,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.error("Error loading 24h hits from storage", e);
+      // Silent catch
     }
     return INITIAL_MESSAGES;
   });
@@ -415,29 +416,11 @@ export default function App() {
   useEffect(() => {
     try {
       const bdStart = getBD4AMWindowStart();
-      // Cap at most recent 150 items to avoid exceeding browser localStorage quota (~5MB)
-      const trimmedHits = Array.isArray(all24hHits) ? all24hHits.slice(0, 150) : [];
+      const trimmedHits = Array.isArray(all24hHits) ? all24hHits.slice(0, 100) : [];
       const payload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits });
-
-      try {
-        localStorage.setItem("orabit_24h_all_hits_v1", payload);
-      } catch (e: any) {
-        if (e?.name === "QuotaExceededError" || e?.code === 22 || e?.code === 1014) {
-          // Clear non-critical old keys and retry with smaller slice
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const k = localStorage.key(i);
-            if (k && k !== "orabit_user_profile" && k !== "orabit_registered_users") {
-              if (k.startsWith("orabit_feed_numbers_") || k.includes("temp_") || k.includes("24h_all_hits")) {
-                localStorage.removeItem(k);
-              }
-            }
-          }
-          const smallerPayload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits.slice(0, 50) });
-          localStorage.setItem("orabit_24h_all_hits_v1", smallerPayload);
-        }
-      }
+      safeLocalStorageSet("orabit_24h_all_hits_v1", payload);
     } catch (e) {
-      console.warn("Storage quota limit notice for 24h hits:", e);
+      // Silent catch
     }
   }, [all24hHits]);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);

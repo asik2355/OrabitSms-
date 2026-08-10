@@ -5,6 +5,7 @@ import {
   saveFeedNumberToSupabase,
   bulkSyncFeedNumbersToSupabase,
 } from "../lib/supabaseFeed";
+import { safeLocalStorageSet, safeLocalStorageGet } from "../lib/storageUtils";
 import {
   requestStexNumber,
   fetchStexOtps,
@@ -304,7 +305,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(() => {
     try {
       const bdStart = getBD4AMWindowStart();
-      const saved = localStorage.getItem("orabit_24h_all_hits_v1");
+      const saved = safeLocalStorageGet("orabit_24h_all_hits_v1");
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.windowStart === bdStart && Array.isArray(parsed.hits) && parsed.hits.length > 0) {
@@ -312,7 +313,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
         }
       }
     } catch (e) {
-      console.error("Error loading 24h hits in console", e);
+      // Silent catch
     }
     return MOCK_LIVE_MESSAGES;
   });
@@ -320,27 +321,11 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   useEffect(() => {
     try {
       const bdStart = getBD4AMWindowStart();
-      const trimmedHits = Array.isArray(all24hHits) ? all24hHits.slice(0, 150) : [];
+      const trimmedHits = Array.isArray(all24hHits) ? all24hHits.slice(0, 100) : [];
       const payload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits });
-
-      try {
-        localStorage.setItem("orabit_24h_all_hits_v1", payload);
-      } catch (e: any) {
-        if (e?.name === "QuotaExceededError" || e?.code === 22 || e?.code === 1014) {
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const k = localStorage.key(i);
-            if (k && k !== "orabit_user_profile" && k !== "orabit_registered_users") {
-              if (k.startsWith("orabit_feed_numbers_") || k.includes("temp_") || k.includes("24h_all_hits")) {
-                localStorage.removeItem(k);
-              }
-            }
-          }
-          const smallerPayload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits.slice(0, 50) });
-          localStorage.setItem("orabit_24h_all_hits_v1", smallerPayload);
-        }
-      }
+      safeLocalStorageSet("orabit_24h_all_hits_v1", payload);
     } catch (e) {
-      console.warn("Storage quota limit notice for 24h hits in console:", e);
+      // Silent catch
     }
   }, [all24hHits]);
 
@@ -403,9 +388,11 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
   useEffect(() => {
     try {
-      localStorage.setItem(feedKey, JSON.stringify(feedNumbers));
+      if (feedKey && Array.isArray(feedNumbers)) {
+        safeLocalStorageSet(feedKey, JSON.stringify(feedNumbers.slice(0, 50)));
+      }
     } catch (e) {
-      console.error("Failed to save feed numbers in console", e);
+      // Silent catch
     }
   }, [feedNumbers, feedKey]);
   const [searchQuery, setSearchQuery] = useState("");
