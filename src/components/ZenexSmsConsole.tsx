@@ -787,6 +787,10 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
       userSuccessMessages.forEach(processMessage);
     }
 
+    if (Object.keys(serviceCounts).length === 0) {
+      return GLOBAL_TRENDING.slice(0, 10);
+    }
+
     const colorMap: Record<string, string> = {
       FACEBOOK: "#3b82f6",
       WHATSAPP: "#22c55e",
