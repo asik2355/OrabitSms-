@@ -797,13 +797,18 @@ export default function App() {
               if (earnedRate > 0) {
                 setUserProfile((prev) => (prev ? { ...prev, balance: prev.balance + earnedRate } : null));
               }
+
+              const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
+              const elapsedMins = reqTimestamp ? Math.floor((now - reqTimestamp) / 60000) : 0;
+              const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago`;
+
               return {
                 ...item,
                 service: finalService,
                 status: "SUCCESS" as const,
                 otpCode: extracted,
                 rawMessage: matchedOtp.message,
-                timeAgo: "Just now",
+                timeAgo: timeAgoStr,
               };
             }
 
@@ -819,28 +824,40 @@ export default function App() {
               }
             }
 
-            // Check 15-minute timeout for pending numbers (15 * 60 * 1000 = 900,000 ms)
+            // Update dynamic timeAgo for all statuses based on requestedAt / timestamp
             const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
-            if (item.status === "PENDING" && reqTimestamp) {
+            if (reqTimestamp) {
               const elapsedMs = now - reqTimestamp;
-              if (elapsedMs >= 15 * 60 * 1000) {
-                updated = true;
-                return {
-                  ...item,
-                  status: "FAILED" as const,
-                  timeAgo: "Expired (15m)",
-                  rawMessage: "No SMS received within 15 minutes",
-                };
-              } else {
-                const elapsedMins = Math.floor(elapsedMs / 60000);
-                const remainingMins = Math.max(1, 15 - elapsedMins);
-                const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago (${remainingMins}m left)`;
+              const elapsedMins = Math.floor(elapsedMs / 60000);
+
+              if (item.status === "SUCCESS") {
+                const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago`;
                 if (item.timeAgo !== timeAgoStr) {
+                  updated = true;
+                  return { ...item, timeAgo: timeAgoStr };
+                }
+              } else if (item.status === "FAILED") {
+                const timeAgoStr = elapsedMins < 1 ? "Expired (15m)" : `${elapsedMins}m ago (Expired)`;
+                if (item.timeAgo !== timeAgoStr) {
+                  updated = true;
+                  return { ...item, timeAgo: timeAgoStr };
+                }
+              } else if (item.status === "PENDING") {
+                if (elapsedMs >= 15 * 60 * 1000) {
                   updated = true;
                   return {
                     ...item,
-                    timeAgo: timeAgoStr,
+                    status: "FAILED" as const,
+                    timeAgo: `${elapsedMins}m ago (Expired)`,
+                    rawMessage: "No SMS received within 15 minutes",
                   };
+                } else {
+                  const remainingMins = Math.max(1, 15 - elapsedMins);
+                  const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago (${remainingMins}m left)`;
+                  if (item.timeAgo !== timeAgoStr) {
+                    updated = true;
+                    return { ...item, timeAgo: timeAgoStr };
+                  }
                 }
               }
             }
@@ -2410,7 +2427,7 @@ export default function App() {
                                 className="inline-flex items-center gap-1.5 bg-[#121829] border border-amber-500/40 hover:border-amber-400 px-2 py-0.5 rounded-md text-amber-300 font-mono font-bold text-[10px] shadow-sm transition-all cursor-pointer group"
                                 title="Click to copy full raw message"
                               >
-                                <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                                <ServiceLogo name={item.service} className="w-3.5 h-3.5 shrink-0" />
                                 <span>{item.otpCode}</span>
                                 <Copy className="w-3 h-3 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
                               </button>
