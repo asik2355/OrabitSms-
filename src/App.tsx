@@ -2090,8 +2090,8 @@ export default function App() {
                     <Globe className="w-4 h-4 text-blue-400" />
                     <h3 className="font-bold text-base text-white">Global Top Services</h3>
                   </div>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-medium">
-                    BD 04:00 AM - 03:59 AM (24H)
+                  <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-mono font-medium">
+                    ● Live
                   </span>
                 </div>
 
@@ -2113,11 +2113,6 @@ export default function App() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {item.count !== undefined && (
-                            <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                              {item.count} {item.count === 1 ? "Hit" : "Hits"}
-                            </span>
-                          )}
                           <svg className="w-16 h-5" viewBox="0 0 60 20">
                             <path
                               d={`M 0 ${15 - (item.id % 4) * 3} Q 15 ${5 + (item.id % 3) * 3}, 30 ${10 - (item.id % 2) * 2} T 60 12`}
@@ -2751,6 +2746,7 @@ export default function App() {
             onLogout={() => navigateToTab("logout")}
             currency={currency}
             usdExchangeRate={usdExchangeRate}
+            isOwner={isOwner}
           />
         )}
 

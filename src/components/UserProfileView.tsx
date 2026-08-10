@@ -29,6 +29,7 @@ interface UserProfileViewProps {
   onLogout?: () => void;
   currency?: "BDT" | "USD";
   usdExchangeRate?: number;
+  isOwner?: boolean;
 }
 
 export const UserProfileView: React.FC<UserProfileViewProps> = ({
@@ -37,7 +38,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   onLogout,
   currency = "BDT",
   usdExchangeRate = 100,
+  isOwner = false,
 }) => {
+  const isUserOwner =
+    isOwner ||
+    userProfile?.role?.toLowerCase() === "owner" ||
+    userProfile?.role?.toLowerCase() === "admin" ||
+    userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com";
   // Form State
   const [fullName, setFullName] = useState(userProfile.fullName || "Alif Sheikh");
   const [mobileNumber, setMobileNumber] = useState(userProfile.mobileNumber || "0175257721");
@@ -477,13 +484,21 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <span>API Keys</span>
           </div>
           <button
-            onClick={() => onUpdateProfile({ ...userProfile, apiEnabled: !userProfile.apiEnabled })}
-            className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border font-bold transition-all cursor-pointer ${
+            onClick={() => {
+              if (isUserOwner) {
+                onUpdateProfile({ ...userProfile, apiEnabled: !userProfile.apiEnabled });
+              } else {
+                alert("⚠️ API Access Permission Required\n\nAPI access can only be enabled by an Admin or Owner. Please contact your Team Lead or Admin to request API access permission for your account.");
+              }
+            }}
+            className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border font-bold transition-all ${
               userProfile.apiEnabled
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700"
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer"
+                : isUserOwner
+                ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 cursor-pointer"
+                : "bg-slate-800/80 border-slate-700/80 text-slate-500 hover:text-slate-400 cursor-pointer"
             }`}
-            title="Click to toggle API access"
+            title={isUserOwner ? "Click to toggle API access" : "API access permission is managed by Admin / Owner"}
           >
             {userProfile.apiEnabled ? "● API ACCESS: ENABLED" : "○ API ACCESS: DISABLED"}
           </button>

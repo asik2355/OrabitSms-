@@ -185,6 +185,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       password: password,
       role: isOwnerEmail ? "Owner" : "Client",
       accountStatus: isOwnerEmail ? "Active" : "Pending",
+      apiEnabled: isOwnerEmail ? true : false,
       lastLogin: new Date().toISOString().slice(0, 10) + " " + new Date().toLocaleTimeString(),
     };
 

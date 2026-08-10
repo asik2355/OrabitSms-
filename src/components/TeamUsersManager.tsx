@@ -85,6 +85,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   const [editCity, setEditCity] = useState("");
   const [editRate, setEditRate] = useState<string>("0");
   const [editStatus, setEditStatus] = useState<string>("Pending");
+  const [editApiEnabled, setEditApiEnabled] = useState<boolean>(false);
   const [rateWarning, setRateWarning] = useState<string | null>(null);
 
   // Invite modal state
@@ -191,6 +192,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0);
     setEditRate(userRate.toString());
     setEditStatus(user.accountStatus || "Pending");
+    setEditApiEnabled(!!user.apiEnabled);
     setRateWarning(null);
   };
 
@@ -221,6 +223,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       customOtpRate: numRate,
       rate: numRate,
       accountStatus: editStatus as any,
+      apiEnabled: editApiEnabled,
     };
 
     onUpdateUser(updated);
@@ -718,6 +721,35 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                   <option value="Inactive">Inactive</option>
                   <option value="Soft-deleted">Soft-deleted</option>
                 </select>
+              </div>
+
+              {/* API ACCESS PERMISSION */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  API ACCESS PERMISSION
+                </label>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#0d1017] border border-[#262a37]">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${editApiEnabled ? "bg-emerald-400 animate-pulse" : "bg-slate-600"}`} />
+                    <span className={`text-xs font-bold font-mono ${editApiEnabled ? "text-emerald-400" : "text-slate-400"}`}>
+                      {editApiEnabled ? "● API ACCESS: ENABLED" : "○ API ACCESS: DISABLED"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditApiEnabled(!editApiEnabled)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                      editApiEnabled
+                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30"
+                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30"
+                    }`}
+                  >
+                    {editApiEnabled ? "Revoke API Access" : "Grant API Access"}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Grant permission for this client to generate and use API keys for automated OTP dispatches.
+                </p>
               </div>
             </div>
 
