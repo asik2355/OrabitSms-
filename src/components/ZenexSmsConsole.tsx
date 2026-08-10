@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { ServiceLogo } from "./ServiceLogo";
-import { OrabitApiDoc } from "./OrabitApiDoc";
+import {
+  fetchUserFeedNumbersFromSupabase,
+  saveFeedNumberToSupabase,
+  bulkSyncFeedNumbersToSupabase,
+} from "../lib/supabaseFeed";
 import {
   requestStexNumber,
   fetchStexOtps,
@@ -316,9 +320,27 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   useEffect(() => {
     try {
       const bdStart = getBD4AMWindowStart();
-      localStorage.setItem("orabit_24h_all_hits_v1", JSON.stringify({ windowStart: bdStart, hits: all24hHits }));
+      const trimmedHits = Array.isArray(all24hHits) ? all24hHits.slice(0, 150) : [];
+      const payload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits });
+
+      try {
+        localStorage.setItem("orabit_24h_all_hits_v1", payload);
+      } catch (e: any) {
+        if (e?.name === "QuotaExceededError" || e?.code === 22 || e?.code === 1014) {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k !== "orabit_user_profile" && k !== "orabit_registered_users") {
+              if (k.startsWith("orabit_feed_numbers_") || k.includes("temp_") || k.includes("24h_all_hits")) {
+                localStorage.removeItem(k);
+              }
+            }
+          }
+          const smallerPayload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits.slice(0, 50) });
+          localStorage.setItem("orabit_24h_all_hits_v1", smallerPayload);
+        }
+      }
     } catch (e) {
-      console.error("Failed to save 24h hits in console", e);
+      console.warn("Storage quota limit notice for 24h hits in console:", e);
     }
   }, [all24hHits]);
 
@@ -335,35 +357,39 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     return 0.60; // 60 poisha = ৳0.60 BDT
   };
 
-  const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>(() => {
-    try {
-      const saved = localStorage.getItem(feedKey) || localStorage.getItem("orabit_feed_numbers");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error("Failed to load feed numbers in console", e);
-    }
-    return INITIAL_FEEDS;
-  });
+  const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);
+  const [isRefreshingFeed, setIsRefreshingFeed] = useState<boolean>(false);
 
-  // Re-sync when userEmail changes
-  useEffect(() => {
+  const refreshConsoleFeed = async (silent = false) => {
+    if (!userEmail) return;
+    if (!silent) setIsRefreshingFeed(true);
     try {
-      const saved = localStorage.getItem(feedKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setFeedNumbers(parsed);
-          return;
-        }
+      const feeds = await fetchUserFeedNumbersFromSupabase(userEmail);
+      if (Array.isArray(feeds)) {
+        setFeedNumbers(feeds);
       }
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch user feed in console:", e);
+    } finally {
+      if (!silent) setIsRefreshingFeed(false);
     }
-    setFeedNumbers([]);
-  }, [feedKey]);
+  };
+
+  // Re-sync when userEmail changes and auto-poll DB
+  useEffect(() => {
+    if (!userEmail) {
+      setFeedNumbers([]);
+      return;
+    }
+
+    refreshConsoleFeed(false);
+
+    const syncInterval = setInterval(() => {
+      refreshConsoleFeed(true);
+    }, 8000);
+
+    return () => clearInterval(syncInterval);
+  }, [userEmail]);
 
   const userSuccessMessages = React.useMemo(() => {
     return feedNumbers.filter((f) => f.status === "SUCCESS");
@@ -657,6 +683,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
         };
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
+        if (userEmail) {
+          saveFeedNumberToSupabase(userEmail, newFeedItem);
+        }
         setProvisionMsg(`✓ Successfully Provisioned: ${finalFormattedNumber}`);
         setTimeout(() => setProvisionMsg(null), 4000);
 
@@ -1475,10 +1504,12 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <h3 className="font-bold text-sm text-white">FEED</h3>
                 <button
-                  onClick={() => setFeedNumbers((prev) => [...prev])}
-                  className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white"
+                  onClick={() => refreshConsoleFeed(false)}
+                  disabled={isRefreshingFeed}
+                  className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-50"
+                  title="Refresh numbers from Supabase database"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingFeed ? "animate-spin text-emerald-400" : ""}`} />
                 </button>
               </div>
 

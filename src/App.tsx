@@ -14,6 +14,11 @@ import { useAuth } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { supabase } from "./lib/supabase";
 import { getUserRoleFromSupabase } from "./lib/userRoles";
+import {
+  fetchUserFeedNumbersFromSupabase,
+  saveFeedNumberToSupabase,
+  bulkSyncFeedNumbersToSupabase,
+} from "./lib/supabaseFeed";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
 import { OrabitApiDoc } from "./components/OrabitApiDoc";
@@ -410,43 +415,66 @@ export default function App() {
   useEffect(() => {
     try {
       const bdStart = getBD4AMWindowStart();
-      localStorage.setItem("orabit_24h_all_hits_v1", JSON.stringify({ windowStart: bdStart, hits: all24hHits }));
+      // Cap at most recent 150 items to avoid exceeding browser localStorage quota (~5MB)
+      const trimmedHits = Array.isArray(all24hHits) ? all24hHits.slice(0, 150) : [];
+      const payload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits });
+
+      try {
+        localStorage.setItem("orabit_24h_all_hits_v1", payload);
+      } catch (e: any) {
+        if (e?.name === "QuotaExceededError" || e?.code === 22 || e?.code === 1014) {
+          // Clear non-critical old keys and retry with smaller slice
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k !== "orabit_user_profile" && k !== "orabit_registered_users") {
+              if (k.startsWith("orabit_feed_numbers_") || k.includes("temp_") || k.includes("24h_all_hits")) {
+                localStorage.removeItem(k);
+              }
+            }
+          }
+          const smallerPayload = JSON.stringify({ windowStart: bdStart, hits: trimmedHits.slice(0, 50) });
+          localStorage.setItem("orabit_24h_all_hits_v1", smallerPayload);
+        }
+      }
     } catch (e) {
-      console.error("Failed to save 24h hits to storage", e);
+      console.warn("Storage quota limit notice for 24h hits:", e);
     }
   }, [all24hHits]);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);
+  const [isRefreshingFeed, setIsRefreshingFeed] = useState<boolean>(false);
 
-  // Sync feed numbers when logged in account changes
+  // Fetch feed numbers directly from Supabase database
+  const refreshFeedFromDatabase = async (silent = false) => {
+    if (!currentUserEmail) return;
+    if (!silent) setIsRefreshingFeed(true);
+    try {
+      const dbFeeds = await fetchUserFeedNumbersFromSupabase(currentUserEmail);
+      if (Array.isArray(dbFeeds)) {
+        setFeedNumbers(dbFeeds);
+      }
+    } catch (e) {
+      console.error("Error refreshing feed numbers from database:", e);
+    } finally {
+      if (!silent) setIsRefreshingFeed(false);
+    }
+  };
+
+  // Sync feed numbers when logged in account changes & set up background sync for multi-device support
   useEffect(() => {
     if (!currentUserEmail) {
       setFeedNumbers([]);
       return;
     }
-    try {
-      const saved = localStorage.getItem(userFeedStorageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setFeedNumbers(parsed);
-          return;
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load feed numbers from storage", e);
-    }
-    setFeedNumbers([]);
-  }, [currentUserEmail, userFeedStorageKey]);
 
-  // Save feed numbers per account
-  useEffect(() => {
-    if (!currentUserEmail) return;
-    try {
-      localStorage.setItem(userFeedStorageKey, JSON.stringify(feedNumbers));
-    } catch (e) {
-      console.error("Failed to save feed numbers to storage", e);
-    }
-  }, [feedNumbers, userFeedStorageKey, currentUserEmail]);
+    refreshFeedFromDatabase(false);
+
+    // Auto re-fetch every 8 seconds to reflect numbers generated on other devices
+    const syncInterval = setInterval(() => {
+      refreshFeedFromDatabase(true);
+    }, 8000);
+
+    return () => clearInterval(syncInterval);
+  }, [currentUserEmail]);
 
   // Preload all service logos and branding images on app start
   useEffect(() => {
@@ -933,6 +961,10 @@ export default function App() {
             return item;
           });
 
+          if (updated && currentUserEmail) {
+            bulkSyncFeedNumbersToSupabase(currentUserEmail, newFeed);
+          }
+
           return updated ? newFeed : prevFeed;
         });
       } catch (err) {
@@ -1006,6 +1038,9 @@ export default function App() {
         };
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
+        if (currentUserEmail) {
+          saveFeedNumberToSupabase(currentUserEmail, newFeedItem);
+        }
         setProvisionMsg(`✓ Number Allocated: ${finalFormattedNumber}`);
         setTimeout(() => setProvisionMsg(null), 4000);
 
@@ -2492,11 +2527,13 @@ export default function App() {
                   {feedNumbers.length === 0 ? "No results" : `1-${feedNumbers.length} of ${feedNumbers.length}`}
                 </span>
                 <button
-                  onClick={() => setFeedNumbers((prev) => [...prev])}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-all cursor-pointer"
+                  onClick={() => refreshFeedFromDatabase(false)}
+                  disabled={isRefreshingFeed}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                  title="Fetch latest numbers from Supabase database"
                 >
-                  <RefreshCw className="w-3 h-3 text-slate-400" />
-                  <span>Refresh</span>
+                  <RefreshCw className={`w-3 h-3 text-slate-400 ${isRefreshingFeed ? "animate-spin" : ""}`} />
+                  <span>{isRefreshingFeed ? "Syncing..." : "Refresh"}</span>
                 </button>
               </div>
 
