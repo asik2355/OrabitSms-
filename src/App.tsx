@@ -437,11 +437,28 @@ export default function App() {
   const [fontFamily, setFontFamily] = useState("Plus Jakarta Sans");
 
   // Target Range Provisioning Form
-  const [targetRange, setTargetRange] = useState("22507XXX");
+  const [targetRange, setTargetRange] = useState<string>(() => {
+    try {
+      return localStorage.getItem("orabit_last_target_range") || "";
+    } catch (e) {
+      return "";
+    }
+  });
   const [isNational, setIsNational] = useState(false);
   const [noPlus, setNoPlus] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
   const [provisionMsg, setProvisionMsg] = useState<string | null>(null);
+
+  // Persist targetRange to localStorage
+  useEffect(() => {
+    try {
+      if (targetRange) {
+        localStorage.setItem("orabit_last_target_range", targetRange);
+      }
+    } catch (e) {
+      console.error("Failed to save targetRange:", e);
+    }
+  }, [targetRange]);
 
   // API Tester & Key
   const [apiKey, setApiKey] = useState("");
@@ -893,10 +910,16 @@ export default function App() {
 
   const handleGetNumber = async () => {
     if (provisioning) return;
+
+    const cleanInput = targetRange.trim().replace(/X/gi, "");
+    if (!cleanInput) {
+      setProvisionMsg("❌ Please enter or select a number range first / অনুগ্রহ করে একটি নম্বর রেঞ্জ দিন।");
+      return;
+    }
+
     setProvisioning(true);
     setProvisionMsg("Connecting to ORABIT Core Network...");
 
-    const cleanInput = targetRange.trim().replace(/X/gi, "") || "26134";
     const activeKey = apiKey || DEFAULT_STEX_API_KEY;
 
     try {
@@ -2264,7 +2287,7 @@ export default function App() {
                 <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
                   <span className="text-slate-500 text-[11px]">Active Range:</span>
                   <span className="text-emerald-300 font-bold bg-[#0a0d18] px-2.5 py-1 rounded-lg border border-emerald-500/30 shadow-inner">
-                    {targetRange || "22507XXX"}
+                    {targetRange || "None"}
                   </span>
                 </div>
               </div>

@@ -345,11 +345,27 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   const [copiedText, setCopiedText] = useState<string | null>(null);
   
   // Target Range Form State
-  const [targetRange, setTargetRange] = useState("23276345XXX");
+  const [targetRange, setTargetRange] = useState<string>(() => {
+    try {
+      return localStorage.getItem("orabit_last_target_range") || "";
+    } catch (e) {
+      return "";
+    }
+  });
   const [isNational, setIsNational] = useState(false);
   const [noPlus, setNoPlus] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
   const [provisionMsg, setProvisionMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      if (targetRange) {
+        localStorage.setItem("orabit_last_target_range", targetRange);
+      }
+    } catch (e) {
+      console.error("Failed to save targetRange:", e);
+    }
+  }, [targetRange]);
 
   // API Tester state
   const [apiKey, setApiKey] = useState("ZX_DEMO_KEY_8923741");
@@ -542,10 +558,15 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
   const handleGetNumber = async () => {
     if (provisioning) return;
+
+    const cleanInput = targetRange.trim().replace(/X/gi, "");
+    if (!cleanInput) {
+      setProvisionMsg("❌ Please enter or select a number range first / অনুগ্রহ করে একটি নম্বর রেঞ্জ দিন।");
+      return;
+    }
+
     setProvisioning(true);
     setProvisionMsg("Connecting to ORABIT Core Routing Engine...");
-
-    const cleanInput = targetRange.trim().replace(/X/gi, "") || "26134";
 
     try {
       const result = await requestStexNumber({ query: cleanInput, apiKey: DEFAULT_STEX_API_KEY });
