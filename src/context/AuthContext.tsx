@@ -32,18 +32,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isValidating, setIsValidating] = useState<boolean>(false);
 
   /**
-   * Clears local storage, resets session states silently and signs out from Supabase
+   * Clears local storage and user state IMMEDIATELY and synchronously,
+   * then forces a redirect to /login so no zombie UI remains.
    */
   const signOut = useCallback(async () => {
+    // 1. Immediately wipe local session & state (synchronous UI response)
+    localStorage.removeItem("orabit_user_profile");
+    setUserProfile(null);
+    setLoading(false);
+    setIsValidating(false);
+
+    // 2. Async sign out call to Supabase in background (do not block UI thread)
+    supabase.auth.signOut().catch((err) => {
+      console.warn("Background Supabase sign out warning:", err);
+    });
+
+    // 3. Force immediate navigation to /login page
     try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Supabase sign out error:", err);
-    } finally {
-      localStorage.removeItem("orabit_user_profile");
-      setUserProfile(null);
-      setLoading(false);
-      setIsValidating(false);
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.history.pushState({}, "", "/login");
+        window.dispatchEvent(new Event("popstate"));
+      }
+    } catch (e) {
+      console.error("Redirect to login failed:", e);
     }
   }, []);
 
@@ -51,11 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * Silent Server-Side Validation:
    * Runs `supabase.auth.getUser()` silently in the background.
    * If the user was deleted from Supabase or the token is invalid/revoked,
-   * it silently clears local session and redirects to login with zero extra UI/notices.
+   * it immediately clears local session and forces redirect to login.
    */
   const validateServerSession = useCallback(async (): Promise<boolean> => {
     const saved = localStorage.getItem("orabit_user_profile");
     if (!saved) {
+      localStorage.removeItem("orabit_user_profile");
       setUserProfile(null);
       setLoading(false);
       setIsValidating(false);
@@ -68,14 +80,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const getUserWithTimeout = Promise.race([
         supabase.auth.getUser(),
         new Promise<{ data: { user: null }; error: any }>((_, reject) =>
-          setTimeout(() => reject(new Error("Supabase auth validation timeout")), 6000)
+          setTimeout(() => reject(new Error("Supabase auth validation timeout")), 5000)
         ),
       ]);
 
       const { data: userData, error: userError } = await getUserWithTimeout;
 
       if (userError || !userData?.user) {
-        console.warn("Ghost session detected on Supabase server. Silently logging out...");
+        console.warn("Ghost session detected on Supabase server. Immediately forcing logout & login redirect...");
         await signOut();
         return false;
       }
