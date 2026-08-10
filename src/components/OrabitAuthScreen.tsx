@@ -35,8 +35,13 @@ export interface UserProfile {
   password?: string;
   apiEnabled?: boolean;
   role?: string;
-  accountStatus?: "ACTIVE" | "DISABLED";
+  accountStatus?: "Active" | "Pending" | "Inactive" | "Soft-deleted" | "ACTIVE" | "DISABLED" | "PENDING" | "SOFT_DELETED";
   customOtpRate?: number;
+  rate?: number;
+  lastLogin?: string;
+  uid?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 interface OrabitAuthScreenProps {
@@ -189,6 +194,8 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       balance: isOwnerEmail ? 999.0 : 0.0,
       password: password,
       role: isOwnerEmail ? "Owner" : "Client",
+      accountStatus: isOwnerEmail ? "Active" : "Pending",
+      lastLogin: new Date().toISOString().slice(0, 10) + " " + new Date().toLocaleTimeString(),
     };
 
     (async () => {

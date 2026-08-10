@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { FeedNumber } from "../types";
 import { createAgentInSupabase } from "../lib/userRoles";
+import { TeamUsersManager } from "./TeamUsersManager";
 import {
   Users,
   ShieldCheck,
@@ -874,134 +875,29 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       </div>
       )}
 
-      {/* Client Accounts Management Table */}
+      {/* Team Users & Accounts Management */}
       {(!activeSection || activeSection === "overview" || activeSection === "user_mgmt") && (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-emerald-400" />
-              {isAgent && !isOwner ? "Referred User Management" : "Registered Accounts Management"}
-            </h2>
-            <p className="text-xs text-slate-400">
-              {isAgent && !isOwner
-                ? "View your referred client profiles, check balances, and top up funds"
-                : "View registered client profiles and add funds to accounts"}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search user, email, phone..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <button
-              onClick={loadRegisteredUsers}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-              title="Refresh Users"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Users Table */}
-        <div className="overflow-x-auto rounded-xl border border-slate-800">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-950/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
-                <th className="py-3 px-4">Client Name</th>
-                <th className="py-3 px-4">Email</th>
-                <th className="py-3 px-4">Mobile</th>
-                <th className="py-3 px-4">Role</th>
-                <th className="py-3 px-4 text-right">Balance</th>
-                <th className="py-3 px-4 text-center">Owner Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-sans">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500">
-                    No registered client accounts found.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((user) => {
-                  const isOwnerUser = user.email.toLowerCase() === "orabitsms@gmail.com" || user.role === "Owner";
-                  return (
-                    <tr key={user.email} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-emerald-400 font-black text-xs">
-                          {user.fullName.charAt(0).toUpperCase() || "U"}
-                        </div>
-                        <span>{user.fullName}</span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-300 font-mono">{user.email}</td>
-                      <td className="py-3 px-4 text-slate-400 font-mono">{user.mobileNumber || "—"}</td>
-                      <td className="py-3 px-4">
-                        {isOwnerUser ? (
-                          <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 font-bold text-[10px] uppercase tracking-wider border border-amber-500/30">
-                            Owner
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[10px] font-semibold">
-                            Client
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
-                        {formatMoney(user.balance || 0)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {selectedUserEmail === user.email ? (
-                          <div className="flex items-center justify-center gap-1 bg-slate-950 p-1 rounded-xl border border-emerald-500/40">
-                            <input
-                              type="number"
-                              value={topupAmount}
-                              onChange={(e) => setTopupAmount(e.target.value)}
-                              className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono focus:outline-none"
-                              placeholder="USD"
-                            />
-                            <button
-                              onClick={() => {
-                                handleTopup(user.email);
-                                setSelectedUserEmail(null);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400"
-                            >
-                              Add
-                            </button>
-                            <button
-                              onClick={() => setSelectedUserEmail(null)}
-                              className="px-2 py-1 rounded-lg bg-slate-800 text-slate-400 text-xs hover:bg-slate-700"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setSelectedUserEmail(user.email)}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 text-xs font-bold transition-all flex items-center gap-1 mx-auto"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Top Up
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <TeamUsersManager
+          currentUser={userProfile}
+          users={registeredUsers}
+          onUpdateUser={(updatedUser) => {
+            setRegisteredUsers((prev) => {
+              const list = [...prev];
+              const idx = list.findIndex(
+                (u) => u.email.toLowerCase() === updatedUser.email.toLowerCase()
+              );
+              if (idx >= 0) list[idx] = updatedUser;
+              else list.push(updatedUser);
+              return list;
+            });
+          }}
+          onAddBalance={(email, amount) => {
+            setTopupAmount(amount.toString());
+            handleTopup(email);
+          }}
+          currency={currency}
+          usdExchangeRate={usdExchangeRate}
+        />
       )}
     </div>
   );

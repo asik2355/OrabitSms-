@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { FeedNumber } from "../types";
+import { TeamUsersManager } from "./TeamUsersManager";
 import {
   Users,
   ShieldCheck,
@@ -732,240 +733,30 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
         </div>
       </div>
 
-      {/* Referred Clients Control & Account Status List (Full Functional System) */}
-      <div className="bg-[#171922] border border-[#262a37] rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-indigo-400" /> Referred Clients Control List
-            </h2>
-            <p className="text-xs text-slate-400">
-              Manage accounts, toggle account status (ON/OFF), and customize OTP rates for your referred users.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Status Filter */}
-            <div className="flex items-center bg-[#111319] p-1 rounded-xl border border-[#262a37] text-xs">
-              <button
-                onClick={() => setStatusFilter("all")}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                  statusFilter === "all" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                All ({totalReferred})
-              </button>
-              <button
-                onClick={() => setStatusFilter("active")}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                  statusFilter === "active" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Active ({activeCount})
-              </button>
-              <button
-                onClick={() => setStatusFilter("disabled")}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                  statusFilter === "disabled" ? "bg-rose-600 text-white" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Disabled ({disabledCount})
-              </button>
-            </div>
-
-            {/* Search Box */}
-            <div className="relative w-full sm:w-56">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search name, email, phone..."
-                className="w-full bg-[#111319] border border-[#262a37] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
-              />
-            </div>
-
-            <button
-              onClick={loadUsers}
-              className="p-2 rounded-xl bg-[#1d2230] hover:bg-[#252c3e] text-slate-300 transition-colors"
-              title="Refresh Client List"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Clients Table */}
-        <div className="overflow-x-auto rounded-xl border border-[#262a37]">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#111319] text-slate-400 uppercase tracking-wider font-semibold border-b border-[#262a37]">
-                <th className="py-3 px-4">Client Name</th>
-                <th className="py-3 px-4">Contact Info</th>
-                <th className="py-3 px-4">Account Status</th>
-                <th className="py-3 px-4">OTP Rate</th>
-                <th className="py-3 px-4 text-right">Balance</th>
-                <th className="py-3 px-4 text-center">Agent Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#262a37] font-sans">
-              {filteredClients.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <Users className="w-8 h-8 text-slate-600" />
-                      <p className="font-medium text-slate-400">No referred clients found.</p>
-                      <p className="text-[11px] text-slate-500 max-w-sm">
-                        When users register using your email <span className="text-purple-400 font-mono">{agentEmail}</span> as their Agent Referral Email, they will appear here.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredClients.map((client) => {
-                  const isActive = client.accountStatus !== "DISABLED";
-                  const currentOtpRate = client.customOtpRate !== undefined ? client.customOtpRate : 0.15;
-
-                  return (
-                    <tr key={client.email} className="hover:bg-[#1f2330] transition-colors">
-                      {/* Name & Country */}
-                      <td className="py-3 px-4 font-bold text-white">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-[#202534] border border-[#30384c] flex items-center justify-center text-purple-400 font-black text-xs">
-                            {client.fullName?.charAt(0).toUpperCase() || "U"}
-                          </div>
-                          <div>
-                            <p className="text-white">{client.fullName}</p>
-                            <p className="text-[10px] text-slate-400">{client.country || "Bangladesh"}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Contact Info */}
-                      <td className="py-3 px-4 text-slate-300 font-mono">
-                        <p className="flex items-center gap-1 text-slate-200">
-                          <Mail className="w-3 h-3 text-purple-400" /> {client.email}
-                        </p>
-                        <p className="flex items-center gap-1 text-slate-400 text-[10px]">
-                          <Phone className="w-3 h-3 text-slate-500" /> {client.mobileNumber || "—"}
-                        </p>
-                      </td>
-
-                      {/* Account Status Badge (ON / OFF) */}
-                      <td className="py-3 px-4">
-                        <button
-                          onClick={() => handleToggleAccountStatus(client.email)}
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
-                            isActive
-                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30"
-                              : "bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30"
-                          }`}
-                          title="Click to toggle Account Status"
-                        >
-                          <Power className="w-3 h-3" />
-                          <span>{isActive ? "ACTIVE (ON)" : "DISABLED (OFF)"}</span>
-                        </button>
-                      </td>
-
-                      {/* OTP Rate Control */}
-                      <td className="py-3 px-4">
-                        {editingOtpUser === client.email ? (
-                          <div className="flex items-center gap-1 bg-[#111319] p-1 rounded-xl border border-purple-500">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={customRateInput}
-                              onChange={(e) => setCustomRateInput(e.target.value)}
-                              className="w-16 bg-[#181a22] border border-[#2b3142] rounded-lg px-2 py-0.5 text-xs text-white font-mono focus:outline-none"
-                              placeholder="$"
-                            />
-                            <button
-                              onClick={() => handleSaveOtpRate(client.email)}
-                              className="px-2 py-0.5 rounded-lg bg-purple-600 text-white font-bold text-xs hover:bg-purple-500"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingOtpUser(null)}
-                              className="px-1.5 py-0.5 rounded-lg bg-[#222736] text-slate-400 text-xs hover:bg-[#2b3142]"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setEditingOtpUser(client.email);
-                              setCustomRateInput(currentOtpRate.toString());
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-[#1e2330] hover:bg-[#272e3f] text-purple-300 border border-[#2b3245] font-mono text-xs flex items-center gap-1 transition-all"
-                            title="Click to change custom OTP rate"
-                          >
-                            <Sliders className="w-3 h-3 text-purple-400" />
-                            <span>${currentOtpRate.toFixed(2)}/OTP</span>
-                          </button>
-                        )}
-                      </td>
-
-                      {/* Client Balance */}
-                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-400">
-                        {formatMoney(client.balance || 0)}
-                      </td>
-
-                      {/* Agent Actions (Topup / Status Toggle) */}
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {topupUserEmail === client.email ? (
-                            <div className="flex items-center gap-1 bg-[#111319] p-1 rounded-xl border border-amber-500/50">
-                              <input
-                                type="number"
-                                value={topupAmount}
-                                onChange={(e) => setTopupAmount(e.target.value)}
-                                className="w-14 bg-[#181a22] border border-[#2b3142] rounded-lg px-2 py-0.5 text-xs text-white font-mono focus:outline-none"
-                              />
-                              <button
-                                onClick={() => handleClientTopup(client.email)}
-                                className="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-400"
-                              >
-                                TopUp
-                              </button>
-                              <button
-                                onClick={() => setTopupUserEmail(null)}
-                                className="px-1.5 py-0.5 rounded-lg bg-[#222736] text-slate-400 text-xs hover:bg-[#2b3142]"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setTopupUserEmail(client.email)}
-                              className="px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500 hover:text-slate-950 text-xs font-bold transition-all flex items-center gap-1"
-                            >
-                              <Plus className="w-3 h-3" /> Add Funds
-                            </button>
-                          )}
-
-                          <button
-                            onClick={() => handleToggleAccountStatus(client.email)}
-                            className={`p-1.5 rounded-xl border transition-all ${
-                              isActive
-                                ? "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white"
-                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950"
-                            }`}
-                            title={isActive ? "Disable Account" : "Enable Account"}
-                          >
-                            <Power className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Referred Clients Control & Team Users Management */}
+      <TeamUsersManager
+        currentUser={userProfile}
+        users={allUsers}
+        onUpdateUser={(updatedUser) => {
+          setAllUsers((prev) => {
+            const list = [...prev];
+            const idx = list.findIndex(
+              (u) => u.email.toLowerCase() === updatedUser.email.toLowerCase()
+            );
+            if (idx >= 0) list[idx] = updatedUser;
+            else list.push(updatedUser);
+            return list;
+          });
+          showToast(`Updated user profile for ${updatedUser.fullName}`, "success");
+        }}
+        onAddBalance={(email, amount) => {
+          setTopupUserEmail(email);
+          setTopupAmount(amount.toString());
+          handleClientTopup(email);
+        }}
+        currency={currency}
+        usdExchangeRate={usdExchangeRate}
+      />
     </div>
   );
 };
