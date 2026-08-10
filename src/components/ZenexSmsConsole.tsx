@@ -561,7 +561,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
     const cleanInput = targetRange.trim().replace(/X/gi, "");
     if (!cleanInput) {
-      setProvisionMsg("❌ Please enter or select a number range first / অনুগ্রহ করে একটি নম্বর রেঞ্জ দিন।");
+      setProvisionMsg("❌ Please enter or select a number range first.");
       return;
     }
 
@@ -628,6 +628,35 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
       m.country.toLowerCase().includes(q)
     );
   });
+
+  // Range Service Detection helper
+  const rangeServiceAnalysis = React.useMemo(() => {
+    const cleanRange = targetRange.trim().replace(/X/gi, "").replace(/[^0-9]/g, "");
+    if (!cleanRange) return null;
+
+    const matched = messages.filter((m) => {
+      const mNumDigits = (m.number || "").replace(/X/gi, "").replace(/[^0-9]/g, "");
+      if (!mNumDigits) return false;
+      return mNumDigits.startsWith(cleanRange) || cleanRange.startsWith(mNumDigits) || mNumDigits.includes(cleanRange);
+    });
+
+    const counts: Record<string, { count: number; color: string }> = {};
+    matched.forEach((m) => {
+      const sName = (m.service || "SMS OTP").toUpperCase();
+      if (!counts[sName]) {
+        counts[sName] = { count: 0, color: m.serviceColor || "#10b981" };
+      }
+      counts[sName].count += 1;
+    });
+
+    const sortedServices = Object.entries(counts).sort((a, b) => b[1].count - a[1].count);
+
+    return {
+      cleanRange,
+      totalMatched: matched.length,
+      services: sortedServices,
+    };
+  }, [targetRange, messages]);
 
   const filteredFeed = feedNumbers.filter((f) => {
     if (feedFilter === "ALL") return true;
@@ -1291,6 +1320,49 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
+              {/* Console Range Service Inspection */}
+              {rangeServiceAnalysis && (
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                      <Search className="w-3.5 h-3.5 text-blue-400" />
+                      Console Analysis for <span className="text-blue-400 font-mono">#{rangeServiceAnalysis.cleanRange}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {rangeServiceAnalysis.totalMatched > 0
+                        ? `${rangeServiceAnalysis.totalMatched} SMS Hits`
+                        : "No Hits in Console"}
+                    </span>
+                  </div>
+
+                  {rangeServiceAnalysis.services.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[11px] text-slate-400 font-medium mr-1">Detected Services:</span>
+                      {rangeServiceAnalysis.services.map(([sName, info]) => (
+                        <span
+                          key={sName}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold font-mono border flex items-center gap-1.5 shadow-sm"
+                          style={{
+                            backgroundColor: `${info.color}15`,
+                            borderColor: `${info.color}40`,
+                            color: info.color,
+                          }}
+                        >
+                          <span>{sName}</span>
+                          <span className="px-1.5 py-0.2 rounded-md text-[10px] font-black bg-slate-900 text-white">
+                            {info.count}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] font-mono text-slate-400 bg-slate-900/50 p-2 rounded-lg border border-slate-800/80">
+                      ℹ️ No live console messages found for this range yet.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex items-center gap-6 text-xs text-slate-300">
                 <label className="flex items-center gap-2 cursor-pointer">
