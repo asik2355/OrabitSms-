@@ -22,7 +22,6 @@ import {
   Sparkles,
   CreditCard,
   Lock,
-  LogOut,
 } from "lucide-react";
 
 interface UserProfileViewProps {
@@ -140,28 +139,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-12">
-      {/* PROFILE TOP HEADER */}
-      <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-800 border border-slate-800 shadow-xl">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <User className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {onLogout && (
-            <button
-              onClick={onLogout}
-              className="px-3 py-1 rounded-full bg-rose-950/60 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5 text-rose-400" />
-              <span>Logout</span>
-            </button>
-          )}
-        </div>
-      </div>
-
       {savedSuccess && (
         <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-3 shadow-lg animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
