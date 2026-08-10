@@ -63,6 +63,7 @@ interface SmsMessage {
   number: string;
   otpCode: string;
   rawMessage: string;
+  timestamp?: number;
 }
 
 interface FeedNumber {
@@ -177,6 +178,24 @@ function detectServiceAndColor(rawMessage: string, sidFallback?: string) {
     return {
       service: "TIKTOK",
       color: "bg-rose-950/80 text-rose-400 border-rose-500/30",
+    };
+  }
+  if (msgUpper.includes("EBAY")) {
+    return {
+      service: "EBAY",
+      color: "bg-yellow-950/80 text-yellow-400 border-yellow-500/30",
+    };
+  }
+  if (msgUpper.includes("LINKEDIN")) {
+    return {
+      service: "LINKEDIN",
+      color: "bg-blue-950/80 text-blue-400 border-blue-500/30",
+    };
+  }
+  if (msgUpper.includes("TWITTER") || msgUpper.includes("X.COM")) {
+    return {
+      service: "TWITTER",
+      color: "bg-sky-950/80 text-sky-400 border-sky-500/30",
     };
   }
   if (msgUpper.includes("GOOGLE") || msgUpper.includes("G-")) {
@@ -409,6 +428,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
             return {
               id: `hit-${h.range}-${h.time}-${idx}`,
+              timestamp: Number(h.time) || Date.now(),
               time: formattedTime,
               operator: locInfo.operator,
               country: locInfo.country,
@@ -422,13 +442,15 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
           });
 
           setMessages((prevMsgs) => {
+            const bdStart = getBD4AMWindowStart();
             const existingIds = new Set(prevMsgs.map((m) => m.id));
             const fresh = liveConsoleMsgs.filter((m) => !existingIds.has(m.id));
-            if (fresh.length > 0) {
-              return [...fresh, ...prevMsgs].slice(0, 300);
-            }
-            if (prevMsgs.length === 0) return liveConsoleMsgs.slice(0, 300);
-            return prevMsgs;
+            const base = fresh.length > 0 ? [...fresh, ...prevMsgs] : (prevMsgs.length === 0 ? liveConsoleMsgs : prevMsgs);
+            return base.filter((m) => {
+              const t = m.timestamp;
+              if (t && t < bdStart) return false;
+              return true;
+            });
           });
         }
 
@@ -731,8 +753,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
     const processMessage = (msg: any) => {
       if (!msg) return;
-      if (msg.timestamp) {
-        const t = new Date(msg.timestamp).getTime();
+      const msgTime = msg.timestamp || msg.requestedAt;
+      if (msgTime) {
+        const t = typeof msgTime === "number" ? msgTime : new Date(msgTime).getTime();
         if (!isNaN(t) && t < bdStart) return;
       }
       let s = (msg.service || msg.serviceName || "OTHER").trim();
@@ -781,17 +804,6 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
           name: item.name,
           color: item.color,
           count: item.count,
-        });
-      }
-    });
-
-    GLOBAL_TRENDING.forEach((def) => {
-      if (!usedNames.has(def.name) && result.length < 10) {
-        usedNames.add(def.name);
-        result.push({
-          id: result.length + 1,
-          name: def.name,
-          color: def.color,
         });
       }
     });
@@ -1055,42 +1067,53 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-blue-400" />
-                  <h3 className="font-bold text-base text-white">Global Trending</h3>
+                  <h3 className="font-bold text-base text-white">Global Top Services</h3>
                 </div>
-                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-mono">
-                  ● Live
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-medium">
+                  BD 04:00 AM - 03:59 AM (24H)
                 </span>
               </div>
 
               <div className="space-y-2">
-                {top10Trending.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between hover:border-slate-700 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="w-5 h-5 rounded-full bg-slate-800 text-[11px] font-mono font-bold flex items-center justify-center text-slate-300">
-                        {item.id}
-                      </span>
-                      <span className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2.5">
-                        <ServiceLogo name={item.name} className="w-7 h-7 sm:w-8 sm:h-8" />
-                        <span>{item.name}</span>
-                      </span>
-                    </div>
+                {top10Trending.length > 0 ? (
+                  top10Trending.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between hover:border-slate-700 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-5 h-5 rounded-full bg-slate-800 text-[11px] font-mono font-bold flex items-center justify-center text-slate-300">
+                          {item.id}
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2.5">
+                          <ServiceLogo name={item.name} className="w-7 h-7 sm:w-8 sm:h-8" />
+                          <span>{item.name}</span>
+                        </span>
+                      </div>
 
-                    {/* Mini Sparkline Graph representation */}
-                    <div className="flex items-center gap-2">
-                      <svg className="w-16 h-5" viewBox="0 0 60 20">
-                        <path
-                          d={`M 0 ${15 - (item.id % 4) * 3} Q 15 ${5 + (item.id % 3) * 3}, 30 ${10 - (item.id % 2) * 2} T 60 12`}
-                          fill="none"
-                          stroke={item.color}
-                          strokeWidth="2"
-                        />
-                      </svg>
+                      {/* Mini Sparkline Graph representation & hit count */}
+                      <div className="flex items-center gap-2">
+                        {item.count !== undefined && (
+                          <span className="text-[11px] font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                            {item.count} {item.count === 1 ? "Hit" : "Hits"}
+                          </span>
+                        )}
+                        <svg className="w-16 h-5" viewBox="0 0 60 20">
+                          <path
+                            d={`M 0 ${15 - (item.id % 4) * 3} Q 15 ${5 + (item.id % 3) * 3}, 30 ${10 - (item.id % 2) * 2} T 60 12`}
+                            fill="none"
+                            stroke={item.color}
+                            strokeWidth="2"
+                          />
+                        </svg>
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-xs font-mono text-slate-400 bg-slate-950/50 p-4 rounded-xl border border-slate-800/80 text-center">
+                    No console messages received today yet.
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>

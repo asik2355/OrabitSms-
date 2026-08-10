@@ -179,4 +179,5 @@ export interface SmsMessage {
   number: string;
   otpCode: string;
   rawMessage: string;
+  timestamp?: number;
 }

@@ -15,6 +15,9 @@ export const PRELOAD_SERVICE_LOGOS = [
   "https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260809_162133.png", // Bigo
   "https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260809_162116.png", // Telegram
   "https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260809_162352.png", // ChatGPT / OpenAI
+  "https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260810_143635.png", // eBay
+  "https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260810_143757.png", // LinkedIn
+  "https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260810_144006.png", // Twitter
 ];
 
 interface ServiceLogoProps {
@@ -241,6 +244,63 @@ export const ServiceLogo: React.FC<ServiceLogoProps> = ({ name, className = "w-7
         <img
           src="https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260809_162016.png"
           alt="TikTok"
+          className="w-full h-full object-contain pointer-events-none select-none"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        />
+      </div>
+    );
+  }
+
+  // EBAY
+  if (normalized.includes("EBAY")) {
+    return (
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm select-none protected-img-container ${className}`} style={customStyle}>
+        <img
+          src="https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260810_143635.png"
+          alt="eBay"
+          className="w-full h-full object-contain pointer-events-none select-none"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        />
+      </div>
+    );
+  }
+
+  // LINKEDIN
+  if (normalized.includes("LINKEDIN")) {
+    return (
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm select-none protected-img-container ${className}`} style={customStyle}>
+        <img
+          src="https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260810_143757.png"
+          alt="LinkedIn"
+          className="w-full h-full object-contain pointer-events-none select-none"
+          referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        />
+      </div>
+    );
+  }
+
+  // TWITTER / X
+  if (normalized.includes("TWITTER") || normalized === "X" || normalized.includes("X.COM")) {
+    return (
+      <div className={`shrink-0 rounded-lg overflow-hidden flex items-center justify-center shadow-sm select-none protected-img-container ${className}`} style={customStyle}>
+        <img
+          src="https://hdcdrjjonuarxfdxkwia.supabase.co/storage/v1/object/public/logos/20260810_144006.png"
+          alt="Twitter"
           className="w-full h-full object-contain pointer-events-none select-none"
           referrerPolicy="no-referrer"
           loading="eager"
