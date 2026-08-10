@@ -165,25 +165,39 @@ function extractOtpFromText(rawText: string): string {
 function detectServiceAndColor(rawMessage: string, sidFallback?: string) {
   const msgUpper = (rawMessage || "").toUpperCase();
 
-  if (msgUpper.includes("INSTAGRAM") || msgUpper.includes("INSTA CODE") || msgUpper.includes("#IG")) {
+  if (
+    msgUpper.includes("INSTAGRAM") ||
+    msgUpper.includes("INSTA") ||
+    msgUpper.includes("#IG") ||
+    msgUpper.includes("IG-")
+  ) {
     return {
       service: "INSTAGRAM",
       color: "bg-pink-950/80 text-pink-400 border-pink-500/30",
     };
   }
-  if (msgUpper.includes("WHATSAPP")) {
+  if (
+    msgUpper.includes("WHATSAPP") ||
+    msgUpper.includes("WA-") ||
+    msgUpper.includes("WHATSAPP CODE")
+  ) {
     return {
       service: "WHATSAPP",
       color: "bg-emerald-950/80 text-emerald-400 border-emerald-500/30",
     };
   }
-  if (msgUpper.includes("FACEBOOK") || msgUpper.includes("FB-") || msgUpper.includes("FACEBOOK CODE")) {
+  if (
+    msgUpper.includes("FACEBOOK") ||
+    msgUpper.includes("FB-") ||
+    msgUpper.includes("FACEBOOK CODE") ||
+    msgUpper.includes("FB CODE")
+  ) {
     return {
       service: "FACEBOOK",
       color: "bg-blue-950/80 text-blue-400 border-blue-500/30",
     };
   }
-  if (msgUpper.includes("TELEGRAM")) {
+  if (msgUpper.includes("TELEGRAM") || msgUpper.includes("TG-")) {
     return {
       service: "TELEGRAM",
       color: "bg-sky-950/80 text-sky-400 border-sky-500/30",
@@ -225,10 +239,16 @@ function detectServiceAndColor(rawMessage: string, sidFallback?: string) {
       color: "bg-purple-950/80 text-purple-400 border-purple-500/30",
     };
   }
+  if (msgUpper.includes("BIGO")) {
+    return {
+      service: "BIGO",
+      color: "bg-teal-950/80 text-teal-400 border-teal-500/30",
+    };
+  }
 
   // Fallback to CLI / API sid if no keyword found in message body
   const sidUpper = (sidFallback || "").trim().toUpperCase();
-  if (sidUpper && sidUpper !== "SERVICE" && sidUpper !== "UNKNOWN") {
+  if (sidUpper && sidUpper !== "SERVICE" && sidUpper !== "UNKNOWN" && sidUpper !== "SMS OTP") {
     let color = "bg-blue-950/80 text-blue-400 border-blue-500/30";
     if (sidUpper.includes("WHATSAPP")) color = "bg-emerald-950/80 text-emerald-400 border-emerald-500/30";
     else if (sidUpper.includes("INSTAGRAM") || sidUpper.includes("INSTA")) color = "bg-pink-950/80 text-pink-400 border-pink-500/30";
@@ -768,17 +788,35 @@ export default function App() {
             if (matchedOtp && item.status !== "SUCCESS") {
               updated = true;
               const extracted = extractOtpFromMessage(matchedOtp.message);
-              const earnedRate = getServiceRateBDT(item.service);
+              const { service: autoDetected } = detectServiceAndColor(matchedOtp.message, matchedOtp.service || item.service);
+              const finalService = (autoDetected && autoDetected !== "SMS OTP" && autoDetected !== "OTHER")
+                ? autoDetected
+                : (item.service && item.service !== "SMS OTP" ? item.service : "INSTAGRAM");
+
+              const earnedRate = getServiceRateBDT(finalService);
               if (earnedRate > 0) {
                 setUserProfile((prev) => (prev ? { ...prev, balance: prev.balance + earnedRate } : null));
               }
               return {
                 ...item,
+                service: finalService,
                 status: "SUCCESS" as const,
                 otpCode: extracted,
                 rawMessage: matchedOtp.message,
                 timeAgo: "Just now",
               };
+            }
+
+            // Auto-heal existing items where rawMessage has keyword like Instagram but service was "SMS OTP"
+            if (item.rawMessage && (item.service === "SMS OTP" || !item.service || item.service === "OTHER")) {
+              const { service: autoDetected } = detectServiceAndColor(item.rawMessage);
+              if (autoDetected && autoDetected !== "SMS OTP" && autoDetected !== "OTHER") {
+                updated = true;
+                return {
+                  ...item,
+                  service: autoDetected,
+                };
+              }
             }
 
             // Check 15-minute timeout for pending numbers (15 * 60 * 1000 = 900,000 ms)
@@ -888,13 +926,7 @@ export default function App() {
           console.error("Auto copy error:", e);
         }
 
-        // Deduct nominal balance from user profile if available
-        if (userProfile && userProfile.balance > 0.05) {
-          setUserProfile({
-            ...userProfile,
-            balance: Math.max(0, userProfile.balance - 0.05),
-          });
-        }
+        // Requesting/allocating a number is 100% free (৳0.00). Balance is only earned/credited when OTP arrives.
       } else {
         const errMsg = result.message || "No numbers available in this range. Try a different range.";
         setProvisionMsg(`❌ ${errMsg}`);
