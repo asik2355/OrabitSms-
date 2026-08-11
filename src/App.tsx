@@ -19,7 +19,10 @@ import {
   saveFeedNumberToSupabase,
   bulkSyncFeedNumbersToSupabase,
 } from "./lib/supabaseFeed";
-import { incrementUserSuccessAndBalanceInSupabase } from "./lib/userProfiles";
+import {
+  incrementUserSuccessAndBalanceInSupabase,
+  saveUserProfileToSupabase,
+} from "./lib/userProfiles";
 import { safeLocalStorageSet, safeLocalStorageGet } from "./lib/storageUtils";
 import { TimeAgoBadge, formatTimeAgo } from "./components/TimeAgoBadge";
 import { UserProfileView } from "./components/UserProfileView";
@@ -538,14 +541,63 @@ export default function App() {
   };
 
   const userSuccessMessages = React.useMemo(() => {
-    return feedNumbers.filter((f) => f.status === "SUCCESS");
+    return feedNumbers.filter(
+      (f) => f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success"
+    );
   }, [feedNumbers]);
 
   const todayRevenueBDT = React.useMemo(() => {
-    return userSuccessMessages.reduce((sum, msg) => sum + getServiceRateBDT(msg.service), 0);
+    return userSuccessMessages.reduce((sum, msg) => {
+      const msgCount = msg.messages && msg.messages.length > 0 ? msg.messages.length : 1;
+      return sum + getServiceRateBDT(msg.service) * msgCount;
+    }, 0);
   }, [userSuccessMessages]);
 
-  const todayOtpsCount = userSuccessMessages.length;
+  const todayOtpsCount = React.useMemo(() => {
+    return userSuccessMessages.reduce((sum, msg) => {
+      const msgCount = msg.messages && msg.messages.length > 0 ? msg.messages.length : 1;
+      return sum + msgCount;
+    }, 0);
+  }, [userSuccessMessages]);
+
+  const formatBalanceDisplay = (balanceBDT: number, currCurrency: string) => {
+    if (currCurrency === "BDT") {
+      return `৳${(balanceBDT || 0).toFixed(2)}`;
+    }
+    const usdVal = (balanceBDT || 0) / usdExchangeRate;
+    if (balanceBDT > 0 && usdVal < 0.01) {
+      return `$${usdVal.toFixed(3)}`;
+    }
+    return `$${usdVal.toFixed(2)}`;
+  };
+
+  // Auto-sync user profile balance with feed earnings if DB profile balance is lower than total feed earnings
+  useEffect(() => {
+    if (!currentUserEmail || !userProfile) return;
+
+    let totalFeedEarnedBDT = 0;
+    feedNumbers.forEach((f) => {
+      if (f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success") {
+        const msgCount = f.messages && f.messages.length > 0 ? f.messages.length : 1;
+        totalFeedEarnedBDT += getServiceRateBDT(f.service) * msgCount;
+      }
+    });
+
+    totalFeedEarnedBDT = Number(totalFeedEarnedBDT.toFixed(2));
+
+    if (totalFeedEarnedBDT > 0 && (userProfile.balance || 0) < totalFeedEarnedBDT) {
+      setUserProfile((prev) => {
+        if (!prev) return prev;
+        const updatedBalance = Math.max(prev.balance || 0, totalFeedEarnedBDT);
+        if (updatedBalance !== prev.balance) {
+          const updated = { ...prev, balance: updatedBalance };
+          saveUserProfileToSupabase(updated);
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [feedNumbers, currentUserEmail, userProfile?.balance]);
 
   useEffect(() => {
     try {
@@ -1382,9 +1434,7 @@ export default function App() {
           >
             <Wallet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="font-mono">
-              {currency === "BDT"
-                ? `৳${userProfile.balance.toFixed(2)}`
-                : `$${(userProfile.balance / usdExchangeRate).toFixed(2)}`}
+              {formatBalanceDisplay(userProfile.balance, currency)}
             </span>
             <span className="text-[10px] bg-emerald-500/20 px-1 sm:px-1.5 py-0.5 rounded text-emerald-300 font-mono uppercase font-bold flex items-center gap-0.5">
               <span>{currency}</span>
@@ -2999,7 +3049,7 @@ export default function App() {
                 </div>
                 <div className="text-right">
                   <span className="font-bold text-cyan-400 text-sm">
-                    ${(userProfile.balance / usdExchangeRate).toFixed(2)}
+                    {formatBalanceDisplay(userProfile.balance, "USD")}
                   </span>
                 </div>
               </div>
