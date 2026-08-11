@@ -2056,9 +2056,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
-                    {currency === "BDT"
-                      ? `৳${todayRevenueBDT.toFixed(2)}`
-                      : `$${(todayRevenueBDT / usdExchangeRate).toFixed(2)}`}
+                    {formatBalanceDisplay(todayRevenueBDT, currency)}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Earnings from successful OTPs</div>
                 </div>
@@ -2143,9 +2141,7 @@ export default function App() {
                         userTopPerformers.slice(0, 5).map((item) => {
                           const rateBDT = getServiceRateBDT(item.name);
                           const earningsBDT = item.count * rateBDT;
-                          const earningsFormatted = currency === "BDT" 
-                            ? `৳${earningsBDT.toFixed(2)}`
-                            : `$${(earningsBDT / usdExchangeRate).toFixed(2)}`;
+                          const earningsFormatted = formatBalanceDisplay(earningsBDT, currency);
                           return (
                             <tr key={item.name} className="hover:bg-slate-800/50 hover:scale-[1.005] transition-all duration-200 cursor-pointer">
                               <td className="py-3 px-3 flex items-center gap-3">

@@ -1093,7 +1093,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
             </div>
           </div>
           <div className="text-2xl font-black text-white font-mono">
-            ${(todayRevenueBDT / 100).toFixed(2)}
+            {todayRevenueBDT > 0 && (todayRevenueBDT / 100) < 0.01
+              ? `$${(todayRevenueBDT / 100).toFixed(3)}`
+              : `$${(todayRevenueBDT / 100).toFixed(2)}`}
           </div>
           <div className="text-[11px] text-slate-500">Earnings from successful OTPs</div>
         </div>
@@ -1195,7 +1197,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                             </td>
                             <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">{item.count}</td>
                             <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">
-                              ${earningsUsd.toFixed(2)}
+                              {earningsUsd > 0 && earningsUsd < 0.01
+                                ? `$${earningsUsd.toFixed(3)}`
+                                : `$${earningsUsd.toFixed(2)}`}
                             </td>
                           </tr>
                         );
