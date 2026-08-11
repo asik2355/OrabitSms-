@@ -426,6 +426,7 @@ export default function App() {
     }
   }, [all24hHits]);
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);
+  const [feedCurrentPage, setFeedCurrentPage] = useState<number>(1);
   const [isRefreshingFeed, setIsRefreshingFeed] = useState<boolean>(false);
 
   // Fetch feed numbers directly from Supabase database
@@ -1019,6 +1020,7 @@ export default function App() {
         };
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
+        setFeedCurrentPage(1);
         if (currentUserEmail) {
           saveFeedNumberToSupabase(currentUserEmail, newFeedItem);
         }
@@ -1064,6 +1066,14 @@ export default function App() {
     if (feedFilter === "ALL") return true;
     return f.status === feedFilter;
   });
+
+  const feedItemsPerPage = 20;
+  const totalFeedItems = filteredFeed.length;
+  const totalFeedPages = Math.max(1, Math.ceil(totalFeedItems / feedItemsPerPage));
+  const safeFeedPage = Math.min(feedCurrentPage, totalFeedPages);
+  const feedStartIndex = (safeFeedPage - 1) * feedItemsPerPage;
+  const feedEndIndex = Math.min(feedStartIndex + feedItemsPerPage, totalFeedItems);
+  const paginatedFeed = filteredFeed.slice(feedStartIndex, feedEndIndex);
 
   // Range Service Detection helper
   const rangeServiceAnalysis = React.useMemo(() => {
@@ -2505,7 +2515,9 @@ export default function App() {
               {/* Header Bar */}
               <div className="flex items-center justify-between text-xs text-slate-400 font-mono pb-1 border-b border-slate-800/70">
                 <span>
-                  {feedNumbers.length === 0 ? "No results" : `1-${feedNumbers.length} of ${feedNumbers.length}`}
+                  {totalFeedItems === 0
+                    ? "No results"
+                    : `${feedStartIndex + 1}-${feedEndIndex} of ${totalFeedItems}`}
                 </span>
                 <button
                   onClick={() => refreshFeedFromDatabase(false)}
@@ -2525,8 +2537,8 @@ export default function App() {
                 <div className="col-span-3 sm:col-span-3 text-right">ACTIVITY</div>
               </div>
 
-              {/* EMPTY STATE - Shown when feedNumbers length is 0 */}
-              {feedNumbers.length === 0 ? (
+              {/* EMPTY STATE - Shown when totalFeedItems is 0 */}
+              {totalFeedItems === 0 ? (
                 <div className="py-16 flex flex-col items-center justify-center text-center space-y-3">
                   <Ghost className="w-12 h-12 text-slate-600/80 stroke-[1.5]" />
                   <p className="text-slate-500 text-xs font-mono font-medium">
@@ -2534,9 +2546,9 @@ export default function App() {
                   </p>
                 </div>
               ) : (
-                /* LIST OF REQUESTED NUMBERS */
+                /* LIST OF REQUESTED NUMBERS (20 PER PAGE) */
                 <div className="space-y-2 pt-1">
-                  {feedNumbers.map((item) => {
+                  {paginatedFeed.map((item) => {
                     const displayNum = noPlus ? item.number : (item.number.startsWith("+") ? item.number : `+${item.number}`);
                     return (
                       <div
@@ -2544,21 +2556,21 @@ export default function App() {
                         className="p-2.5 sm:p-3 rounded-xl bg-[#090d18] border border-slate-800/80 hover:border-slate-700 transition-all grid grid-cols-12 items-center gap-1.5"
                       >
                         {/* NUMBER INFO COLUMN */}
-                        <div className="col-span-5 space-y-0.5">
-                          <div className="font-mono text-[11px] sm:text-xs font-bold text-white tracking-wide flex items-center gap-1">
+                        <div className="col-span-5 space-y-1">
+                          <div className="font-mono text-xs sm:text-sm font-bold text-white tracking-wide flex items-center gap-1.5">
                             <span>{displayNum}</span>
                             <button
                               onClick={() => copyToClipboard(displayNum, `Copied ${displayNum}`)}
                               className="text-slate-500 hover:text-slate-200 cursor-pointer"
                               title="Copy number"
                             >
-                              <Copy className="w-2.5 h-2.5" />
+                              <Copy className="w-3 h-3" />
                             </button>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span
-                              className={`text-[8px] sm:text-[9px] font-mono font-bold px-1.5 py-0.2 rounded uppercase tracking-tight ${
+                              className={`text-[9px] sm:text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wide ${
                                 item.status === "FAILED"
                                   ? "bg-rose-950/80 text-rose-400 border border-rose-800/60"
                                   : item.status === "SUCCESS"
@@ -2576,12 +2588,12 @@ export default function App() {
                                   const msgToCopy = item.rawMessage || `<#> ${item.otpCode} is your verification code`;
                                   copyToClipboard(msgToCopy, `Copied ${msgToCopy}`);
                                 }}
-                                className="inline-flex items-center gap-1 bg-[#121829] border border-amber-500/40 hover:border-amber-400 px-1.5 py-0.2 rounded text-amber-300 font-mono font-bold text-[9px] shadow-sm transition-all cursor-pointer group"
+                                className="inline-flex items-center gap-1.5 bg-[#121829] border border-amber-500/40 hover:border-amber-400 px-2 py-0.5 rounded text-amber-300 font-mono font-bold text-[10px] shadow-sm transition-all cursor-pointer group"
                                 title="Click to copy full raw message"
                               >
-                                <ServiceLogo name={item.service} className="w-3 h-3 shrink-0" />
+                                <ServiceLogo name={item.service} className="w-3.5 h-3.5 shrink-0" />
                                 <span>{item.otpCode}</span>
-                                <Copy className="w-2.5 h-2.5 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+                                <Copy className="w-3 h-3 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
                               </button>
                             )}
                           </div>
@@ -2589,10 +2601,10 @@ export default function App() {
 
                         {/* COUNTRY / OPERATOR COLUMN */}
                         <div className="col-span-4 space-y-0.5">
-                          <div className="text-[11px] font-medium text-slate-200 truncate">
+                          <div className="text-xs sm:text-sm font-semibold text-slate-200 truncate">
                             {item.country}
                           </div>
-                          <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1 truncate">
+                          <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono flex items-center gap-1 truncate">
                             <span>{item.operator}</span>
                           </div>
                         </div>
@@ -2608,6 +2620,30 @@ export default function App() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* PAGINATION CONTROLS */}
+              {totalFeedItems > 0 && (
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs font-mono">
+                  <button
+                    onClick={() => setFeedCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeFeedPage <= 1}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold cursor-pointer"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-slate-400 font-semibold">
+                    Page <span className="text-emerald-400 font-bold">{safeFeedPage}</span> of{" "}
+                    <span className="text-white font-bold">{totalFeedPages}</span>
+                  </span>
+                  <button
+                    onClick={() => setFeedCurrentPage((p) => Math.min(totalFeedPages, p + 1))}
+                    disabled={safeFeedPage >= totalFeedPages}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold cursor-pointer"
+                  >
+                    Next
+                  </button>
                 </div>
               )}
             </div>

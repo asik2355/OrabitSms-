@@ -59,10 +59,10 @@ export const TimeAgoBadge: React.FC<TimeAgoBadgeProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border shadow-sm backdrop-blur-sm transition-all font-mono text-[10px] font-bold ${colorStyle} ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border shadow-sm backdrop-blur-sm transition-all font-mono text-[11px] sm:text-xs font-bold ${colorStyle} ${className}`}
     >
       {/* Animated Logo / Clock Icon */}
-      <Clock className={`w-3 h-3 ${iconColor} animate-spin [animation-duration:9s] shrink-0`} />
+      <Clock className={`w-3.5 h-3.5 ${iconColor} animate-spin [animation-duration:9s] shrink-0`} />
 
       {/* Formatted Time String like 15M Ago / 8h Ago / Just Now */}
       <span className="tracking-tight whitespace-nowrap">{timeText}</span>

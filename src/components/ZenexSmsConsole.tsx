@@ -350,6 +350,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   };
 
   const [feedNumbers, setFeedNumbers] = useState<FeedNumber[]>([]);
+  const [feedCurrentPage, setFeedCurrentPage] = useState<number>(1);
   const [isRefreshingFeed, setIsRefreshingFeed] = useState<boolean>(false);
 
   const refreshConsoleFeed = async (silent = false) => {
@@ -690,6 +691,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
         };
 
         setFeedNumbers((prev) => [newFeedItem, ...prev]);
+        setFeedCurrentPage(1);
         if (userEmail) {
           saveFeedNumberToSupabase(userEmail, newFeedItem);
         }
@@ -761,6 +763,14 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     if (feedFilter === "ALL") return true;
     return f.status === feedFilter;
   });
+
+  const feedItemsPerPage = 20;
+  const totalFeedItems = filteredFeed.length;
+  const totalFeedPages = Math.max(1, Math.ceil(totalFeedItems / feedItemsPerPage));
+  const safeFeedPage = Math.min(feedCurrentPage, totalFeedPages);
+  const feedStartIndex = (safeFeedPage - 1) * feedItemsPerPage;
+  const feedEndIndex = Math.min(feedStartIndex + feedItemsPerPage, totalFeedItems);
+  const paginatedFeed = filteredFeed.slice(feedStartIndex, feedEndIndex);
 
   // Personal top performers for logged-in user on Dashboard
   const userTopPerformers = React.useMemo(() => {
@@ -1539,13 +1549,13 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
             {/* Feed Items */}
             <div className="space-y-2">
-              {filteredFeed.map((item) => (
+              {paginatedFeed.map((item) => (
                 <div
                   key={item.id}
                   className="p-2.5 sm:p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between gap-2"
                 >
-                  <div className="space-y-0.5">
-                    <div className="font-mono text-[11px] sm:text-xs font-bold text-white tracking-wide">
+                  <div className="space-y-1">
+                    <div className="font-mono text-xs sm:text-sm font-bold text-white tracking-wide">
                       {item.number}
                     </div>
                     <div className="flex items-center gap-1">
@@ -1557,9 +1567,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                     </div>
                   </div>
 
-                  <div className="text-right space-y-0.5">
+                  <div className="text-right space-y-1">
                     <span
-                      className={`text-[8px] sm:text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                      className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
                         item.status === "FAILED"
                           ? "bg-rose-950 text-rose-400 border border-rose-800/60"
                           : item.status === "SUCCESS"
@@ -1569,13 +1579,37 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                     >
                       {item.status}
                     </span>
-                    <div className="text-[9px] sm:text-[10px] text-slate-400 font-mono">
+                    <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono">
                       {item.country} • {item.operator}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+
+            {/* Pagination Controls */}
+            {totalFeedItems > 0 && (
+              <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs font-mono">
+                <button
+                  onClick={() => setFeedCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safeFeedPage <= 1}
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold cursor-pointer"
+                >
+                  Prev
+                </button>
+                <span className="text-slate-400 font-semibold">
+                  Page <span className="text-emerald-400 font-bold">{safeFeedPage}</span> of{" "}
+                  <span className="text-white font-bold">{totalFeedPages}</span>
+                </span>
+                <button
+                  onClick={() => setFeedCurrentPage((p) => Math.min(totalFeedPages, p + 1))}
+                  disabled={safeFeedPage >= totalFeedPages}
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
