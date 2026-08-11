@@ -171,7 +171,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const totalUsersCount = registeredUsers.length;
   const totalSystemAllocations = feedNumbers.length;
   const totalSystemSuccess = useMemo(
-    () => feedNumbers.filter((f) => f.status === "SUCCESS").length,
+    () => feedNumbers.filter((f) => f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success").length,
     [feedNumbers]
   );
   const totalSystemFailed = useMemo(
@@ -603,7 +603,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
               <span className="text-slate-400 text-[10px] font-sans font-semibold uppercase">Completed Numbers</span>
-              <p className="text-lg font-bold text-emerald-400">{feedNumbers.filter(f => f.status === "success").length}</p>
+              <p className="text-lg font-bold text-emerald-400">{feedNumbers.filter(f => f.status === "success" || f.status === "SUCCESS" || f.status === "MULTI SUCCESS").length}</p>
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
               <span className="text-slate-400 text-[10px] font-sans font-semibold uppercase">Cancelled / Expired</span>

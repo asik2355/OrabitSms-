@@ -537,42 +537,80 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
           let updated = false;
 
           const newFeed = prevFeed.map((item) => {
-            // Check if matched OTP received
-            const matchedOtp = fetchedOtps.find((o) => {
-              const oNum = (o.number || "").replace(/\D/g, "");
-              const iNum = (item.number || "").replace(/\D/g, "");
+            const isAlreadySuccess = item.status === "SUCCESS" || item.status === "MULTI SUCCESS";
+
+            // Find all matching OTPs for this number in fetchedOtps
+            const iNum = (item.number || "").replace(/\D/g, "");
+            const matchingOtps = fetchedOtps.filter((o) => {
+              if (!o || !o.number) return false;
+              const oNum = o.number.replace(/\D/g, "");
               return oNum === iNum || oNum.endsWith(iNum) || iNum.endsWith(oNum);
             });
 
-            if (matchedOtp && item.status !== "SUCCESS") {
-              updated = true;
-              const extracted = extractOtpFromMessage(matchedOtp.message);
-              const { service: autoDetected } = detectServiceAndColor(matchedOtp.message, matchedOtp.service || item.service);
-              const finalService = (autoDetected && autoDetected !== "SMS OTP" && autoDetected !== "OTHER")
-                ? autoDetected
-                : (item.service && item.service !== "SMS OTP" ? item.service : "INSTAGRAM");
+            if (matchingOtps.length > 0) {
+              const existingRaw = item.rawMessage || "";
+              const existingMessages = item.messages || [];
 
-              const earnedRate = getServiceRateBDT(finalService);
-              if (userEmail) {
-                incrementUserSuccessAndBalanceInSupabase(userEmail, earnedRate).then((res) => {
-                  if (res) {
-                    setUserProfile((prev) => (prev ? { ...prev, balance: res.newBalance, totalSuccess: res.newTotalSuccess } : null));
+              // Filter to unrecorded OTP messages
+              const unrecordedOtps = matchingOtps.filter((o) => {
+                if (!o.message) return false;
+                const existsInRaw = existingRaw.includes(o.message);
+                const existsInMsgs = existingMessages.some((m) => m.raw === o.message);
+                return !existsInRaw && !existsInMsgs;
+              });
+
+              if (unrecordedOtps.length > 0) {
+                updated = true;
+                let currentMessages = [...existingMessages];
+
+                unrecordedOtps.forEach((newOtp) => {
+                  const code = extractOtpFromMessage(newOtp.message);
+                  currentMessages.unshift({
+                    code: code || undefined,
+                    raw: newOtp.message,
+                    timestamp: now,
+                  });
+
+                  // Billing security: credit balance + 1 totalSuccess for each NEW message received
+                  const { service: autoDetected } = detectServiceAndColor(newOtp.message, newOtp.service || item.service);
+                  const finalService = (autoDetected && autoDetected !== "SMS OTP" && autoDetected !== "OTHER")
+                    ? autoDetected
+                    : (item.service && item.service !== "SMS OTP" ? item.service : "INSTAGRAM");
+
+                  const earnedRate = getServiceRateBDT(finalService);
+                  if (userEmail) {
+                    incrementUserSuccessAndBalanceInSupabase(userEmail, earnedRate).then((res) => {
+                      if (res) {
+                        setUserProfile((prev) => (prev ? { ...prev, balance: res.newBalance, totalSuccess: res.newTotalSuccess } : null));
+                      }
+                    });
                   }
                 });
+
+                const latestOtp = unrecordedOtps[0];
+                const { service: autoDetected } = detectServiceAndColor(latestOtp.message, latestOtp.service || item.service);
+                const finalService = (autoDetected && autoDetected !== "SMS OTP" && autoDetected !== "OTHER")
+                  ? autoDetected
+                  : (item.service && item.service !== "SMS OTP" ? item.service : "INSTAGRAM");
+
+                const finalStatus = currentMessages.length > 1 ? ("MULTI SUCCESS" as const) : ("SUCCESS" as const);
+                const combinedRaw = currentMessages.map((m) => m.raw).join("\n---\n");
+                const combinedCodes = currentMessages.map((m) => m.code).filter(Boolean).join(", ");
+
+                const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
+                const elapsedMins = reqTimestamp ? Math.floor((now - reqTimestamp) / 60000) : 0;
+                const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago`;
+
+                return {
+                  ...item,
+                  service: finalService,
+                  status: finalStatus,
+                  otpCode: combinedCodes || item.otpCode,
+                  rawMessage: combinedRaw || item.rawMessage,
+                  messages: currentMessages,
+                  timeAgo: timeAgoStr,
+                };
               }
-
-              const reqTimestamp = item.requestedAt || (item.id.startsWith("feed-") ? Number(item.id.replace("feed-", "")) : null);
-              const elapsedMins = reqTimestamp ? Math.floor((now - reqTimestamp) / 60000) : 0;
-              const timeAgoStr = elapsedMins < 1 ? "Just now" : `${elapsedMins}m ago`;
-
-              return {
-                ...item,
-                service: finalService,
-                status: "SUCCESS" as const,
-                otpCode: extracted,
-                rawMessage: matchedOtp.message,
-                timeAgo: timeAgoStr,
-              };
             }
 
             // Auto-heal existing items where rawMessage has keyword like Instagram but service was "SMS OTP"
@@ -592,7 +630,14 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
             if (reqTimestamp) {
               const elapsedMs = now - reqTimestamp;
 
-              if (item.status === "SUCCESS" || item.status === "FAILED") {
+              // STRICT STATE LOCK: SUCCESS / MULTI SUCCESS items are IMMUTABLE. Never downgrade to FAILED!
+              if (isAlreadySuccess) {
+                const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);
+                if (item.timeAgo !== timeAgoStr) {
+                  updated = true;
+                  return { ...item, timeAgo: timeAgoStr };
+                }
+              } else if (item.status === "FAILED") {
                 const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);
                 if (item.timeAgo !== timeAgoStr) {
                   updated = true;
@@ -761,6 +806,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
 
   const filteredFeed = feedNumbers.filter((f) => {
     if (feedFilter === "ALL") return true;
+    if (feedFilter === "SUCCESS") return f.status === "SUCCESS" || f.status === "MULTI SUCCESS";
     return f.status === feedFilter;
   });
 
@@ -1568,17 +1614,53 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                   </div>
 
                   <div className="text-right space-y-1">
-                    <span
-                      className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                        item.status === "FAILED"
-                          ? "bg-rose-950 text-rose-400 border border-rose-800/60"
-                          : item.status === "SUCCESS"
-                          ? "bg-emerald-950 text-emerald-400 border border-emerald-800/60"
-                          : "bg-amber-950 text-amber-400 border border-amber-800/60"
-                      }`}
-                    >
-                      {item.status}
-                    </span>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <span
+                        className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                          item.status === "FAILED"
+                            ? "bg-rose-950 text-rose-400 border border-rose-800/60"
+                            : item.status === "MULTI SUCCESS"
+                            ? "bg-emerald-900 text-emerald-300 border border-emerald-400 font-extrabold animate-pulse"
+                            : item.status === "SUCCESS"
+                            ? "bg-emerald-950 text-emerald-400 border border-emerald-800/60"
+                            : "bg-amber-950 text-amber-400 border border-amber-800/60"
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+
+                      {(item.status === "SUCCESS" || item.status === "MULTI SUCCESS") && (
+                        <div className="flex flex-wrap items-center justify-end gap-1">
+                          {(item.messages && item.messages.length > 0
+                            ? item.messages
+                            : [
+                                {
+                                  code: item.otpCode,
+                                  raw: item.rawMessage || `<#> ${item.otpCode} is your verification code`,
+                                  timestamp: Date.now(),
+                                },
+                              ]
+                          ).map((msg, mIdx) => {
+                            const codeStr = msg.code || extractOtpFromMessage(msg.raw) || item.otpCode;
+                            if (!codeStr) return null;
+                            return (
+                              <button
+                                key={mIdx}
+                                onClick={() => {
+                                  const msgToCopy = msg.raw || `<#> ${codeStr} is your verification code`;
+                                  navigator.clipboard.writeText(msgToCopy);
+                                }}
+                                className="inline-flex items-center gap-1 bg-amber-950/80 border border-amber-500/50 hover:border-amber-400 px-1.5 py-0.5 rounded text-amber-300 font-mono font-bold text-[10px] transition-all cursor-pointer"
+                                title={`Click to copy OTP message #${mIdx + 1}`}
+                              >
+                                <span>{codeStr}</span>
+                                <Copy className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono">
                       {item.country} • {item.operator}
                     </div>

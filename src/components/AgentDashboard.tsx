@@ -262,7 +262,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
 
   // Calculations for Today & Yesterday metrics
   const todayOtpsCount = useMemo(() => {
-    return todayFeeds.filter((f) => f.status === "SUCCESS" || !f.status).length;
+    return todayFeeds.filter((f) => f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || !f.status).length;
   }, [todayFeeds]);
 
   const todayRevenueUSD = useMemo(() => {
@@ -270,7 +270,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
   }, [todayOtpsCount]);
 
   const yesterdayOtpsCount = useMemo(() => {
-    return yesterdayFeeds.filter((f) => f.status === "SUCCESS" || !f.status).length;
+    return yesterdayFeeds.filter((f) => f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || !f.status).length;
   }, [yesterdayFeeds]);
 
   const yesterdayRevenueUSD = useMemo(() => {

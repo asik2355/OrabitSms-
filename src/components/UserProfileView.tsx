@@ -56,13 +56,50 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   // Security Toggles & Withdraw PIN
   const [showWithdrawPinSetup, setShowWithdrawPinSetup] = useState(false);
+  const [pinMode, setPinMode] = useState<"set" | "change" | "disable">("set");
+  const [currentWithdrawPin, setCurrentWithdrawPin] = useState("");
   const [newWithdrawPin, setNewWithdrawPin] = useState("");
   const [confirmWithdrawPin, setConfirmWithdrawPin] = useState("");
   const [pinMsg, setPinMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const handleOpenPinForm = (mode: "set" | "change" | "disable") => {
+    setPinMode(mode);
+    setCurrentWithdrawPin("");
+    setNewWithdrawPin("");
+    setConfirmWithdrawPin("");
+    setPinMsg(null);
+    setShowWithdrawPinSetup(true);
+  };
+
   const handleSaveWithdrawPinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPinMsg(null);
+
+    if (pinMode === "disable") {
+      if (!currentWithdrawPin || currentWithdrawPin !== userProfile.withdrawPin) {
+        setPinMsg({ type: "error", text: "Incorrect Current Withdraw PIN!" });
+        return;
+      }
+
+      const updated = { ...userProfile, withdrawPin: "" };
+      onUpdateProfile(updated);
+      saveUserProfileToSupabase(updated);
+
+      setPinMsg({ type: "success", text: "Withdraw PIN turned off! 2-Step Payment security is now disabled." });
+      setCurrentWithdrawPin("");
+      setTimeout(() => {
+        setPinMsg(null);
+        setShowWithdrawPinSetup(false);
+      }, 2500);
+      return;
+    }
+
+    if (pinMode === "change") {
+      if (!currentWithdrawPin || currentWithdrawPin !== userProfile.withdrawPin) {
+        setPinMsg({ type: "error", text: "Incorrect Current Withdraw PIN!" });
+        return;
+      }
+    }
 
     if (!newWithdrawPin || !/^\d{4}$/.test(newWithdrawPin)) {
       setPinMsg({ type: "error", text: "New Withdraw PIN must be exactly 4 numeric digits!" });
@@ -78,7 +115,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     onUpdateProfile(updated);
     saveUserProfileToSupabase(updated);
 
-    setPinMsg({ type: "success", text: "Withdraw PIN saved successfully! 2-Step Payment security is now active." });
+    setPinMsg({
+      type: "success",
+      text: pinMode === "change"
+        ? "Withdraw PIN updated successfully!"
+        : "Withdraw PIN set successfully! 2-Step Payment security is now active."
+    });
+    setCurrentWithdrawPin("");
     setNewWithdrawPin("");
     setConfirmWithdrawPin("");
     setTimeout(() => {
@@ -390,7 +433,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4 text-xs">
           {/* Toggle / Setting: 2 STEP (Payments) */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <div className="font-bold text-white flex items-center gap-2">
                   <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
@@ -408,16 +451,57 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 </div>
                 <p className="text-[11px] text-slate-400">Require 4-digit PIN authorization for payouts & wallet updates</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowWithdrawPinSetup(!showWithdrawPinSetup)}
-                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-95 border border-slate-700 shrink-0"
-              >
-                {userProfile.withdrawPin ? (showWithdrawPinSetup ? "Close" : "Change PIN") : (showWithdrawPinSetup ? "Close" : "Set PIN")}
-              </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {userProfile.withdrawPin && userProfile.withdrawPin.length === 4 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (showWithdrawPinSetup && pinMode === "change") {
+                          setShowWithdrawPinSetup(false);
+                        } else {
+                          handleOpenPinForm("change");
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-95 border border-slate-700"
+                    >
+                      {showWithdrawPinSetup && pinMode === "change" ? "Close" : "Change PIN"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (showWithdrawPinSetup && pinMode === "disable") {
+                          setShowWithdrawPinSetup(false);
+                        } else {
+                          handleOpenPinForm("disable");
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 hover:text-rose-200 font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-95 border border-rose-800/60"
+                    >
+                      {showWithdrawPinSetup && pinMode === "disable" ? "Close" : "Turn Off PIN"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (showWithdrawPinSetup && pinMode === "set") {
+                        setShowWithdrawPinSetup(false);
+                      } else {
+                        handleOpenPinForm("set");
+                      }
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-95 border border-emerald-500/30"
+                  >
+                    {showWithdrawPinSetup && pinMode === "set" ? "Close" : "Set PIN"}
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Withdraw PIN Setup Form */}
+            {/* Withdraw PIN Setup / Action Form */}
             {showWithdrawPinSetup && (
               <form onSubmit={handleSaveWithdrawPinSubmit} className="pt-3 border-t border-slate-800/60 space-y-3 animate-in fade-in duration-200">
                 {pinMsg && (
@@ -435,45 +519,131 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      New Withdraw PIN (4 Digits)
-                    </label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      required
-                      value={newWithdrawPin}
-                      onChange={(e) => setNewWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
-                      placeholder="••••"
-                      className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
-                    />
+                {/* Form Fields according to pinMode */}
+                {pinMode === "disable" && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-500/30 p-2.5 rounded-xl font-medium">
+                      🔒 Enter your current 4-digit Withdraw PIN to turn off 2-Step Payment security.
+                    </p>
+                    <div className="max-w-xs space-y-1">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                        Current Withdraw PIN
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        value={currentWithdrawPin}
+                        onChange={(e) => setCurrentWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="••••"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-rose-500 text-center text-lg font-mono tracking-[8px]"
+                      />
+                    </div>
                   </div>
+                )}
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Confirm Withdraw PIN
-                    </label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      required
-                      value={confirmWithdrawPin}
-                      onChange={(e) => setConfirmWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
-                      placeholder="••••"
-                      className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
-                    />
+                {pinMode === "change" && (
+                  <div className="space-y-3">
+                    <div className="max-w-xs space-y-1">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                        Current Withdraw PIN
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        value={currentWithdrawPin}
+                        onChange={(e) => setCurrentWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="••••"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          New Withdraw PIN
+                        </label>
+                        <input
+                          type="password"
+                          maxLength={4}
+                          required
+                          value={newWithdrawPin}
+                          onChange={(e) => setNewWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                          placeholder="••••"
+                          className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Confirm New PIN
+                        </label>
+                        <input
+                          type="password"
+                          maxLength={4}
+                          required
+                          value={confirmWithdrawPin}
+                          onChange={(e) => setConfirmWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                          placeholder="••••"
+                          className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {pinMode === "set" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        New Withdraw PIN (4 Digits)
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        value={newWithdrawPin}
+                        onChange={(e) => setNewWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="••••"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Confirm Withdraw PIN
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        value={confirmWithdrawPin}
+                        onChange={(e) => setConfirmWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="••••"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end pt-1">
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-xl bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    className={`px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer ${
+                      pinMode === "disable"
+                        ? "bg-rose-600 hover:bg-rose-500 text-white"
+                        : "bg-[#2EE59D] hover:bg-emerald-400 text-slate-950"
+                    }`}
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    <span>Save Withdraw PIN</span>
+                    <span>
+                      {pinMode === "disable"
+                        ? "Turn Off Withdraw PIN"
+                        : pinMode === "change"
+                        ? "Update Withdraw PIN"
+                        : "Save Withdraw PIN"}
+                    </span>
                   </button>
                 </div>
               </form>

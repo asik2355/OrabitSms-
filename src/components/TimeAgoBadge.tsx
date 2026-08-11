@@ -33,7 +33,7 @@ export function formatTimeAgo(reqTimestamp?: number | null, fallbackStr?: string
 interface TimeAgoBadgeProps {
   requestedAt?: number | null;
   timeAgo?: string;
-  status?: "SUCCESS" | "FAILED" | "PENDING" | string;
+  status?: "SUCCESS" | "MULTI SUCCESS" | "FAILED" | "PENDING" | string;
   className?: string;
 }
 
@@ -45,10 +45,13 @@ export const TimeAgoBadge: React.FC<TimeAgoBadgeProps> = ({
 }) => {
   const timeText = formatTimeAgo(requestedAt, timeAgo);
 
-  const isSuccess = status === "SUCCESS";
+  const isMultiSuccess = status === "MULTI SUCCESS";
+  const isSuccess = status === "SUCCESS" || isMultiSuccess;
   const isFailed = status === "FAILED";
 
-  const colorStyle = isSuccess
+  const colorStyle = isMultiSuccess
+    ? "bg-emerald-950/90 border-emerald-400 text-emerald-300 shadow-emerald-900/60 ring-1 ring-emerald-500/50"
+    : isSuccess
     ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300 shadow-emerald-950/50"
     : isFailed
     ? "bg-rose-950/70 border-rose-500/40 text-rose-300 shadow-rose-950/50"

@@ -158,13 +158,18 @@ export type TabType = "builder" | "theme" | "ai_tools" | "domain_launch" | "expo
 export interface FeedNumber {
   id: string;
   number: string;
-  status: "SUCCESS" | "PENDING" | "FAILED";
+  status: "SUCCESS" | "MULTI SUCCESS" | "PENDING" | "FAILED";
   country: string;
   operator: string;
   timeAgo: string;
   service: string;
   otpCode?: string;
   rawMessage?: string;
+  messages?: Array<{
+    code?: string;
+    raw: string;
+    timestamp: number;
+  }>;
   requestedAt?: number;
 }
 

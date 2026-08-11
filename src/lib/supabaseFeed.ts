@@ -42,12 +42,33 @@ function mapRowToFeedNumber(row: any): FeedNumber {
   const reqTs = row.requested_at ? Number(row.requested_at) : Date.now();
   const elapsedMs = Date.now() - reqTs;
 
-  let finalStatus: "SUCCESS" | "PENDING" | "FAILED" = row.status as any;
+  let finalStatus: "SUCCESS" | "MULTI SUCCESS" | "PENDING" | "FAILED" = row.status as any;
   if (finalStatus === "PENDING" && elapsedMs >= 15 * 60 * 1000) {
     finalStatus = "FAILED";
   }
 
+  // Immutable lock: If row status in DB is SUCCESS or MULTI SUCCESS, never downgrade to FAILED/PENDING
+  if (row.status === "SUCCESS" || row.status === "MULTI SUCCESS") {
+    finalStatus = row.status;
+  }
+
   const dynamicTimeAgo = formatTimeAgo(reqTs, row.time_ago);
+
+  // Parse structured messages list if raw_message contains delimited messages
+  let messagesList: Array<{ code?: string; raw: string; timestamp: number }> | undefined = undefined;
+  if (row.raw_message) {
+    const rawParts = row.raw_message.split("\n---\n").filter(Boolean);
+    if (rawParts.length > 0) {
+      messagesList = rawParts.map((part: string, idx: number) => {
+        const match = part.match(/\b\d{4,8}\b/);
+        return {
+          raw: part,
+          code: match ? match[0] : undefined,
+          timestamp: reqTs - idx * 1000,
+        };
+      });
+    }
+  }
 
   return {
     id: row.id,
@@ -59,6 +80,7 @@ function mapRowToFeedNumber(row: any): FeedNumber {
     timeAgo: dynamicTimeAgo,
     otpCode: row.otp_code || undefined,
     rawMessage: row.raw_message || undefined,
+    messages: messagesList,
     requestedAt: reqTs,
   };
 }

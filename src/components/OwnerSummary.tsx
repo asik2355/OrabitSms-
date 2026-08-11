@@ -188,7 +188,7 @@ export const OwnerSummary: React.FC<OwnerSummaryProps> = ({
       if (clientEmail && perfMap.has(clientEmail)) {
         const rec = perfMap.get(clientEmail)!;
         rec.totalAllocations += 1;
-        if (f.status === "SUCCESS" || !f.status) {
+        if (f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || !f.status) {
           rec.totalSuccess += 1;
           rec.totalRevenueUSD += 0.006;
         } else if (f.status === "FAILED") {
@@ -261,7 +261,7 @@ export const OwnerSummary: React.FC<OwnerSummaryProps> = ({
         mapByDate[dateKey] = { allocation: 0, success: 0, failed: 0 };
       }
       mapByDate[dateKey].allocation += 1;
-      if (fn.status === "SUCCESS" || !fn.status) mapByDate[dateKey].success += 1;
+      if (fn.status === "SUCCESS" || fn.status === "MULTI SUCCESS" || !fn.status) mapByDate[dateKey].success += 1;
       else if (fn.status === "FAILED") mapByDate[dateKey].failed += 1;
     });
 

@@ -216,7 +216,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       }
       mapByDate[dateKey].allocation += 1;
       const statusUpper = (fn.status || "").toString().toUpperCase();
-      if (statusUpper === "SUCCESS" || statusUpper === "COMPLETED") {
+      if (statusUpper === "SUCCESS" || statusUpper === "MULTI SUCCESS" || statusUpper === "COMPLETED") {
         mapByDate[dateKey].success += 1;
       } else if (statusUpper === "FAILED" || statusUpper === "CANCELLED" || statusUpper === "EXPIRED") {
         mapByDate[dateKey].failed += 1;
@@ -302,7 +302,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
         const totalAlloc = userFeeds.length;
         const totalSucc = userFeeds.filter((f) => {
           const st = (f.status || "").toString().toUpperCase();
-          return st === "SUCCESS" || st === "COMPLETED";
+          return st === "SUCCESS" || st === "MULTI SUCCESS" || st === "COMPLETED";
         }).length;
 
         const succRate = totalAlloc > 0 ? Number(((totalSucc / totalAlloc) * 100).toFixed(1)) : 0;
