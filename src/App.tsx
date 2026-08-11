@@ -1370,7 +1370,6 @@ export default function App() {
           userProfile={userProfile}
           onConfirmLogout={async () => {
             await signOut();
-            window.history.pushState({}, "", "/login");
           }}
           onCancel={() => navigateToTab("dashboard")}
           currency={currency}
@@ -2965,14 +2964,8 @@ export default function App() {
         {activeTab === "logout" && (
           <LogoutPage
             userProfile={userProfile}
-            onConfirmLogout={() => {
-              try {
-                localStorage.removeItem("orabit_user_profile");
-                window.history.pushState({}, "", "/login");
-              } catch (e) {
-                console.error(e);
-              }
-              setUserProfile(null);
+            onConfirmLogout={async () => {
+              await signOut();
             }}
             onCancel={() => navigateToTab("dashboard")}
             currency={currency}

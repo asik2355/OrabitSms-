@@ -34,28 +34,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /**
    * Clears local storage and user state IMMEDIATELY and synchronously,
-   * then forces a redirect to /login so no zombie UI remains.
+   * performs Supabase signout, and hard-redirects to /login to ensure
+   * a 100% clean memory & state environment without freezes or loops.
    */
   const signOut = useCallback(async () => {
-    // 1. Immediately wipe local session & state (synchronous UI response)
-    localStorage.removeItem("orabit_user_profile");
-    setUserProfile(null);
-    setLoading(false);
-    setIsValidating(false);
-
-    // 2. Async sign out call to Supabase in background (do not block UI thread)
-    supabase.auth.signOut().catch((err) => {
-      console.warn("Background Supabase sign out warning:", err);
-    });
-
-    // 3. Force immediate navigation to /login page
     try {
-      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-        window.history.pushState({}, "", "/login");
-        window.dispatchEvent(new Event("popstate"));
-      }
+      // 1. Synchronously wipe local storage and state
+      localStorage.removeItem("orabit_user_profile");
+      localStorage.removeItem("orabit_saved_accounts");
+      setUserProfile(null);
+      setLoading(false);
+      setIsValidating(false);
+
+      // 2. Perform Supabase sign out with a quick 1-second timeout fallback
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ]).catch((err) => {
+        console.warn("Background Supabase sign out warning:", err);
+      });
     } catch (e) {
-      console.error("Redirect to login failed:", e);
+      console.error("SignOut error:", e);
+    } finally {
+      // 3. Force clean hard redirect to /login to completely unmount React tree,
+      // stop all active background intervals/listeners, and flush browser memory.
+      if (typeof window !== "undefined") {
+        window.location.replace("/login");
+      }
     }
   }, []);
 
@@ -158,7 +163,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Subscribe to auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
-        await signOut();
+        localStorage.removeItem("orabit_user_profile");
+        setUserProfile(null);
+        if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+          window.location.replace("/login");
+        }
       } else if (event === "USER_UPDATED" || event === "SIGNED_IN") {
         if (session) {
           await validateServerSession();
