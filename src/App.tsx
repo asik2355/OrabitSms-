@@ -2843,6 +2843,7 @@ export default function App() {
           <OrabitPaymentWallet
             userProfile={userProfile}
             onUpdateBalance={(newBal) => setUserProfile({ ...userProfile, balance: newBal })}
+            onUpdateProfile={(updated) => setUserProfile(updated)}
             currency={currency}
             usdExchangeRate={usdExchangeRate}
           />

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
+import { saveUserProfileToSupabase } from "../lib/userProfiles";
 import {
   User,
   Mail,
@@ -53,8 +54,38 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [city, setCity] = useState(userProfile.city || "Dhaka");
   const [telegramUsername, setTelegramUsername] = useState(userProfile.telegram || "@alif_sheikh");
 
-  // Security Toggles
-  const [twoFactorPayments, setTwoFactorPayments] = useState(false);
+  // Security Toggles & Withdraw PIN
+  const [showWithdrawPinSetup, setShowWithdrawPinSetup] = useState(false);
+  const [newWithdrawPin, setNewWithdrawPin] = useState("");
+  const [confirmWithdrawPin, setConfirmWithdrawPin] = useState("");
+  const [pinMsg, setPinMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSaveWithdrawPinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinMsg(null);
+
+    if (!newWithdrawPin || !/^\d{4}$/.test(newWithdrawPin)) {
+      setPinMsg({ type: "error", text: "New Withdraw PIN must be exactly 4 numeric digits!" });
+      return;
+    }
+
+    if (newWithdrawPin !== confirmWithdrawPin) {
+      setPinMsg({ type: "error", text: "New Withdraw PIN and Confirm PIN do not match!" });
+      return;
+    }
+
+    const updated = { ...userProfile, withdrawPin: newWithdrawPin };
+    onUpdateProfile(updated);
+    saveUserProfileToSupabase(updated);
+
+    setPinMsg({ type: "success", text: "Withdraw PIN saved successfully! 2-Step Payment security is now active." });
+    setNewWithdrawPin("");
+    setConfirmWithdrawPin("");
+    setTimeout(() => {
+      setPinMsg(null);
+      setShowWithdrawPinSetup(false);
+    }, 2500);
+  };
 
   // Change Password State
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -357,27 +388,96 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4 text-xs">
-          {/* Toggle: 2 STEP (Payments) */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="font-bold text-white flex items-center gap-2">
-                <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
-                <span>2 STEP (Payments)</span>
+          {/* Toggle / Setting: 2 STEP (Payments) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="font-bold text-white flex items-center gap-2">
+                  <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>2 STEP (Payments)</span>
+                  {userProfile.withdrawPin && userProfile.withdrawPin.length === 4 ? (
+                    <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold px-2 py-0.5 rounded-full">
+                      NOT SET
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400">Require 4-digit PIN authorization for payouts & wallet updates</p>
               </div>
-              <p className="text-[11px] text-slate-400">Require PIN or OTP authorization for payouts</p>
+              <button
+                type="button"
+                onClick={() => setShowWithdrawPinSetup(!showWithdrawPinSetup)}
+                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-95 border border-slate-700 shrink-0"
+              >
+                {userProfile.withdrawPin ? (showWithdrawPinSetup ? "Close" : "Change PIN") : (showWithdrawPinSetup ? "Close" : "Set PIN")}
+              </button>
             </div>
-            <button
-              onClick={() => setTwoFactorPayments(!twoFactorPayments)}
-              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
-                twoFactorPayments ? "bg-emerald-500" : "bg-slate-800"
-              }`}
-            >
-              <div
-                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                  twoFactorPayments ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
+
+            {/* Withdraw PIN Setup Form */}
+            {showWithdrawPinSetup && (
+              <form onSubmit={handleSaveWithdrawPinSubmit} className="pt-3 border-t border-slate-800/60 space-y-3 animate-in fade-in duration-200">
+                {pinMsg && (
+                  <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                    pinMsg.type === "success"
+                      ? "bg-emerald-950/80 border-emerald-500/40 text-emerald-300"
+                      : "bg-rose-950/80 border-rose-500/40 text-rose-300"
+                  }`}>
+                    {pinMsg.type === "success" ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
+                    <span>{pinMsg.text}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      New Withdraw PIN (4 Digits)
+                    </label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      value={newWithdrawPin}
+                      onChange={(e) => setNewWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                      placeholder="••••"
+                      className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Confirm Withdraw PIN
+                    </label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      value={confirmWithdrawPin}
+                      onChange={(e) => setConfirmWithdrawPin(e.target.value.replace(/[^0-9]/g, ""))}
+                      placeholder="••••"
+                      className="w-full bg-slate-900 border border-slate-800 text-slate-100 px-3.5 py-2 rounded-xl focus:outline-none focus:border-emerald-500 text-center text-lg font-mono tracking-[8px]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Save Withdraw PIN</span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
           {/* Change Password Section */}

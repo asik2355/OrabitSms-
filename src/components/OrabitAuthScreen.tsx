@@ -160,13 +160,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
-    if (!withdrawPin || withdrawPin.length !== 4) {
-      newErrors.withdrawPin = true;
-      setErrors(newErrors);
-      showAlert("Withdraw PIN must be exactly 4 digits", "error");
-      return;
-    }
-
     setErrors({});
     setIsSubmitting(true);
 
@@ -181,7 +174,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       city: city.trim() || "Dhaka",
       country: country.trim() || "Bangladesh",
       referralEmail: agentReferralEmail.trim(),
-      withdrawPin: withdrawPin.trim(),
+      withdrawPin: "",
       balance: isOwnerEmail ? 999.0 : 0.0,
       password: password,
       role: isOwnerEmail ? "Owner" : "Client",
@@ -204,7 +197,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               city: city.trim() || "Dhaka",
               country: country.trim() || "Bangladesh",
               referralEmail: agentReferralEmail.trim(),
-              withdrawPin: withdrawPin.trim(),
+              withdrawPin: "",
               role: "Client",
             },
           },
@@ -651,32 +644,6 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                     </p>
                   </div>
                 )}
-              </div>
-
-              {/* Withdraw PIN (4-Digit) */}
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-[#C8CCE8]">
-                  Withdraw PIN (4-Digit)
-                </label>
-                <div className="relative">
-                  <Lock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
-                  <input
-                    type="password"
-                    maxLength={4}
-                    value={withdrawPin}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, "");
-                      setWithdrawPin(val);
-                      if (errors.withdrawPin) setErrors({ ...errors, withdrawPin: false });
-                    }}
-                    placeholder="••••"
-                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 rounded-xl text-center font-mono text-xl tracking-[12px] text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all ${
-                      errors.withdrawPin
-                        ? "border-rose-500 focus:border-rose-500 animate-shake"
-                        : "border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10"
-                    }`}
-                  />
-                </div>
               </div>
 
               {/* Submit Button */}

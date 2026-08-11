@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { ServiceLogo } from "./ServiceLogo";
+import { saveUserProfileToSupabase } from "../lib/userProfiles";
 import {
   Wallet,
   CreditCard,
@@ -10,6 +11,7 @@ import {
   Clock,
   X,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 
 export interface PaymentMethodsData {
@@ -42,6 +44,7 @@ const DEFAULT_HISTORY: TransactionHistoryItem[] = [];
 interface OrabitPaymentWalletProps {
   userProfile: UserProfile;
   onUpdateBalance: (newBalance: number) => void;
+  onUpdateProfile?: (updated: UserProfile) => void;
   currency?: "BDT" | "USD";
   usdExchangeRate?: number;
 }
@@ -49,6 +52,7 @@ interface OrabitPaymentWalletProps {
 export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
   userProfile,
   onUpdateBalance,
+  onUpdateProfile,
   currency = "BDT",
   usdExchangeRate = 100,
 }) => {
@@ -135,6 +139,14 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
   const [formBinanceUid, setFormBinanceUid] = useState(methods.binanceUid);
   const [formBep20, setFormBep20] = useState(methods.bep20);
 
+  // PIN verification states
+  const [editModalPin, setEditModalPin] = useState("");
+  const [newWalletPin, setNewWalletPin] = useState("");
+  const [confirmWalletPin, setConfirmWalletPin] = useState("");
+  const [editModalError, setEditModalError] = useState<string | null>(null);
+
+  const [withdrawModalPin, setWithdrawModalPin] = useState("");
+
   // History Time Filter
   const [timeFilter, setTimeFilter] = useState<"All" | "7D" | "30D">("All");
 
@@ -162,12 +174,39 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     setFormNagad(methods.nagad);
     setFormBinanceUid(methods.binanceUid);
     setFormBep20(methods.bep20);
+    setEditModalPin("");
+    setNewWalletPin("");
+    setConfirmWalletPin("");
+    setEditModalError(null);
     setEditingKey(targetKey || null);
     setEditModalOpen(true);
   };
 
   const handleSaveMethods = (e: React.FormEvent) => {
     e.preventDefault();
+    setEditModalError(null);
+
+    const isPinSet = userProfile.withdrawPin && userProfile.withdrawPin.length === 4;
+
+    if (isPinSet) {
+      if (!editModalPin || editModalPin !== userProfile.withdrawPin) {
+        setEditModalError("Incorrect 4-Digit Withdraw PIN!");
+        return;
+      }
+    } else {
+      if (!newWalletPin || !/^\d{4}$/.test(newWalletPin)) {
+        setEditModalError("Please set a 4-digit Withdraw PIN!");
+        return;
+      }
+      if (newWalletPin !== confirmWalletPin) {
+        setEditModalError("Withdraw PIN and Confirm PIN do not match!");
+        return;
+      }
+      const updatedProfile = { ...userProfile, withdrawPin: newWalletPin };
+      if (onUpdateProfile) onUpdateProfile(updatedProfile);
+      saveUserProfileToSupabase(updatedProfile);
+    }
+
     const updated: PaymentMethodsData = {
       bkash: formBkash.trim(),
       nagad: formNagad.trim(),
@@ -182,6 +221,18 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     e.preventDefault();
     setWithdrawError(null);
     setWithdrawSuccess(null);
+
+    const isPinSet = userProfile.withdrawPin && userProfile.withdrawPin.length === 4;
+
+    if (!isPinSet) {
+      setWithdrawError("Please set your 4-digit Withdraw PIN in your Profile settings first!");
+      return;
+    }
+
+    if (!withdrawModalPin || withdrawModalPin !== userProfile.withdrawPin) {
+      setWithdrawError("Incorrect Withdraw PIN! Please enter your 4-digit PIN.");
+      return;
+    }
 
     const amt = parseFloat(withdrawAmount);
     if (isNaN(amt) || amt <= 0) {
@@ -230,6 +281,7 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     setHistory((prev) => [newTx, ...prev]);
     setWithdrawSuccess(`Withdrawal of ৳${amt.toFixed(2)} requested successfully to ${methodNames[selectedMethodKey]} (${savedAddress}).`);
     setWithdrawAmount("");
+    setWithdrawModalPin("");
     setTimeout(() => {
       setWithdrawModalOpen(false);
       setWithdrawSuccess(null);
@@ -547,6 +599,14 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
             </div>
 
             <form onSubmit={handleSaveMethods} className="space-y-4">
+              {/* Edit Modal Error Banner */}
+              {editModalError && (
+                <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{editModalError}</span>
+                </div>
+              )}
+
               {/* Bkash */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
@@ -606,6 +666,61 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-400 transition-all"
                 />
               </div>
+
+              {/* Withdraw PIN Section */}
+              {userProfile.withdrawPin && userProfile.withdrawPin.length === 4 ? (
+                <div className="pt-2 border-t border-slate-800/80 space-y-1">
+                  <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-emerald-400">
+                      <Lock className="w-3.5 h-3.5" />
+                      Withdraw PIN Authorization (Required)
+                    </span>
+                    <span className="text-[10px] text-slate-400">4-Digit Security PIN</span>
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    required
+                    value={editModalPin}
+                    onChange={(e) => setEditModalPin(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="••••"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-center text-base font-mono text-white tracking-[8px] focus:outline-none focus:border-emerald-500 transition-all"
+                  />
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                  <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>2-Step Withdraw PIN is not set yet. Create a 4-digit PIN to authorize future changes & payouts.</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-300">Set 4-Digit PIN</label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        value={newWalletPin}
+                        onChange={(e) => setNewWalletPin(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="••••"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-center text-sm font-mono text-white tracking-[6px] focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-300">Confirm PIN</label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        value={confirmWalletPin}
+                        onChange={(e) => setConfirmWalletPin(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="••••"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-center text-sm font-mono text-white tracking-[6px] focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-800/80">
                 <button
@@ -774,6 +889,26 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Withdraw PIN Authorization */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <Lock className="w-3.5 h-3.5" />
+                    Enter 4-Digit Withdraw PIN
+                  </span>
+                  <span className="text-[10px] text-slate-400">Security PIN</span>
+                </label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  required
+                  value={withdrawModalPin}
+                  onChange={(e) => setWithdrawModalPin(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="••••"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-center text-base font-mono text-white tracking-[8px] focus:outline-none focus:border-emerald-500 transition-all"
+                />
               </div>
 
               {/* Submit Button */}
