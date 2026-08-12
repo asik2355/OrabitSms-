@@ -384,23 +384,64 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     return () => clearInterval(syncInterval);
   }, [userEmail]);
 
-  const userSuccessMessages = React.useMemo(() => {
-    return feedNumbers.filter((f) => f.status === "SUCCESS");
+  const { todaySuccessMessages, yesterdaySuccessMessages, userSuccessMessages } = React.useMemo(() => {
+    const nowMs = Date.now();
+    const getBDStr = (ms: number) => {
+      const d = new Date(ms + 6 * 60 * 60 * 1000);
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    };
+    const todayStr = getBDStr(nowMs);
+    const yesterdayStr = getBDStr(nowMs - 86400000);
+
+    const allSuccess: FeedNumber[] = [];
+    const today: FeedNumber[] = [];
+    const yesterday: FeedNumber[] = [];
+
+    feedNumbers.forEach((f) => {
+      const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success";
+      if (!isSuccess) return;
+
+      allSuccess.push(f);
+
+      let ts = f.requestedAt;
+      if (!ts && f.id && f.id.startsWith("feed-")) {
+        const parsed = Number(f.id.replace("feed-", ""));
+        if (!isNaN(parsed) && parsed > 1000000000000) ts = parsed;
+      }
+
+      let dateKey = ts ? getBDStr(ts) : todayStr;
+      if (!ts) {
+        const timeAgoLower = (f.timeAgo || "").toLowerCase();
+        if (timeAgoLower.includes("1d") || timeAgoLower.includes("yesterday") || timeAgoLower.includes("20h") || timeAgoLower.includes("23h")) {
+          dateKey = yesterdayStr;
+        }
+      }
+
+      if (dateKey === todayStr) today.push(f);
+      else if (dateKey === yesterdayStr) yesterday.push(f);
+    });
+
+    return { todaySuccessMessages: today, yesterdaySuccessMessages: yesterday, userSuccessMessages: allSuccess };
   }, [feedNumbers]);
 
   const todayRevenueBDT = React.useMemo(() => {
-    if (userProfile?.balance !== undefined) {
-      return userProfile.balance;
-    }
-    return userSuccessMessages.reduce((sum, msg) => sum + getServiceRateBDT(msg.service), 0);
-  }, [userProfile?.balance, userSuccessMessages]);
+    return todaySuccessMessages.reduce((sum, msg) => sum + getServiceRateBDT(msg.service), 0);
+  }, [todaySuccessMessages]);
 
   const todayOtpsCount = React.useMemo(() => {
-    if (userProfile?.totalSuccess !== undefined) {
-      return Math.max(userProfile.totalSuccess, userSuccessMessages.length);
-    }
-    return userSuccessMessages.length;
-  }, [userProfile?.totalSuccess, userSuccessMessages.length]);
+    return todaySuccessMessages.length;
+  }, [todaySuccessMessages]);
+
+  const yesterdayRevenueBDT = React.useMemo(() => {
+    return yesterdaySuccessMessages.reduce((sum, msg) => sum + getServiceRateBDT(msg.service), 0);
+  }, [yesterdaySuccessMessages]);
+
+  const yesterdayOtpsCount = React.useMemo(() => {
+    return yesterdaySuccessMessages.length;
+  }, [yesterdaySuccessMessages]);
 
   useEffect(() => {
     try {
@@ -818,26 +859,27 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   const feedEndIndex = Math.min(feedStartIndex + feedItemsPerPage, totalFeedItems);
   const paginatedFeed = filteredFeed.slice(feedStartIndex, feedEndIndex);
 
-  // Personal top performers for logged-in user on Dashboard
+  // Personal top performers for logged-in user on Dashboard (Today's performance only)
   const userTopPerformers = React.useMemo(() => {
-    if (!userSuccessMessages || userSuccessMessages.length === 0) {
+    if (!todaySuccessMessages || todaySuccessMessages.length === 0) {
       return [];
     }
     const counts: Record<string, number> = {};
-    userSuccessMessages.forEach((m) => {
+    todaySuccessMessages.forEach((m) => {
+      const msgCount = m.messages && m.messages.length > 0 ? m.messages.length : 1;
       const s = (m.service || "OTHER").toUpperCase();
-      counts[s] = (counts[s] || 0) + 1;
+      counts[s] = (counts[s] || 0) + msgCount;
     });
-    const total = userSuccessMessages.length;
+    const total = todaySuccessMessages.reduce((sum, m) => sum + (m.messages && m.messages.length > 0 ? m.messages.length : 1), 0);
     const colors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
     const list = Object.entries(counts).map(([name, count], idx) => ({
       name,
       count,
-      percent: Math.round((count / total) * 100) + "%",
+      percent: Math.round((count / (total || 1)) * 100) + "%",
       color: colors[idx % colors.length],
     }));
     return list.sort((a, b) => b.count - a.count);
-  }, [userSuccessMessages]);
+  }, [todaySuccessMessages]);
 
   // Global Console Top Apps Distribution calculated from the last 300 messages across all users/API
   const appStats = React.useMemo(() => {
@@ -1084,7 +1126,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
       </div>
 
       {/* STATS CARDS GRID (Matching Screenshot 3) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 relative">
           <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
             <span>TODAY REVENUE</span>
@@ -1120,8 +1162,25 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
               <RefreshCw className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">$0.00</div>
+          <div className="text-2xl font-black text-white font-mono">
+            {yesterdayRevenueBDT > 0 && (yesterdayRevenueBDT / 100) < 0.01
+              ? `$${(yesterdayRevenueBDT / 100).toFixed(3)}`
+              : `$${(yesterdayRevenueBDT / 100).toFixed(2)}`}
+          </div>
           <div className="text-[11px] text-slate-500">Previous day performance</div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 relative">
+          <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
+            <span>YESTERDAY OTPS</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+              <MessageSquare className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-white font-mono">
+            {yesterdayOtpsCount}
+          </div>
+          <div className="text-[11px] text-slate-500">Yesterday verifications</div>
         </div>
       </div>
 

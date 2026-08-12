@@ -188,14 +188,17 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   // Compute live daily summary from the effective feedNumbers
   const liveSummaryData = useMemo(() => {
     const dates: string[] = [];
-    const baseDate = new Date("2026-08-09T00:00:00Z");
+    const nowMs = Date.now();
     for (let i = 29; i >= 0; i--) {
-      const d = new Date(baseDate.getTime() - i * 86400000);
+      const d = new Date(nowMs - i * 86400000 + 6 * 60 * 60 * 1000); // BD Time UTC+6
       const yyyy = d.getUTCFullYear();
       const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
       const dd = String(d.getUTCDate()).padStart(2, "0");
       dates.push(`${yyyy}-${mm}-${dd}`);
     }
+
+    const todayStr = dates[dates.length - 1];
+    const yesterdayStr = dates[dates.length - 2];
 
     const mapByDate: Record<string, { allocation: number; success: number; failed: number }> = {};
     dates.forEach((d) => {
@@ -203,14 +206,26 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     });
 
     effectiveFeedNumbers.forEach((fn) => {
-      let dateKey = "2026-08-09";
-      if (fn.requestedAt) {
-        const d = new Date(fn.requestedAt);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        dateKey = `${yyyy}-${mm}-${dd}`;
+      let ts = fn.requestedAt;
+      if (!ts && fn.id && fn.id.startsWith("feed-")) {
+        const parsed = Number(fn.id.replace("feed-", ""));
+        if (!isNaN(parsed) && parsed > 1000000000000) ts = parsed;
       }
+
+      let dateKey = todayStr;
+      if (ts) {
+        const d = new Date(ts + 6 * 60 * 60 * 1000);
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        dateKey = `${yyyy}-${mm}-${dd}`;
+      } else {
+        const timeAgoLower = (fn.timeAgo || "").toLowerCase();
+        if (timeAgoLower.includes("1d") || timeAgoLower.includes("yesterday") || timeAgoLower.includes("20h") || timeAgoLower.includes("23h")) {
+          dateKey = yesterdayStr;
+        }
+      }
+
       if (!mapByDate[dateKey]) {
         mapByDate[dateKey] = { allocation: 0, success: 0, failed: 0 };
       }
@@ -243,10 +258,15 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   // Filter data based on date range selection for summary cards & charts
   const filteredData = useMemo(() => {
     let list = [...liveSummaryData];
+    if (liveSummaryData.length === 0) return list;
+
+    const todayStr = liveSummaryData[liveSummaryData.length - 1]?.date;
+    const yesterdayStr = liveSummaryData[liveSummaryData.length - 2]?.date;
+
     if (dateRange === "Today") {
-      list = list.filter((item) => item.date === "2026-08-09");
+      list = list.filter((item) => item.date === todayStr);
     } else if (dateRange === "Yesterday") {
-      list = list.filter((item) => item.date === "2026-08-08");
+      list = list.filter((item) => item.date === yesterdayStr);
     } else if (dateRange === "7 Days" || dateRange === "Last 7 Days") {
       list = list.slice(-7);
     } else if (dateRange === "30 Days" || dateRange === "Last 30 Days") {

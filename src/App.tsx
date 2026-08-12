@@ -540,25 +540,76 @@ export default function App() {
     return 0.60; // 60 poisha = ৳0.60 BDT
   };
 
-  const userSuccessMessages = React.useMemo(() => {
-    return feedNumbers.filter(
-      (f) => f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success"
-    );
+  const { todaySuccessMessages, yesterdaySuccessMessages, userSuccessMessages } = React.useMemo(() => {
+    const nowMs = Date.now();
+    const getBDStr = (ms: number) => {
+      const d = new Date(ms + 6 * 60 * 60 * 1000);
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    };
+    const todayStr = getBDStr(nowMs);
+    const yesterdayStr = getBDStr(nowMs - 86400000);
+
+    const allSuccess: FeedNumber[] = [];
+    const today: FeedNumber[] = [];
+    const yesterday: FeedNumber[] = [];
+
+    feedNumbers.forEach((f) => {
+      const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success";
+      if (!isSuccess) return;
+
+      allSuccess.push(f);
+
+      let ts = f.requestedAt;
+      if (!ts && f.id && f.id.startsWith("feed-")) {
+        const parsed = Number(f.id.replace("feed-", ""));
+        if (!isNaN(parsed) && parsed > 1000000000000) ts = parsed;
+      }
+
+      let dateKey = ts ? getBDStr(ts) : todayStr;
+      if (!ts) {
+        const timeAgoLower = (f.timeAgo || "").toLowerCase();
+        if (timeAgoLower.includes("1d") || timeAgoLower.includes("yesterday") || timeAgoLower.includes("20h") || timeAgoLower.includes("23h")) {
+          dateKey = yesterdayStr;
+        }
+      }
+
+      if (dateKey === todayStr) today.push(f);
+      else if (dateKey === yesterdayStr) yesterday.push(f);
+    });
+
+    return { todaySuccessMessages: today, yesterdaySuccessMessages: yesterday, userSuccessMessages: allSuccess };
   }, [feedNumbers]);
 
   const todayRevenueBDT = React.useMemo(() => {
-    return userSuccessMessages.reduce((sum, msg) => {
+    return todaySuccessMessages.reduce((sum, msg) => {
       const msgCount = msg.messages && msg.messages.length > 0 ? msg.messages.length : 1;
       return sum + getServiceRateBDT(msg.service) * msgCount;
     }, 0);
-  }, [userSuccessMessages]);
+  }, [todaySuccessMessages]);
 
   const todayOtpsCount = React.useMemo(() => {
-    return userSuccessMessages.reduce((sum, msg) => {
+    return todaySuccessMessages.reduce((sum, msg) => {
       const msgCount = msg.messages && msg.messages.length > 0 ? msg.messages.length : 1;
       return sum + msgCount;
     }, 0);
-  }, [userSuccessMessages]);
+  }, [todaySuccessMessages]);
+
+  const yesterdayRevenueBDT = React.useMemo(() => {
+    return yesterdaySuccessMessages.reduce((sum, msg) => {
+      const msgCount = msg.messages && msg.messages.length > 0 ? msg.messages.length : 1;
+      return sum + getServiceRateBDT(msg.service) * msgCount;
+    }, 0);
+  }, [yesterdaySuccessMessages]);
+
+  const yesterdayOtpsCount = React.useMemo(() => {
+    return yesterdaySuccessMessages.reduce((sum, msg) => {
+      const msgCount = msg.messages && msg.messages.length > 0 ? msg.messages.length : 1;
+      return sum + msgCount;
+    }, 0);
+  }, [yesterdaySuccessMessages]);
 
   const formatBalanceDisplay = (balanceBDT: number, currCurrency: string) => {
     if (currCurrency === "BDT") {
@@ -1202,26 +1253,27 @@ export default function App() {
     };
   }, [targetRange, messages]);
 
-  // Personal top performers for logged-in user on Dashboard
+  // Personal top performers for logged-in user on Dashboard (Today's performance only)
   const userTopPerformers = React.useMemo(() => {
-    if (!userSuccessMessages || userSuccessMessages.length === 0) {
+    if (!todaySuccessMessages || todaySuccessMessages.length === 0) {
       return [];
     }
     const counts: Record<string, number> = {};
-    userSuccessMessages.forEach((m) => {
+    todaySuccessMessages.forEach((m) => {
+      const msgCount = m.messages && m.messages.length > 0 ? m.messages.length : 1;
       const s = (m.service || "OTHER").toUpperCase();
-      counts[s] = (counts[s] || 0) + 1;
+      counts[s] = (counts[s] || 0) + msgCount;
     });
-    const total = userSuccessMessages.length;
+    const total = todaySuccessMessages.reduce((sum, m) => sum + (m.messages && m.messages.length > 0 ? m.messages.length : 1), 0);
     const colors = ["#3b82f6", "#a855f7", "#eab308", "#10b981", "#ec4899", "#38bdf8"];
     const list = Object.entries(counts).map(([name, count], idx) => ({
       name,
       count,
-      percent: Math.round((count / total) * 100) + "%",
+      percent: Math.round((count / (total || 1)) * 100) + "%",
       color: colors[idx % colors.length],
     }));
     return list.sort((a, b) => b.count - a.count);
-  }, [userSuccessMessages]);
+  }, [todaySuccessMessages]);
 
   // Global Console Top Apps Distribution calculated from the last 300 messages across all users/API
   const appStats = React.useMemo(() => {
@@ -2083,7 +2135,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
-                    {currency === "BDT" ? "৳0.00" : "$0.00"}
+                    {formatBalanceDisplay(yesterdayRevenueBDT, currency)}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Previous day performance</div>
                 </div>
@@ -2097,7 +2149,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">
-                    0
+                    {yesterdayOtpsCount}
                   </div>
                   <div className="text-[11px] text-slate-500 group-hover:text-slate-400 transition-colors">Completed verifications</div>
                 </div>
