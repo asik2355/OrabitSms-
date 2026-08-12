@@ -124,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               telegram: dbProfile?.telegram || prev.telegram,
               country: dbProfile?.country || prev.country,
               city: dbProfile?.city || prev.city,
-              withdrawPin: dbProfile?.withdrawPin || prev.withdrawPin,
+              withdrawPin: dbProfile?.withdrawPin !== undefined ? dbProfile.withdrawPin : prev.withdrawPin,
               balance: dbProfile?.balance !== undefined ? dbProfile.balance : prev.balance,
               totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : prev.totalSuccess,
             };

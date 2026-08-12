@@ -283,7 +283,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           city: foundAcc?.city || meta.city || "Dhaka",
           country: foundAcc?.country || meta.country || "Bangladesh",
           referralEmail: foundAcc?.referralEmail || meta.referralEmail || "agent@orabit.bd",
-          withdrawPin: foundAcc?.withdrawPin || meta.withdrawPin || "1234",
+          withdrawPin: foundAcc?.withdrawPin !== undefined ? foundAcc.withdrawPin : (meta.withdrawPin || ""),
           balance: foundAcc?.balance !== undefined ? foundAcc.balance : (isOwnerEmail ? 999.0 : 0.0),
           password: loginPassword,
           role: isOwnerEmail ? "Owner" : (foundAcc?.role || meta.role || "Client"),

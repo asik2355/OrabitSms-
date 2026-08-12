@@ -64,7 +64,7 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
   // Load saved payment methods
   const [methods, setMethods] = useState<PaymentMethodsData>(() => {
     try {
-      const saved = localStorage.getItem(methodsStorageKey) || localStorage.getItem("orabit_payment_methods");
+      const saved = localStorage.getItem(methodsStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
@@ -83,7 +83,7 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
   // Load saved withdrawal history
   const [history, setHistory] = useState<TransactionHistoryItem[]>(() => {
     try {
-      const saved = localStorage.getItem(historyStorageKey) || localStorage.getItem("orabit_withdraw_history");
+      const saved = localStorage.getItem(historyStorageKey);
       if (saved) {
         const parsed: TransactionHistoryItem[] = JSON.parse(saved);
         return parsed.filter(

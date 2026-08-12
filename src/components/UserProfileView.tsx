@@ -151,17 +151,45 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // API Key State
-  const [apiKey, setApiKey] = useState("MHF5UTYD3L7");
+  // Account-specific public UID
+  const publicUid = React.useMemo(() => {
+    if (userProfile?.uid && userProfile.uid.trim()) return userProfile.uid;
+    if (!userProfile?.email) return "M4Q91X5HKW3";
+    let hash = 0;
+    const cleanE = userProfile.email.toLowerCase().trim();
+    for (let i = 0; i < cleanE.length; i++) {
+      hash = (hash << 5) - hash + cleanE.charCodeAt(i);
+      hash |= 0;
+    }
+    return "M" + Math.abs(hash).toString(36).toUpperCase().padStart(10, "0").slice(0, 10);
+  }, [userProfile?.uid, userProfile?.email]);
+
+  // Account-specific API Key State
+  const defaultAccountApiKey = React.useMemo(() => {
+    if (userProfile?.apiKey && userProfile.apiKey.trim()) return userProfile.apiKey;
+    if (!userProfile?.email) return "MHF5UTYD3L7";
+    let hash = 0;
+    const cleanE = userProfile.email.toLowerCase().trim();
+    for (let i = 0; i < cleanE.length; i++) {
+      hash = (hash << 7) - hash + cleanE.charCodeAt(i);
+      hash |= 0;
+    }
+    return "M" + Math.abs(hash).toString(36).toUpperCase().padStart(10, "0").slice(0, 10);
+  }, [userProfile?.apiKey, userProfile?.email]);
+
+  const [apiKey, setApiKey] = useState(defaultAccountApiKey);
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyCreated, setApiKeyCreated] = useState("11/07/2026, 12:33:58");
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUid, setCopiedUid] = useState(false);
 
+  useEffect(() => {
+    setApiKey(defaultAccountApiKey);
+  }, [defaultAccountApiKey]);
+
   // Status & Feedback
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  const publicUid = "M4Q91X5HKW3";
   const memberSince = "Jul 2026";
   const lifetimeEarning = userProfile.balance;
 
@@ -185,11 +213,26 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setApiKey(newKey);
     const now = new Date().toLocaleString();
     setApiKeyCreated(now);
+
+    const updatedProfile: UserProfile = {
+      ...userProfile,
+      apiKey: newKey,
+      uid: publicUid,
+    };
+    onUpdateProfile(updatedProfile);
+    saveUserProfileToSupabase(updatedProfile);
   };
 
   const handleRevokeApiKey = () => {
     if (window.confirm("Are you sure you want to revoke this API key? This will block access for applications using it.")) {
       setApiKey("REVOKED");
+      const updatedProfile: UserProfile = {
+        ...userProfile,
+        apiKey: "REVOKED",
+        uid: publicUid,
+      };
+      onUpdateProfile(updatedProfile);
+      saveUserProfileToSupabase(updatedProfile);
     }
   };
 
@@ -205,6 +248,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       city: city.trim(),
       telegram: telegramUsername.trim(),
       bio: bio.trim(),
+      apiKey: apiKey,
+      uid: publicUid,
     };
 
     // 1. Update React state in parent & AuthContext

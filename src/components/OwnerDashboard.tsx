@@ -119,7 +119,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           city: "Dhaka",
           country: "Bangladesh",
           referralEmail: "orabitsms@gmail.com",
-          withdrawPin: "1234",
+          withdrawPin: "",
           balance: 0.0,
           password: newAgentPassword,
           role: "Agent",

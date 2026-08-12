@@ -261,7 +261,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       email: inviteEmail.trim().toLowerCase(),
       mobileNumber: invitePhone.trim() || "01890000000",
       telegram: "@" + inviteEmail.split("@")[0],
-      withdrawPin: "1234",
+      withdrawPin: "",
       country: inviteCountry,
       city: "Hafodunos",
       uid: Math.random().toString(36).substring(2, 11).toUpperCase(),
