@@ -85,6 +85,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editTelegram, setEditTelegram] = useState("");
+  const [editIsOfficial, setEditIsOfficial] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Modal 3: Balance Management State
@@ -96,6 +97,65 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
   const agentList = useMemo(() => {
     return registeredUsers.filter((u) => u.role?.toLowerCase() === "agent");
   }, [registeredUsers]);
+
+  // Designated Permanent Official Agent
+  const officialAgent = useMemo(() => {
+    return agentList.find((u) => u.isOfficial) || agentList[0] || null;
+  }, [agentList]);
+
+  // Keep localStorage sync with official agent email for fallback lookup
+  useEffect(() => {
+    if (officialAgent && officialAgent.email) {
+      localStorage.setItem("orabit_official_agent_email", officialAgent.email.toLowerCase().trim());
+    }
+  }, [officialAgent]);
+
+  // Designated Official Agent Handler
+  const handleSetOfficialAgent = async (targetEmail: string) => {
+    const cleanE = targetEmail.toLowerCase().trim();
+    try {
+      // 1. Update Supabase user_profiles
+      await supabase.from("user_profiles").upsert(
+        { email: cleanE, is_official: true, updated_at: new Date().toISOString() },
+        { onConflict: "email" }
+      );
+
+      // Unmark other agents in Supabase
+      const otherAgents = agentList.filter((a) => a.email.toLowerCase().trim() !== cleanE);
+      for (const other of otherAgents) {
+        await supabase
+          .from("user_profiles")
+          .update({ is_official: false })
+          .ilike("email", other.email.toLowerCase().trim());
+      }
+
+      // 2. Update local state
+      const updatedUsers = registeredUsers.map((u) => {
+        if (u.role?.toLowerCase() === "agent") {
+          return {
+            ...u,
+            isOfficial: u.email.toLowerCase().trim() === cleanE,
+          };
+        }
+        return u;
+      });
+
+      localStorage.setItem("orabit_registered_users", JSON.stringify(updatedUsers));
+      localStorage.setItem("orabit_official_agent_email", cleanE);
+      setRegisteredUsers(updatedUsers);
+
+      const targetAcc = registeredUsers.find((u) => u.email.toLowerCase().trim() === cleanE);
+      const agName = targetAcc?.fullName || cleanE;
+
+      setAgentNotice({
+        text: `Agent (${agName}) is now set as Permanent Official Agent! All unreferred signups & orphan clients will fall back here.`,
+        type: "success",
+      });
+    } catch (err: any) {
+      console.error("Failed to set official agent:", err);
+      setAgentNotice({ text: err.message || "Failed to set official agent", type: "error" });
+    }
+  };
 
   // Create New Agent Handler
   const handleCreateAgentSubmit = async (e: React.FormEvent) => {
@@ -120,6 +180,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         const stored = localStorage.getItem("orabit_registered_users");
         let list: UserProfile[] = stored ? JSON.parse(stored) : [];
         const existingIdx = list.findIndex((u) => u.email.toLowerCase() === cleanE);
+        const isFirstAgent = !list.some((u) => u.role?.toLowerCase() === "agent");
 
         const newAgentObj: UserProfile = {
           fullName: cleanName,
@@ -133,6 +194,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
           balance: 0.0,
           password: newAgentPassword,
           role: "Agent",
+          isOfficial: isFirstAgent,
         };
 
         if (existingIdx >= 0) {
@@ -142,9 +204,14 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
             telegram: cleanTg,
             role: "Agent",
             password: newAgentPassword,
+            isOfficial: isFirstAgent || list[existingIdx].isOfficial,
           };
         } else {
           list.push(newAgentObj);
+        }
+
+        if (isFirstAgent) {
+          localStorage.setItem("orabit_official_agent_email", cleanE);
         }
 
         localStorage.setItem("orabit_registered_users", JSON.stringify(list));
@@ -165,19 +232,83 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     setIsCreatingAgent(false);
   };
 
-  // Delete Agent Handler
+  // Delete Agent Handler with Client Transfer to Official Agent
   const handleDeleteAgent = async (agentEmail: string) => {
     const cleanE = agentEmail.trim().toLowerCase();
-    if (!window.confirm(`Are you sure you want to delete agent "${cleanE}"? This will remove their agent role and access.`)) {
+
+    // Find designated Official Agent (excluding deleted agent)
+    let fallbackAgentEmail = "";
+    const otherOfficial = agentList.find((u) => u.isOfficial && u.email.toLowerCase().trim() !== cleanE);
+    if (otherOfficial) {
+      fallbackAgentEmail = otherOfficial.email.toLowerCase().trim();
+    } else {
+      const firstOther = agentList.find((u) => u.email.toLowerCase().trim() !== cleanE);
+      if (firstOther) {
+        fallbackAgentEmail = firstOther.email.toLowerCase().trim();
+      } else {
+        fallbackAgentEmail = "orabitsms@gmail.com";
+      }
+    }
+
+    if (
+      !window.confirm(
+        `Are you sure you want to delete agent "${cleanE}"?\n\nAll referred clients will be automatically transferred to Official Agent (${fallbackAgentEmail}).`
+      )
+    ) {
       return;
     }
 
+    // Identify affected clients
+    const affectedClients = registeredUsers.filter((u) => {
+      const r1 = (u.referralEmail || "").toLowerCase().trim();
+      const r2 = (u.referredByAgentEmail || "").toLowerCase().trim();
+      const r3 = (u.referredBy || "").toLowerCase().trim();
+      return r1 === cleanE || r2 === cleanE || r3 === cleanE;
+    });
+
+    const transferredCount = affectedClients.length;
+
+    // 1. Transfer clients in Supabase
+    try {
+      if (transferredCount > 0) {
+        await supabase
+          .from("user_profiles")
+          .update({
+            referral_email: fallbackAgentEmail,
+            referred_by: fallbackAgentEmail,
+            updated_at: new Date().toISOString(),
+          })
+          .ilike("referral_email", cleanE);
+      }
+    } catch (e) {
+      console.warn("Notice transferring clients on agent delete:", e);
+    }
+
+    // 2. Delete agent from Supabase
     const res = await deleteAgentFromSupabase(cleanE);
 
+    // 3. Update local storage & state
     try {
       const stored = localStorage.getItem("orabit_registered_users");
       let list: UserProfile[] = stored ? JSON.parse(stored) : registeredUsers;
-      const updatedList = list.filter((u) => u.email.toLowerCase().trim() !== cleanE);
+
+      const updatedList = list
+        .filter((u) => u.email.toLowerCase().trim() !== cleanE)
+        .map((u) => {
+          const r1 = (u.referralEmail || "").toLowerCase().trim();
+          const r2 = (u.referredByAgentEmail || "").toLowerCase().trim();
+          const r3 = (u.referredBy || "").toLowerCase().trim();
+          if (r1 === cleanE || r2 === cleanE || r3 === cleanE) {
+            return {
+              ...u,
+              referralEmail: fallbackAgentEmail,
+              referredByAgentEmail: fallbackAgentEmail,
+              referredBy: fallbackAgentEmail,
+            };
+          }
+          return u;
+        });
+
       localStorage.setItem("orabit_registered_users", JSON.stringify(updatedList));
       setRegisteredUsers(updatedList);
     } catch (err) {
@@ -185,7 +316,9 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     }
 
     setAgentNotice({
-      text: res.success ? `Agent (${cleanE}) has been deleted successfully.` : res.message,
+      text: res.success
+        ? `Agent (${cleanE}) deleted successfully. Transferred ${transferredCount} client(s) to Official Agent (${fallbackAgentEmail}).`
+        : res.message,
       type: res.success ? "success" : "error",
     });
   };
@@ -321,10 +454,22 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
           full_name: cleanName,
           telegram: cleanTg,
           role: "Agent",
+          is_official: editIsOfficial,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "email" }
       );
+
+      if (editIsOfficial) {
+        const otherAgents = agentList.filter((a) => a.email.toLowerCase().trim() !== cleanE);
+        for (const other of otherAgents) {
+          await supabase
+            .from("user_profiles")
+            .update({ is_official: false })
+            .ilike("email", other.email.toLowerCase().trim());
+        }
+        localStorage.setItem("orabit_official_agent_email", cleanE);
+      }
 
       // 2. Ensure role in user_roles
       await setUserRoleInSupabase(cleanE, "agent");
@@ -338,6 +483,13 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
             telegram: cleanTg,
             password: editPassword.trim() || u.password,
             role: "Agent",
+            isOfficial: editIsOfficial,
+          };
+        }
+        if (editIsOfficial && u.role?.toLowerCase() === "agent") {
+          return {
+            ...u,
+            isOfficial: false,
           };
         }
         return u;
@@ -653,19 +805,41 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
                   const referredCount = registeredUsers.filter(
                     (cl) => cl.referralEmail?.toLowerCase().trim() === agent.email.toLowerCase().trim()
                   ).length;
+                  const isOfficialAg = Boolean(
+                    agent.isOfficial ||
+                      (officialAgent && officialAgent.email.toLowerCase().trim() === agent.email.toLowerCase().trim())
+                  );
+
                   return (
                     <tr key={agent.email} className="hover:bg-slate-800/30">
                       <td className="py-2.5 px-3">
-                        <div className="font-sans text-xs text-white font-bold">{agent.fullName || agent.email.split("@")[0]}</div>
+                        <div className="font-sans text-xs text-white font-bold flex items-center gap-1.5">
+                          <span>{agent.fullName || agent.email.split("@")[0]}</span>
+                          {isOfficialAg && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold border border-amber-500/30 flex items-center gap-0.5 font-mono">
+                              <ShieldCheck className="w-2.5 h-2.5 text-amber-400" /> OFFICIAL
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-indigo-300 font-mono">{agent.email}</div>
                         {agent.telegram && (
                           <div className="text-[10px] text-sky-400 font-sans">{agent.telegram}</div>
                         )}
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 text-[10px] uppercase font-bold border border-indigo-500/30">
-                          agent
-                        </span>
+                        {isOfficialAg ? (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 flex items-center gap-1 inline-flex">
+                            <ShieldCheck className="w-3 h-3 text-amber-400" /> OFFICIAL AGENT
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleSetOfficialAgent(agent.email)}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 text-[10px] uppercase font-bold border border-slate-700 hover:border-amber-500/30 transition-all cursor-pointer inline-flex items-center gap-1"
+                            title="Click to set as Permanent Official Agent (Fallback Target)"
+                          >
+                            <ShieldCheck className="w-3 h-3 text-slate-500" /> agent
+                          </button>
+                        )}
                       </td>
                       <td className="py-2.5 px-3">
                         <span className="text-emerald-400 text-[10px] font-bold flex items-center gap-1 font-sans">
@@ -706,6 +880,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
                               setEditEmail(agent.email);
                               setEditPassword(agent.password || "");
                               setEditTelegram(agent.telegram || "");
+                              setEditIsOfficial(isOfficialAg);
                             }}
                             className="p-1.5 px-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
                             title="Edit Agent Info"
@@ -914,6 +1089,27 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
                   placeholder="@username"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
                 />
+              </div>
+
+              {/* Permanent Official Agent Toggle */}
+              <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" /> Permanent Official Agent
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Fallback target for unreferred signups & clients transferred from deleted agents.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={editIsOfficial}
+                    onChange={(e) => setEditIsOfficial(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800/80">

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { getUserRoleFromSupabase } from "../lib/userRoles";
 import { fetchUserProfileFromSupabase } from "../lib/userProfiles";
@@ -20,6 +20,7 @@ import {
   Building2,
   Send,
   Globe,
+  ShieldCheck,
 } from "lucide-react";
 
 export interface UserProfile {
@@ -52,6 +53,9 @@ export interface UserProfile {
   withdrawHistory?: any[];
   firstName?: string;
   lastName?: string;
+  isOfficial?: boolean;
+  referredByAgentEmail?: string;
+  referredBy?: string;
 }
 
 interface OrabitAuthScreenProps {
@@ -110,7 +114,67 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     return map[Math.min(score - 1, 4)] || map[0];
   }, [password]);
 
-  // Stars Array for space background - Optimized for Mobile (22 stars)
+  // Registered users state for real-time Agent verification
+  const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const stored = localStorage.getItem("orabit_registered_users");
+        let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+
+        // Fetch user profiles from Supabase to ensure live sync
+        const { data: profiles } = await supabase.from("user_profiles").select("*");
+        if (profiles && profiles.length > 0) {
+          profiles.forEach((p) => {
+            const cleanE = (p.email || "").toLowerCase().trim();
+            if (cleanE) {
+              const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanE);
+              const userObj: UserProfile = {
+                fullName: p.full_name || cleanE,
+                email: cleanE,
+                mobileNumber: p.mobile || "",
+                role: p.role || "Client",
+                telegram: p.telegram || "",
+                country: p.country || "Bangladesh",
+                balance: Number(p.balance || 0),
+                isOfficial: Boolean(p.is_official),
+              };
+              if (idx >= 0) {
+                list[idx] = { ...list[idx], ...userObj };
+              } else {
+                list.push(userObj);
+              }
+            }
+          });
+        }
+        setRegisteredUsers(list);
+      } catch (e) {
+        console.warn("User list load error:", e);
+      }
+    };
+    loadUsers();
+  }, [mode]);
+
+  // Dynamic Real-time Agent Verification
+  const cleanAgentEmailInput = agentReferralEmail.trim().toLowerCase();
+
+  const matchedAgent = useMemo(() => {
+    if (!cleanAgentEmailInput) return null;
+    return (
+      registeredUsers.find(
+        (u) =>
+          u.email.toLowerCase().trim() === cleanAgentEmailInput &&
+          u.role?.toLowerCase() === "agent"
+      ) || null
+    );
+  }, [cleanAgentEmailInput, registeredUsers]);
+
+  const agentValidationStatus = useMemo(() => {
+    if (!cleanAgentEmailInput) return "empty";
+    if (matchedAgent) return "valid";
+    return "invalid";
+  }, [cleanAgentEmailInput, matchedAgent]);
   const stars = useMemo(() => {
     return Array.from({ length: 22 }).map((_, i) => ({
       id: i,
@@ -162,6 +226,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       showAlert("Valid Agent Referral Email is required to register", "error");
       return;
     }
+    const finalReferralEmail = agentReferralEmail.trim();
 
     if (!password || password.length < 8) {
       newErrors.password = true;
@@ -183,7 +248,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       telegram: telegramUsername.trim(),
       city: city.trim() || "Dhaka",
       country: country.trim() || "Bangladesh",
-      referralEmail: agentReferralEmail.trim(),
+      referralEmail: finalReferralEmail,
       withdrawPin: "",
       balance: isOwnerEmail ? 999.0 : 0.0,
       password: password,
@@ -206,7 +271,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               telegram: telegramUsername.trim(),
               city: city.trim() || "Dhaka",
               country: country.trim() || "Bangladesh",
-              referralEmail: agentReferralEmail.trim(),
+              referralEmail: finalReferralEmail,
               withdrawPin: "",
               role: "Client",
             },
@@ -467,10 +532,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           />
         </div>
 
-        {/* Card - High Performance Mobile Optimized Background */}
-        <div className="bg-[#0B1026]/90 backdrop-blur-sm sm:backdrop-blur-md border border-indigo-500/25 rounded-[22px] sm:rounded-[24px] p-6 sm:p-9 shadow-[0_20px_50px_rgba(0,0,0,0.6)] relative overflow-hidden">
-          {/* Card Ambient Inner Glow */}
-          <div className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,0.1),transparent_70%)] pointer-events-none" />
+        {/* Card - High Performance Mobile Optimized Background with Premium Glow */}
+        <div className="bg-[#0B1026]/90 backdrop-blur-md sm:backdrop-blur-lg border-2 border-indigo-500/35 rounded-[22px] sm:rounded-[24px] p-6 sm:p-9 shadow-[0_0_50px_rgba(99,102,241,0.2)] hover:shadow-[0_0_70px_rgba(99,102,241,0.35)] transition-all duration-500 relative overflow-hidden">
+          {/* Card Ambient Inner Radial Glow */}
+          <div className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,0.15),transparent_70%)] pointer-events-none" />
 
           {/* Floating Alert System */}
           {alert && (
@@ -509,8 +574,8 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               {/* Full Name */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#C8CCE8]">Full Name</label>
-                <div className="relative">
-                  <User className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
+                <div className="relative group">
+                  <User className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] group-focus-within:text-[#6366F1] pointer-events-none transition-colors" />
                   <input
                     type="text"
                     value={fullName}
@@ -519,10 +584,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                       if (errors.fullName) setErrors({ ...errors, fullName: false });
                     }}
                     placeholder="John Doe"
-                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all ${
+                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/60 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all duration-300 ${
                       errors.fullName
-                        ? "border-rose-500 focus:border-rose-500 animate-shake"
-                        : "border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10"
+                        ? "border-rose-500 focus:border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.25)] animate-shake"
+                        : "border-[rgba(99,102,241,0.25)] focus:border-[#6366F1] focus:bg-[#14193C]/80 focus:ring-4 focus:ring-indigo-500/15 focus:shadow-[0_0_20px_rgba(99,102,241,0.25)]"
                     }`}
                   />
                 </div>
@@ -531,8 +596,8 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               {/* Mobile Number */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#C8CCE8]">Mobile Number</label>
-                <div className="relative">
-                  <Phone className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
+                <div className="relative group">
+                  <Phone className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] group-focus-within:text-[#6366F1] pointer-events-none transition-colors" />
                   <input
                     type="tel"
                     value={mobileNumber}
@@ -541,10 +606,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                       if (errors.mobileNumber) setErrors({ ...errors, mobileNumber: false });
                     }}
                     placeholder="017xxxxxxxx"
-                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all ${
+                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/60 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all duration-300 ${
                       errors.mobileNumber
-                        ? "border-rose-500 focus:border-rose-500 animate-shake"
-                        : "border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10"
+                        ? "border-rose-500 focus:border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.25)] animate-shake"
+                        : "border-[rgba(99,102,241,0.25)] focus:border-[#6366F1] focus:bg-[#14193C]/80 focus:ring-4 focus:ring-indigo-500/15 focus:shadow-[0_0_20px_rgba(99,102,241,0.25)]"
                     }`}
                   />
                 </div>
@@ -553,8 +618,8 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               {/* Email Address */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#C8CCE8]">Email Address</label>
-                <div className="relative">
-                  <Mail className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
+                <div className="relative group">
+                  <Mail className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] group-focus-within:text-[#6366F1] pointer-events-none transition-colors" />
                   <input
                     type="email"
                     value={emailAddress}
@@ -563,10 +628,10 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                       if (errors.emailAddress) setErrors({ ...errors, emailAddress: false });
                     }}
                     placeholder="name@domain.com"
-                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all ${
+                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/60 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all duration-300 ${
                       errors.emailAddress
-                        ? "border-rose-500 focus:border-rose-500 animate-shake"
-                        : "border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10"
+                        ? "border-rose-500 focus:border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.25)] animate-shake"
+                        : "border-[rgba(99,102,241,0.25)] focus:border-[#6366F1] focus:bg-[#14193C]/80 focus:ring-4 focus:ring-indigo-500/15 focus:shadow-[0_0_20px_rgba(99,102,241,0.25)]"
                     }`}
                   />
                 </div>
@@ -575,14 +640,14 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               {/* Country */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#C8CCE8]">Country</label>
-                <div className="relative">
-                  <Globe className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
+                <div className="relative group">
+                  <Globe className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] group-focus-within:text-[#6366F1] pointer-events-none transition-colors" />
                   <input
                     type="text"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
                     placeholder="e.g. Bangladesh"
-                    className="w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all"
+                    className="w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/60 border-2 border-[rgba(99,102,241,0.25)] focus:border-[#6366F1] focus:bg-[#14193C]/80 focus:ring-4 focus:ring-indigo-500/15 focus:shadow-[0_0_20px_rgba(99,102,241,0.25)] rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all duration-300"
                   />
                 </div>
               </div>
@@ -590,14 +655,14 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               {/* City */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#C8CCE8]">City</label>
-                <div className="relative">
-                  <Building2 className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
+                <div className="relative group">
+                  <Building2 className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] group-focus-within:text-[#6366F1] pointer-events-none transition-colors" />
                   <input
                     type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="Dhaka"
-                    className="w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all"
+                    className="w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/60 border-2 border-[rgba(99,102,241,0.25)] focus:border-[#6366F1] focus:bg-[#14193C]/80 focus:ring-4 focus:ring-indigo-500/15 focus:shadow-[0_0_20px_rgba(99,102,241,0.25)] rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all duration-300"
                   />
                 </div>
               </div>
@@ -605,27 +670,29 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
               {/* Telegram Username */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#C8CCE8]">Telegram Username</label>
-                <div className="relative">
-                  <Send className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
+                <div className="relative group">
+                  <Send className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] group-focus-within:text-[#6366F1] pointer-events-none transition-colors" />
                   <input
                     type="text"
                     value={telegramUsername}
                     onChange={(e) => setTelegramUsername(e.target.value)}
                     placeholder="@username"
-                    className="w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all"
+                    className="w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/60 border-2 border-[rgba(99,102,241,0.25)] focus:border-[#6366F1] focus:bg-[#14193C]/80 focus:ring-4 focus:ring-indigo-500/15 focus:shadow-[0_0_20px_rgba(99,102,241,0.25)] rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all duration-300"
                   />
                 </div>
               </div>
 
-              {/* Agent Referral Email */}
+              {/* Agent Referral Email Field & Dynamic Validation */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#C8CCE8] flex items-center justify-between">
                   <span>
                     Agent Referral Email <span className="text-rose-400 ml-1">*</span>
                   </span>
                 </label>
-                <div className="relative">
-                  <Users className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#6E7191] pointer-events-none transition-colors" />
+                <div className="relative group">
+                  <Users className={`w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                    agentValidationStatus === "valid" ? "text-emerald-400" : agentValidationStatus === "invalid" ? "text-rose-400" : "text-[#6E7191] group-focus-within:text-[#6366F1]"
+                  }`} />
                   <input
                     type="email"
                     value={agentReferralEmail}
@@ -634,21 +701,64 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
                       if (errors.agentReferralEmail) setErrors({ ...errors, agentReferralEmail: false });
                     }}
                     placeholder="Enter Agent Email Address"
-                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/50 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all ${
-                      errors.agentReferralEmail
-                        ? "border-rose-500 focus:border-rose-500 animate-shake"
-                        : "border-[rgba(99,102,241,0.2)] focus:border-[#6366F1] focus:bg-[#14193C]/70 focus:ring-4 focus:ring-indigo-500/10"
+                    className={`w-full py-3.5 pl-12 pr-4 bg-[#0F1432]/60 border-2 rounded-xl text-sm text-[#F0F2FF] placeholder-[#4A4E6B] focus:outline-none transition-all duration-300 ${
+                      errors.agentReferralEmail || agentValidationStatus === "invalid"
+                        ? "border-rose-500/80 focus:border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.25)] animate-shake"
+                        : agentValidationStatus === "valid"
+                        ? "border-emerald-500/80 focus:border-emerald-400 bg-emerald-950/20 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                        : "border-[rgba(99,102,241,0.25)] focus:border-[#6366F1] focus:bg-[#14193C]/80 focus:ring-4 focus:ring-indigo-500/15 focus:shadow-[0_0_20px_rgba(99,102,241,0.25)]"
                     }`}
                   />
                 </div>
 
-                {/* Agent Referral Hint Box */}
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[12.5px] text-amber-200 leading-relaxed">
-                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span>
-                    A valid registered Agent Referral Email is required to register an account.
-                  </span>
-                </div>
+                {/* Dynamic Agent Validation UI Box */}
+                {agentValidationStatus === "empty" && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[12.5px] text-amber-200 leading-relaxed shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-all">
+                    <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>
+                      A valid registered Agent Referral Email is required to register an account.
+                    </span>
+                  </div>
+                )}
+
+                {agentValidationStatus === "valid" && matchedAgent && (
+                  <div className="relative group/glow w-full transition-all duration-300">
+                    <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 opacity-60 blur-md animate-pulse pointer-events-none" />
+                    <div className="relative p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 leading-relaxed flex items-center justify-between gap-3 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                          <ShieldCheck className="w-5 h-5 text-emerald-400 fill-emerald-500/20" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-xs text-white">
+                              {matchedAgent.fullName || matchedAgent.email.split("@")[0]}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[9px] font-mono font-black text-emerald-300 tracking-wider flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" /> VERIFIED AGENT
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-300/80 font-mono mt-0.5">
+                            {matchedAgent.email}
+                          </p>
+                        </div>
+                      </div>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 animate-pulse" />
+                    </div>
+                  </div>
+                )}
+
+                {agentValidationStatus === "invalid" && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/40 text-[12.5px] text-rose-200 leading-relaxed shadow-[0_0_15px_rgba(244,63,94,0.15)] transition-all">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5 animate-pulse" />
+                    <div>
+                      <span className="font-bold text-rose-300 block">Invalid Agent Referral Email</span>
+                      <span className="text-[11.5px] text-rose-300/80 block mt-0.5">
+                        No registered agent found with this email. You must enter a valid Agent Referral Email to register.
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Password */}
