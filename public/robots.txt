@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /favicon.svg
+Allow: /favicon.ico
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /android-chrome-*.png
+Allow: /site.webmanifest
+
+Sitemap: https://orabitsms.xyz/sitemap.xml

@@ -1,39 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
+    <!-- Background Gradient -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#090D1A" />
-      <stop offset="100%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#030712" />
     </linearGradient>
+
+    <!-- Orbital Gradient 1 -->
     <linearGradient id="orbGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38BDF8" />
       <stop offset="50%" stop-color="#34D399" />
       <stop offset="100%" stop-color="#818CF8" />
     </linearGradient>
+
+    <!-- Orbital Gradient 2 -->
     <linearGradient id="orbGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#06B6D4" />
       <stop offset="100%" stop-color="#10B981" />
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="8" result="blur" />
+
+    <!-- Glow Filter -->
+    <filter id="glowEffect" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
       <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
   </defs>
 
-  <!-- Dark Background Rounded Card -->
-  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" stroke="#06B6D4" stroke-width="8" stroke-opacity="0.6" />
+  <!-- Dark Rounded Square Outer Container -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bgGrad)" stroke="#06B6D4" stroke-width="8" stroke-opacity="0.6" />
+  
+  <!-- Outer Glow Circle -->
+  <circle cx="256" cy="256" r="180" fill="#06B6D4" fill-opacity="0.1" filter="url(#glowEffect)" />
 
-  <!-- Outer Orbital Ring -->
-  <ellipse cx="256" cy="256" rx="190" ry="95" stroke="url(#orbGrad1)" stroke-width="16" stroke-dasharray="600 120" fill="none" transform="rotate(-25 256 256)" />
+  <!-- Outer Orbital Ring 1 -->
+  <g transform="translate(256, 256) rotate(-25)">
+    <ellipse cx="0" cy="0" rx="190" ry="95" fill="none" stroke="url(#orbGrad1)" stroke-width="16" stroke-dasharray="700 120" stroke-linecap="round" />
+  </g>
 
-  <!-- Inner Counter Orbital Ring -->
-  <ellipse cx="256" cy="256" rx="175" ry="85" stroke="url(#orbGrad2)" stroke-width="12" stroke-opacity="0.8" stroke-dasharray="350 200" fill="none" transform="rotate(35 256 256)" />
+  <!-- Counter Orbital Ring 2 -->
+  <g transform="translate(256, 256) rotate(35)">
+    <ellipse cx="0" cy="0" rx="180" ry="85" fill="none" stroke="url(#orbGrad2)" stroke-width="12" stroke-dasharray="400 200" stroke-opacity="0.85" stroke-linecap="round" />
+  </g>
 
-  <!-- Orbiting Satellite Node -->
-  <circle cx="410" cy="180" r="22" fill="#38BDF8" filter="url(#glow)" />
+  <!-- Satellite Node -->
+  <circle cx="410" cy="180" r="22" fill="#38BDF8" filter="url(#glowEffect)" />
 
-  <!-- SMS Message Envelope Core -->
-  <path d="M160 190 C160 173 173 160 190 160 H322 C339 160 352 173 352 190 V290 C352 307 339 320 322 320 H230 L180 360 V320 H190 C173 320 160 307 160 290 V190 Z" fill="url(#orbGrad1)" fill-opacity="0.25" stroke="url(#orbGrad1)" stroke-width="16" stroke-linejoin="round" />
+  <!-- Inner SMS Message Envelope Core -->
+  <g transform="translate(256, 256)">
+    <path d="M-90 -60 C-90 -80 -70 -100 -50 -100 H50 C70 -100 90 -80 90 -60 V40 C90 60 70 80 50 80 H-20 L-70 120 V80 H-50 C-70 80 -90 60 -90 40 Z" 
+          fill="url(#orbGrad1)" fill-opacity="0.25" stroke="url(#orbGrad1)" stroke-width="16" stroke-linejoin="round" stroke-linecap="round" />
 
-  <!-- Lightning Bolt -->
-  <path d="M266 190 L216 250 H261 L246 290 L296 230 H251 L266 190 Z" fill="#38BDF8" filter="url(#glow)" />
+    <!-- Lightning Bolt Signal inside Message Envelope -->
+    <path d="M10 -60 L-30 0 H10 L-10 50 L40 -10 H0 L10 -60 Z" 
+          fill="#38BDF8" filter="url(#glowEffect)" />
+  </g>
 </svg>
