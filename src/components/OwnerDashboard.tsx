@@ -4,6 +4,8 @@ import { formatUSD } from "../lib/storageUtils";
 import { FeedNumber } from "../types";
 import { createAgentInSupabase } from "../lib/userRoles";
 import { TeamUsersManager } from "./TeamUsersManager";
+import { fetchDailyStatsFromSupabase, getBDDateString } from "../lib/supabaseDailyStats";
+import { supabase } from "../lib/supabase";
 import {
   Users,
   ShieldCheck,
@@ -39,6 +41,7 @@ import {
   SlidersHorizontal,
   CheckSquare,
   FileText,
+  Calendar,
 } from "lucide-react";
 
 interface OwnerDashboardProps {
@@ -167,6 +170,173 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   useEffect(() => {
     loadRegisteredUsers();
   }, [userProfile]);
+
+  // Global Owner Dashboard Statistics (Today & Yesterday)
+  const [globalStats, setGlobalStats] = useState({
+    todayRevenue: 0,
+    todayOtps: 0,
+    yesterdayRevenue: 0,
+    yesterdayOtps: 0,
+    todayNewUsers: 0,
+    yesterdayNewUsers: 0,
+    isLoading: true,
+  });
+
+  const loadGlobalMetrics = async () => {
+    try {
+      const nowMs = Date.now();
+      const todayStr = getBDDateString(nowMs);
+      const yesterdayStr = getBDDateString(nowMs - 86400000);
+
+      // 1. REVENUE & OTP LOGIC: Fetch daily_stats from Supabase
+      const statsList = await fetchDailyStatsFromSupabase(); // empty param = all users
+      
+      const todayDbRows = statsList.filter((s) => s.date === todayStr);
+      const yesterdayDbRows = statsList.filter((s) => s.date === yesterdayStr);
+
+      const todayDbRev = todayDbRows.reduce((sum, r) => sum + (r.total_revenue || 0), 0);
+      const todayDbOtps = todayDbRows.reduce((sum, r) => sum + (r.total_otps || 0), 0);
+
+      const yesterdayDbRev = yesterdayDbRows.reduce((sum, r) => sum + (r.total_revenue || 0), 0);
+      const yesterdayDbOtps = yesterdayDbRows.reduce((sum, r) => sum + (r.total_otps || 0), 0);
+
+      // Supplement / fallback with feeds across all user keys in localStorage + props feedNumbers
+      let todayFeedOtps = 0;
+      let todayFeedRev = 0;
+      let yesterdayFeedOtps = 0;
+      let yesterdayFeedRev = 0;
+
+      const allFeeds: FeedNumber[] = [...feedNumbers];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith("orabit_feed_numbers") || k.includes("feed_numbers"))) {
+            const val = localStorage.getItem(k);
+            if (val) {
+              const parsed = JSON.parse(val);
+              if (Array.isArray(parsed)) allFeeds.push(...parsed);
+            }
+          }
+        }
+      } catch (e) {}
+
+      const uniqueFeeds: FeedNumber[] = [];
+      const seenFeeds = new Set<string>();
+      allFeeds.forEach((item) => {
+        const key = item.id || `${item.number}_${item.requestedAt}_${item.status}`;
+        if (!seenFeeds.has(key)) {
+          seenFeeds.add(key);
+          uniqueFeeds.push(item);
+        }
+      });
+
+      uniqueFeeds.forEach((f) => {
+        const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
+        const isFailNotice = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
+        if (isSuccess && !isFailNotice) {
+          const reqDate = getBDDateString(f.requestedAt || Date.now());
+          const validMsgs = f.messages ? f.messages.filter((m) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+          const count = validMsgs.length > 0 ? validMsgs.length : 1;
+          const rev = count * 0.006;
+
+          if (reqDate === todayStr) {
+            todayFeedOtps += count;
+            todayFeedRev += rev;
+          } else if (reqDate === yesterdayStr) {
+            yesterdayFeedOtps += count;
+            yesterdayFeedRev += rev;
+          }
+        }
+      });
+
+      const finalTodayRev = Math.max(todayDbRev, todayFeedRev);
+      const finalTodayOtps = Math.max(todayDbOtps, todayFeedOtps);
+      const finalYesterdayRev = Math.max(yesterdayDbRev, yesterdayFeedRev);
+      const finalYesterdayOtps = Math.max(yesterdayDbOtps, yesterdayFeedOtps);
+
+      // 2. NEW USERS LOGIC: Supabase user_profiles + registeredUsers
+      let todayUsersCount = 0;
+      let yesterdayUsersCount = 0;
+
+      let allUserProfiles: any[] = [];
+      try {
+        const { data, error } = await supabase.from("user_profiles").select("*");
+        if (!error && data && Array.isArray(data)) {
+          allUserProfiles = data;
+        }
+      } catch (e) {
+        console.warn("Notice querying user_profiles:", e);
+      }
+
+      // Merge with registeredUsers / localStorage orabit_registered_users
+      try {
+        const storedUsers = localStorage.getItem("orabit_registered_users");
+        if (storedUsers) {
+          const list = JSON.parse(storedUsers);
+          if (Array.isArray(list)) {
+            list.forEach((u) => {
+              if (!allUserProfiles.some((p) => p.email && u.email && p.email.toLowerCase() === u.email.toLowerCase())) {
+                allUserProfiles.push(u);
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      if (registeredUsers.length > 0) {
+        registeredUsers.forEach((u) => {
+          if (!allUserProfiles.some((p) => p.email && u.email && p.email.toLowerCase() === u.email.toLowerCase())) {
+            allUserProfiles.push(u);
+          }
+        });
+      }
+
+      const helperGetDateStr = (dateInput: any): string => {
+        if (!dateInput) return "";
+        if (typeof dateInput === "number") {
+          return getBDDateString(dateInput);
+        }
+        if (typeof dateInput === "string") {
+          if (dateInput.includes("T") || dateInput.includes(" ") || dateInput.includes("-")) {
+            const ts = new Date(dateInput).getTime();
+            if (!isNaN(ts) && ts > 0) return getBDDateString(ts);
+            return dateInput.split("T")[0].split(" ")[0];
+          }
+          return dateInput.substring(0, 10);
+        }
+        return "";
+      };
+
+      allUserProfiles.forEach((u) => {
+        const rawDate = u.created_at || u.createdAt || u.created_date || u.lastLogin || u.updated_at;
+        if (rawDate) {
+          const uDate = helperGetDateStr(rawDate);
+          if (uDate === todayStr) {
+            todayUsersCount++;
+          } else if (uDate === yesterdayStr) {
+            yesterdayUsersCount++;
+          }
+        }
+      });
+
+      setGlobalStats({
+        todayRevenue: finalTodayRev,
+        todayOtps: finalTodayOtps,
+        yesterdayRevenue: finalYesterdayRev,
+        yesterdayOtps: finalYesterdayOtps,
+        todayNewUsers: todayUsersCount,
+        yesterdayNewUsers: yesterdayUsersCount,
+        isLoading: false,
+      });
+    } catch (e) {
+      console.error("Error loading global owner metrics:", e);
+      setGlobalStats((prev) => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  useEffect(() => {
+    loadGlobalMetrics();
+  }, [feedNumbers, registeredUsers]);
 
   // Aggregate System Stats
   const totalUsersCount = registeredUsers.length;
@@ -411,65 +581,117 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         </div>
       )}
 
-      {/* System KPI Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* KPI 1: Registered Clients */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-2 relative overflow-hidden shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Clients</span>
-            <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-              <Users className="w-4 h-4" />
+      {/* 6 GLOBAL OWNER KPI CARDS (MATCHING CLIENT SUMMARY DASHBOARD STYLES) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* CARD 1: TODAY TOTAL REVENUE */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-emerald-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-emerald-300 transition-colors">Today Total Revenue</span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/25 transition-all">
+              <DollarSign className="w-4 h-4 text-emerald-400" />
             </div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-white font-mono">{totalUsersCount}</p>
-          <p className="text-[11px] text-slate-400 flex items-center gap-1">
-            <Check className="w-3 h-3 text-emerald-400" /> Accounts registered
-          </p>
-        </div>
-
-        {/* KPI 2: Total User Balances */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-2 relative overflow-hidden shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">User Balances</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <DollarSign className="w-4 h-4" />
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-[#2EE59D] font-mono group-hover:text-emerald-300 transition-colors">
+              {formatMoney(globalStats.todayRevenue)}
             </div>
-          </div>
-          <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
-            {formatMoney(totalUserBalancesUSD)}
-          </p>
-          <p className="text-[11px] text-slate-400 flex items-center gap-1">
-            <Zap className="w-3 h-3 text-amber-400" /> Total deposited funds
-          </p>
-        </div>
-
-        {/* KPI 3: System Number Feeds */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-2 relative overflow-hidden shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">System Allocations</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-              <Hash className="w-4 h-4" />
+            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+              <TrendingUp className="w-3 h-3" />
+              <span>Today's Platform Revenue</span>
             </div>
-          </div>
-          <p className="text-2xl sm:text-3xl font-black text-white font-mono">{totalSystemAllocations}</p>
-          <div className="flex items-center gap-2 text-[10px] font-mono">
-            <span className="text-emerald-400">✓ {totalSystemSuccess}</span>
-            <span className="text-rose-400">✗ {totalSystemFailed}</span>
           </div>
         </div>
 
-        {/* KPI 4: Success Rate */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-2 relative overflow-hidden shadow-lg hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Conversion Rate</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <TrendingUp className="w-4 h-4" />
+        {/* CARD 2: TODAY TOTAL OTP */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-amber-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-amber-300 transition-colors">Today Total OTP</span>
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-500/25 transition-all">
+              <Zap className="w-4 h-4 text-amber-400" />
             </div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">{systemSuccessRate}%</p>
-          <p className="text-[11px] text-slate-400 flex items-center gap-1">
-            <Activity className="w-3 h-3 text-emerald-400" /> Platform OTP success
-          </p>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
+              {globalStats.todayOtps}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
+              <CheckCircle2 className="w-3 h-3" />
+              <span>Successful OTPs Today</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 3: YESTERDAY TOTAL REVENUE */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-blue-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-blue-300 transition-colors">Yesterday Total Revenue</span>
+            <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-500/25 transition-all">
+              <Calendar className="w-4 h-4 text-blue-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-blue-400 font-mono group-hover:text-blue-300 transition-colors">
+              {formatMoney(globalStats.yesterdayRevenue)}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+              <span>Previous Day Revenue</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 4: YESTERDAY TOTAL OTP */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-purple-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-purple-300 transition-colors">Yesterday Total OTP</span>
+            <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/25 transition-all">
+              <Hash className="w-4 h-4 text-purple-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
+              {globalStats.yesterdayOtps}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+              <span>Previous Day OTPs</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 5: TODAY NEW USER */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-cyan-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-cyan-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-cyan-300 transition-colors">Today New User</span>
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-500/25 transition-all">
+              <UserPlus className="w-4 h-4 text-cyan-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-cyan-300 font-mono group-hover:text-cyan-200 transition-colors">
+              {globalStats.todayNewUsers}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-cyan-400">
+              <Users className="w-3 h-3" />
+              <span>Registered Today</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 6: YESTERDAY NEW USER */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-rose-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-rose-300 transition-colors">Yesterday New User</span>
+            <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-rose-500/25 transition-all">
+              <UserCheck className="w-4 h-4 text-rose-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-white font-mono group-hover:text-rose-300 transition-colors">
+              {globalStats.yesterdayNewUsers}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+              <span>Registered Yesterday</span>
+            </div>
+          </div>
         </div>
       </div>
 
