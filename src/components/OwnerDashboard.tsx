@@ -139,7 +139,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           fullName: cleanName,
           mobileNumber: "01700000000",
           email: cleanE,
-          telegram: cleanTg || "@agent_orabit",
+          telegram: cleanTg,
           city: "Dhaka",
           country: "Bangladesh",
           referralEmail: "orabitsms@gmail.com",
@@ -153,7 +153,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           list[existingIdx] = {
             ...list[existingIdx],
             fullName: cleanName,
-            telegram: cleanTg || "@agent_orabit",
+            telegram: cleanTg,
             role: "Agent",
             password: newAgentPassword,
           };

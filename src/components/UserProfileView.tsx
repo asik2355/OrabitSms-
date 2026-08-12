@@ -26,6 +26,7 @@ import {
   Lock,
   Send,
   ShieldCheck,
+  BadgeCheck,
 } from "lucide-react";
 
 interface UserProfileViewProps {
@@ -175,15 +176,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         }
       }
 
-      // 4. Default fallback if system has no created agents yet
-      if (!matchedAgent) {
-        matchedAgent = {
-          fullName: "Alif Sheikh",
-          telegramUsername: "@alifsheikh",
-          email: "agent@orabit.bd",
-        };
-      }
-
+      // If no agent matched, matchedAgent remains null
       if (isMounted) {
         setAssignedAgent(matchedAgent);
         setIsLoadingAgent(false);
@@ -502,10 +495,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         <div className="p-6 sm:p-7 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-xl space-y-4 relative overflow-hidden text-center">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
 
-          {/* Card Heading */}
-          <h3 className="text-center font-bold text-white text-base sm:text-lg tracking-tight flex items-center justify-center gap-2">
-            🎧 Assigned Agent
-          </h3>
+          {/* Card Official Badge Header */}
+          <div className="flex justify-center pb-1">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-indigo-950/90 via-blue-950/90 to-slate-900 border border-indigo-500/40 text-indigo-300 text-xs font-mono font-bold tracking-wider uppercase shadow-lg shadow-indigo-500/10 backdrop-blur-md">
+              <BadgeCheck className="w-4 h-4 text-indigo-400 fill-indigo-500/20" />
+              <span className="bg-gradient-to-r from-indigo-200 via-sky-200 to-blue-300 bg-clip-text text-transparent font-black drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]">
+                YOUR AUTHORIZED AGENT
+              </span>
+            </div>
+          </div>
 
           {isLoadingAgent ? (
             <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
@@ -543,21 +541,26 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
               {/* Contact Agent Button */}
               <div className="w-full max-w-xs pt-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const tgHandle = (assignedAgent.telegramUsername || "").replace(/^@/, "").trim();
-                    if (tgHandle) {
-                      window.open(`https://t.me/${tgHandle}`, "_blank", "noopener,noreferrer");
-                    } else {
-                      alert("Agent's Telegram username is not configured yet.");
-                    }
-                  }}
-                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer"
-                >
-                  <Send className="w-4 h-4 text-white" />
-                  <span>Contact Agent</span>
-                </button>
+                <div className="relative group/glow w-full">
+                  {/* Continuous Breathing Glow Layer */}
+                  <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 opacity-60 blur-md group-hover/glow:opacity-100 transition-opacity duration-500 animate-pulse" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tgHandle = (assignedAgent.telegramUsername || "").replace(/^@/, "").trim();
+                      if (tgHandle) {
+                        window.open(`https://t.me/${tgHandle}`, "_blank", "noopener,noreferrer");
+                      } else {
+                        alert("Agent's Telegram username is not configured yet.");
+                      }
+                    }}
+                    className="relative group w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-xl shadow-blue-500/30 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer border border-blue-400/30 overflow-hidden"
+                  >
+                    <Send className="w-4 h-4 text-white transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-0.5" />
+                    <span className="tracking-wide">Contact Agent</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -618,20 +621,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 className="w-full bg-slate-950 border border-slate-800 text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
               />
             </div>
-          </div>
-
-          {/* BIO */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              BIO
-            </label>
-            <textarea
-              rows={2}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Tell us a bit about yourself or your business..."
-              className="w-full bg-slate-950 border border-slate-800 text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium resize-none"
-            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -117,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               fullName: validEmail.split("@")[0],
               mobileNumber: "",
               email: validEmail,
-              telegram: "@orabit_user",
+              telegram: "",
               city: "Dhaka",
               country: "Bangladesh",
               referralEmail: "agent@orabit.bd",
