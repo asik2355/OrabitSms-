@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { fetchDailyStatsFromSupabase, DailyStatItem } from "../lib/supabaseDailyStats";
 import {
   Calendar,
   ChevronDown,
@@ -56,11 +57,24 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   const [userSelectedRange, setUserSelectedRange] = useState<boolean>(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  const [dbDailyStats, setDbDailyStats] = useState<DailyStatItem[]>([]);
 
   const isOwner = userProfile?.role === "owner" || userProfile?.isOwner;
   const isAgent = userProfile?.role === "agent" || userProfile?.isAgent;
   const agentEmail = (userProfile?.email || "").toLowerCase().trim();
   const agentCode = userProfile?.referralCode || "";
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const stats = await fetchDailyStatsFromSupabase(isOwner ? undefined : userProfile?.email);
+        setDbDailyStats(stats || []);
+      } catch (e) {
+        console.error("Failed loading permanent daily stats from Supabase:", e);
+      }
+    }
+    loadStats();
+  }, [userProfile?.email, isOwner]);
 
   const dateRangeOptions = [
     "Today",
@@ -205,6 +219,19 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       mapByDate[d] = { allocation: 0, success: 0, failed: 0 };
     });
 
+    // Populate permanently saved stats from Supabase daily_stats table
+    if (dbDailyStats && dbDailyStats.length > 0) {
+      dbDailyStats.forEach((st) => {
+        const dateKey = st.date;
+        if (!mapByDate[dateKey]) {
+          mapByDate[dateKey] = { allocation: 0, success: 0, failed: 0 };
+        }
+        mapByDate[dateKey].allocation = Math.max(mapByDate[dateKey].allocation, st.total_allocations || 0);
+        mapByDate[dateKey].success = Math.max(mapByDate[dateKey].success, st.total_otps || 0);
+      });
+    }
+
+    // Accumulate active live feed numbers for real-time reactivity
     effectiveFeedNumbers.forEach((fn) => {
       let ts = fn.requestedAt;
       if (!ts && fn.id && fn.id.startsWith("feed-")) {
@@ -253,7 +280,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
           amountUSD,
         };
       });
-  }, [effectiveFeedNumbers]);
+  }, [effectiveFeedNumbers, dbDailyStats]);
 
   // Filter data based on date range selection for summary cards & charts
   const filteredData = useMemo(() => {

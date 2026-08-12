@@ -923,7 +923,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
   const consoleAppStats = appStats.length > 0 ? appStats : DEFAULT_APP_STATS;
 
   const top10Trending = React.useMemo(() => {
-    const bdStart = getBD4AMWindowStart();
+    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
     const serviceCounts: Record<string, number> = {};
 
     const processMessage = (msg: any) => {
@@ -931,7 +931,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
       const msgTime = msg.timestamp || msg.requestedAt;
       if (msgTime) {
         const t = typeof msgTime === "number" ? msgTime : new Date(msgTime).getTime();
-        if (!isNaN(t) && t < bdStart) return;
+        if (!isNaN(t) && t < twentyFourHoursAgo) return;
       }
       let s = (msg.service || msg.serviceName || "OTHER").trim();
       if (!s) return;
@@ -939,16 +939,9 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
       serviceCounts[s] = (serviceCounts[s] || 0) + 1;
     };
 
-    const dataSource = all24hHits.length > 0 ? all24hHits : messages;
+    const dataSource = all24hHits && all24hHits.length > 0 ? all24hHits : messages;
     if (dataSource && dataSource.length > 0) {
       dataSource.forEach(processMessage);
-    }
-    if (userSuccessMessages && userSuccessMessages.length > 0) {
-      userSuccessMessages.forEach(processMessage);
-    }
-
-    if (Object.keys(serviceCounts).length === 0) {
-      return GLOBAL_TRENDING.slice(0, 10);
     }
 
     const colorMap: Record<string, string> = {
@@ -1003,7 +996,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     }
 
     return result;
-  }, [all24hHits, messages, userSuccessMessages]);
+  }, [all24hHits, messages]);
 
   const carrierStats = React.useMemo(() => {
     if (!messages || messages.length === 0) {

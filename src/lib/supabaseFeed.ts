@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { FeedNumber } from "../types";
+import { recordDailyStatToSupabase, getBDDateString } from "./supabaseDailyStats";
 
 export const USER_FEED_NUMBERS_TABLE = "user_feed_numbers";
 
@@ -190,6 +191,9 @@ export async function saveFeedNumberToSupabase(userEmail: string, item: FeedNumb
     const { error } = await supabase.from(USER_FEED_NUMBERS_TABLE).upsert(payload, { onConflict: "id" });
     if (error) {
       console.warn("Supabase upsert feed number notice:", error.message);
+    } else {
+      const isSuccess = item.status === "SUCCESS" || item.status === "MULTI SUCCESS" || item.status === "success";
+      recordDailyStatToSupabase(cleanEmail, true, isSuccess, 0.006, getBDDateString(item.requestedAt || Date.now()));
     }
   } catch (e) {
     console.error("Failed upserting feed number to Supabase:", e);
