@@ -2049,30 +2049,32 @@ export default function App() {
               </div>
             )}
 
-            {/* Bottom Developer Card */}
-            <div className="mt-auto pt-2">
-              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-800/90 to-slate-900 border border-emerald-500/20 space-y-2 relative overflow-hidden shadow-lg">
-                <div className="flex items-center justify-between">
-                  <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
-                    DEV
-                  </span>
-                  <Code2 className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="font-bold text-xs text-white">Are you a developer?</div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-slate-400">See the API</span>
-                  <button
-                    onClick={() => {
-                      setActiveTab("api");
-                      setSidebarOpen(false);
-                    }}
-                    className="bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3 py-1 rounded-lg transition-all shadow-sm active:scale-95"
-                  >
-                    View
-                  </button>
+            {/* Bottom Developer Card (Only for regular Clients/Users) */}
+            {!isOwner && !isAgent && (
+              <div className="mt-auto pt-2">
+                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-800/90 to-slate-900 border border-emerald-500/20 space-y-2 relative overflow-hidden shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
+                      DEV
+                    </span>
+                    <Code2 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="font-bold text-xs text-white">Are you a developer?</div>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-slate-400">See the API</span>
+                    <button
+                      onClick={() => {
+                        setActiveTab("api");
+                        setSidebarOpen(false);
+                      }}
+                      className="bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3 py-1 rounded-lg transition-all shadow-sm active:scale-95"
+                    >
+                      View
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

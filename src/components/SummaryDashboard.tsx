@@ -525,10 +525,10 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                 {dropdownOpen && (
                   <>
                     <div
-                      className="fixed inset-0 z-30"
+                      className="fixed inset-0 z-40"
                       onClick={() => setDropdownOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-[#181d2b] border border-slate-700/80 shadow-2xl z-40 p-1.5 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-48 rounded-2xl bg-[#181d2b] border border-slate-700/80 shadow-2xl z-50 p-1.5 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
                       {dateRangeOptions.map((option) => (
                         <button
                           key={option}
