@@ -2,618 +2,670 @@ import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { formatUSD } from "../lib/storageUtils";
 import { FeedNumber } from "../types";
+import { fetchDailyStatsFromSupabase, DailyStatItem } from "../lib/supabaseDailyStats";
 import {
-  BarChart3,
-  TrendingUp,
   Calendar,
   ChevronDown,
   Download,
-  Search,
-  LayoutDashboard,
-  Crown,
-  Users,
-  UserCheck,
+  Layers,
+  CheckCircle2,
   DollarSign,
-  ShieldCheck,
-  Mail,
-  Phone,
-  RefreshCw,
-  Power,
-  Zap,
+  CheckSquare,
+  TrendingUp,
+  Search,
+  Check,
+  Globe,
 } from "lucide-react";
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
+  BarChart,
+  Bar,
   CartesianGrid,
 } from "recharts";
 
 interface OwnerSummaryProps {
-  userProfile: UserProfile | null;
-  feedNumbers: FeedNumber[];
-  currency: "USD" | "BDT";
-  usdExchangeRate: number;
-  onNavigateTab: (tab: "owner_dashboard" | "owner_summary") => void;
-}
-
-interface ClientPerformance {
-  clientEmail: string;
-  clientName: string;
-  mobileNumber: string;
-  country: string;
-  balance: number;
-  accountStatus: string;
-  agentEmail: string;
-  agentName: string;
-  totalAllocations: number;
-  totalSuccess: number;
-  totalFailed: number;
-  successRate: number;
-  totalRevenueUSD: number;
+  userProfile?: UserProfile | null;
+  feedNumbers?: FeedNumber[];
+  currency?: "USD" | "BDT";
+  usdExchangeRate?: number;
+  onNavigateTab?: (tab: any) => void;
 }
 
 export const OwnerSummary: React.FC<OwnerSummaryProps> = ({
   userProfile,
   feedNumbers = [],
-  currency,
+  currency = "USD",
   usdExchangeRate = 100,
   onNavigateTab,
 }) => {
   const [dateRange, setDateRange] = useState<string>("7 Days");
+  const [userSelectedRange, setUserSelectedRange] = useState<boolean>(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
-  const [clientSearch, setClientSearch] = useState("");
-  const [agentFilter, setAgentFilter] = useState<string>("all");
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [dbDailyStats, setDbDailyStats] = useState<DailyStatItem[]>([]);
 
-  const rangeOptions = ["Today", "Yesterday", "7 Days", "30 Days"];
-
-  // Load all registered users
-  const loadUsers = () => {
-    try {
-      const stored = localStorage.getItem("orabit_registered_users");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setAllUsers(parsed);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load users in OwnerSummary:", e);
-    }
-  };
-
+  // 1. Fetch Global Daily Stats from Supabase (without user_email filter)
   useEffect(() => {
-    loadUsers();
+    async function loadStats() {
+      try {
+        const stats = await fetchDailyStatsFromSupabase(undefined); // Fetch all user stats globally
+        setDbDailyStats(stats || []);
+      } catch (e) {
+        console.error("Failed loading global daily stats from Supabase:", e);
+      }
+    }
+    loadStats();
   }, []);
 
-  // Separate agents and clients
-  const agentsList = useMemo(() => {
-    return allUsers.filter((u) => u.role === "agent" || u.isAgent);
-  }, [allUsers]);
+  const dateRangeOptions = ["Today", "Yesterday", "7 Days", "30 Days"];
 
-  const clientsList = useMemo(() => {
-    return allUsers.filter((u) => u.role === "client" || (!u.role && !u.isOwner && !u.isAgent));
-  }, [allUsers]);
-
-  // Map each client to their assigned agent
-  const clientAgentMap = useMemo(() => {
-    const map = new Map<string, { agentEmail: string; agentName: string }>();
-
-    clientsList.forEach((client) => {
-      const ref = (client.referralEmail || client.referredBy || client.referredByAgentEmail || "").toLowerCase().trim();
-      let foundAgent = agentsList.find(
-        (a) =>
-          a.email.toLowerCase().trim() === ref ||
-          (a.referralCode && a.referralCode.toLowerCase().trim() === ref)
-      );
-
-      map.set(client.email.toLowerCase().trim(), {
-        agentEmail: foundAgent ? foundAgent.email : ref || "Direct / House",
-        agentName: foundAgent ? foundAgent.fullName || foundAgent.email.split("@")[0] : "DIRECT / HOUSE",
-      });
-    });
-
-    return map;
-  }, [clientsList, agentsList]);
-
-  // Aggregate ALL system feeds from every client's localStorage key + passed feedNumbers
-  const allSystemFeeds = useMemo(() => {
-    const items: (FeedNumber & { clientEmail?: string })[] = [];
-
+  // 2. Aggregate ALL feed numbers across ALL users in localStorage for real-time reactivity
+  const effectiveFeedNumbers = useMemo(() => {
+    const aggregatedFeeds: FeedNumber[] = [];
     try {
+      const storedUsers = localStorage.getItem("orabit_registered_users");
+      let allUserEmails: string[] = [];
+      if (storedUsers) {
+        const list: any[] = JSON.parse(storedUsers);
+        if (Array.isArray(list)) {
+          allUserEmails = list.map((u) => (u.email || "").toLowerCase().trim()).filter(Boolean);
+        }
+      }
+
+      const processedKeys = new Set<string>();
+
+      allUserEmails.forEach((email) => {
+        const key = `orabit_feed_numbers_${email}`;
+        processedKeys.add(key);
+        const storedFeed = localStorage.getItem(key);
+        if (storedFeed) {
+          try {
+            const parsed: FeedNumber[] = JSON.parse(storedFeed);
+            if (Array.isArray(parsed)) {
+              aggregatedFeeds.push(...parsed);
+            }
+          } catch (e) {}
+        }
+      });
+
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith("orabit_feed_numbers_")) {
-          const clientEmail = key.replace("orabit_feed_numbers_", "").toLowerCase().trim();
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            const parsed: FeedNumber[] = JSON.parse(stored);
-            if (Array.isArray(parsed)) {
-              parsed.forEach((f) => {
-                items.push({ ...f, clientEmail });
-              });
-            }
+        if (key && (key.startsWith("orabit_feed_numbers") || key.includes("feed_numbers")) && !processedKeys.has(key)) {
+          const storedFeed = localStorage.getItem(key);
+          if (storedFeed) {
+            try {
+              const parsed: FeedNumber[] = JSON.parse(storedFeed);
+              if (Array.isArray(parsed)) {
+                aggregatedFeeds.push(...parsed);
+              }
+            } catch (e) {}
           }
         }
       }
     } catch (e) {
-      console.error("Error reading all client feeds in OwnerSummary:", e);
+      console.error("Error computing global feed numbers:", e);
     }
 
-    // Attach passed props feedNumbers
     if (feedNumbers.length > 0) {
-      feedNumbers.forEach((f) => {
-        items.push(f);
-      });
+      aggregatedFeeds.push(...feedNumbers);
     }
 
-    return items;
-  }, [feedNumbers]);
-
-  // Compute Per-Client Detailed Performance across all Agents
-  const clientsPerformanceList = useMemo<ClientPerformance[]>(() => {
-    const perfMap = new Map<string, ClientPerformance>();
-
-    // Initialize all registered clients
-    clientsList.forEach((client) => {
-      const emailKey = client.email.toLowerCase().trim();
-      const agentInfo = clientAgentMap.get(emailKey) || {
-        agentEmail: "Direct / House",
-        agentName: "DIRECT / HOUSE",
-      };
-
-      perfMap.set(emailKey, {
-        clientEmail: client.email,
-        clientName: client.fullName || client.email.split("@")[0],
-        mobileNumber: client.mobileNumber || "—",
-        country: client.country || "Bangladesh",
-        balance: client.balance || 0,
-        accountStatus: client.accountStatus || "ACTIVE",
-        agentEmail: agentInfo.agentEmail,
-        agentName: agentInfo.agentName.toUpperCase(),
-        totalAllocations: 0,
-        totalSuccess: 0,
-        totalFailed: 0,
-        successRate: 0,
-        totalRevenueUSD: 0,
-      });
-    });
-
-    // Accumulate feeds per client
-    allSystemFeeds.forEach((f) => {
-      const clientEmail = (f.clientEmail || "").toLowerCase().trim();
-      if (clientEmail && perfMap.has(clientEmail)) {
-        const rec = perfMap.get(clientEmail)!;
-        rec.totalAllocations += 1;
-        if (f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || !f.status) {
-          rec.totalSuccess += 1;
-          rec.totalRevenueUSD += 0.006;
-        } else if (f.status === "FAILED") {
-          rec.totalFailed += 1;
-        }
+    // Deduplicate feeds by ID or composite key
+    const uniqueFeeds: FeedNumber[] = [];
+    const seen = new Set<string>();
+    aggregatedFeeds.forEach((item) => {
+      const itemKey = item.id ? item.id : `${item.number}_${item.requestedAt}_${item.status}`;
+      if (!seen.has(itemKey)) {
+        seen.add(itemKey);
+        uniqueFeeds.push(item);
       }
     });
 
-    // Calculate rates
-    const result = Array.from(perfMap.values()).map((rec) => {
-      const rate = rec.totalAllocations > 0 ? Number(((rec.totalSuccess / rec.totalAllocations) * 100).toFixed(1)) : 0;
-      return {
-        ...rec,
-        successRate: rate,
-      };
-    });
+    return uniqueFeeds;
+  }, [feedNumbers]);
 
-    result.sort((a, b) => b.totalAllocations - a.totalAllocations);
-    return result;
-  }, [clientsList, clientAgentMap, allSystemFeeds]);
-
-  // Filter clients table by Agent dropdown & Search
-  const filteredClientDetails = useMemo(() => {
-    return clientsPerformanceList.filter((item) => {
-      const matchesAgent =
-        agentFilter === "all" ||
-        item.agentEmail.toLowerCase() === agentFilter.toLowerCase() ||
-        item.agentName.toLowerCase().includes(agentFilter.toLowerCase());
-
-      const search = clientSearch.toLowerCase().trim();
-      const matchesSearch =
-        !search ||
-        item.clientName.toLowerCase().includes(search) ||
-        item.clientEmail.toLowerCase().includes(search) ||
-        item.agentName.toLowerCase().includes(search) ||
-        item.agentEmail.toLowerCase().includes(search) ||
-        item.mobileNumber.includes(search);
-
-      return matchesAgent && matchesSearch;
-    });
-  }, [clientsPerformanceList, agentFilter, clientSearch]);
-
-  // Compute live system daily summary from all feed numbers
+  // 3. Compute live daily summary from Supabase daily_stats + live feedNumbers
   const liveSummaryData = useMemo(() => {
     const dates: string[] = [];
-    const baseDate = new Date("2026-08-09T00:00:00Z");
+    const nowMs = Date.now();
     for (let i = 29; i >= 0; i--) {
-      const d = new Date(baseDate.getTime() - i * 86400000);
+      const d = new Date(nowMs - i * 86400000 + 6 * 60 * 60 * 1000); // BD Time UTC+6
       const yyyy = d.getUTCFullYear();
       const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
       const dd = String(d.getUTCDate()).padStart(2, "0");
       dates.push(`${yyyy}-${mm}-${dd}`);
     }
 
-    const mapByDate: Record<string, { allocation: number; success: number; failed: number }> = {};
-    dates.forEach((d) => {
-      mapByDate[d] = { allocation: 0, success: 0, failed: 0 };
-    });
+    const todayStr = dates[dates.length - 1];
+    const yesterdayStr = dates[dates.length - 2];
 
-    allSystemFeeds.forEach((fn) => {
-      let dateKey = "2026-08-09";
-      if (fn.requestedAt) {
-        const d = new Date(fn.requestedAt);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        dateKey = `${yyyy}-${mm}-${dd}`;
-      }
-      if (!mapByDate[dateKey]) {
-        mapByDate[dateKey] = { allocation: 0, success: 0, failed: 0 };
-      }
-      mapByDate[dateKey].allocation += 1;
-      if (fn.status === "SUCCESS" || fn.status === "MULTI SUCCESS" || !fn.status) mapByDate[dateKey].success += 1;
-      else if (fn.status === "FAILED") mapByDate[dateKey].failed += 1;
-    });
-
-    return Object.keys(mapByDate)
-      .sort()
-      .map((date) => {
-        const item = mapByDate[date];
-        const rate = item.allocation > 0 ? Number(((item.success / item.allocation) * 100).toFixed(2)) : 0;
-        const amountUSD = item.success * 0.006;
-        return {
-          date,
-          allocation: item.allocation,
-          success: item.success,
-          failed: item.failed,
-          rate,
-          amountUSD,
-        };
+    // Group Supabase daily_stats by date (SUM across all users)
+    const dbMapByDate: Record<string, { allocation: number; success: number }> = {};
+    if (dbDailyStats && dbDailyStats.length > 0) {
+      dbDailyStats.forEach((st) => {
+        const dateKey = st.date;
+        if (!dbMapByDate[dateKey]) {
+          dbMapByDate[dateKey] = { allocation: 0, success: 0 };
+        }
+        dbMapByDate[dateKey].allocation += Number(st.total_allocations || 0);
+        dbMapByDate[dateKey].success += Number(st.total_otps || 0);
       });
-  }, [allSystemFeeds]);
-
-  // Filter data based on selected date range
-  const filteredData = useMemo(() => {
-    let list = [...liveSummaryData];
-    if (dateRange === "Today") {
-      list = list.filter((item) => item.date === "2026-08-09");
-    } else if (dateRange === "Yesterday") {
-      list = list.filter((item) => item.date === "2026-08-08");
-    } else if (dateRange === "7 Days") {
-      list = list.slice(-7);
-    } else if (dateRange === "30 Days") {
-      list = list.slice(-30);
     }
 
+    // Group live feed numbers by date
+    const liveMapByDate: Record<string, { allocation: number; success: number; failed: number }> = {};
+    effectiveFeedNumbers.forEach((fn) => {
+      let ts = fn.requestedAt;
+      if (!ts && fn.id && fn.id.startsWith("feed-")) {
+        const parsed = Number(fn.id.replace("feed-", ""));
+        if (!isNaN(parsed) && parsed > 1000000000000) ts = parsed;
+      }
+
+      let dateKey = todayStr;
+      if (ts) {
+        const d = new Date(ts + 6 * 60 * 60 * 1000);
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        dateKey = `${yyyy}-${mm}-${dd}`;
+      } else {
+        const timeAgoLower = (fn.timeAgo || "").toLowerCase();
+        if (timeAgoLower.includes("1d") || timeAgoLower.includes("yesterday") || timeAgoLower.includes("20h") || timeAgoLower.includes("23h")) {
+          dateKey = yesterdayStr;
+        }
+      }
+
+      if (!liveMapByDate[dateKey]) {
+        liveMapByDate[dateKey] = { allocation: 0, success: 0, failed: 0 };
+      }
+      liveMapByDate[dateKey].allocation += 1;
+      const statusUpper = (fn.status || "").toString().toUpperCase();
+      if (statusUpper === "SUCCESS" || statusUpper === "MULTI SUCCESS" || statusUpper === "COMPLETED") {
+        liveMapByDate[dateKey].success += 1;
+      } else if (statusUpper === "FAILED" || statusUpper === "CANCELLED" || statusUpper === "EXPIRED") {
+        liveMapByDate[dateKey].failed += 1;
+      }
+    });
+
+    // Merge for all 30 dates taking Math.max to prevent loss & ensure full accuracy
+    return dates.map((date) => {
+      const db = dbMapByDate[date] || { allocation: 0, success: 0 };
+      const live = liveMapByDate[date] || { allocation: 0, success: 0, failed: 0 };
+
+      const allocation = Math.max(db.allocation, live.allocation);
+      const success = Math.max(db.success, live.success);
+      const failed = Math.max(allocation - success, live.failed);
+      const rate = allocation > 0 ? Number(((success / allocation) * 100).toFixed(2)) : 0;
+      const amountUSD = success * 0.006;
+
+      return {
+        date,
+        allocation,
+        success,
+        failed,
+        rate,
+        amountUSD,
+      };
+    });
+  }, [dbDailyStats, effectiveFeedNumbers]);
+
+  // 4. Filter data by selected date range
+  const filteredData = useMemo(() => {
+    let list = [...liveSummaryData];
+    if (liveSummaryData.length === 0) return list;
+
+    const todayStr = liveSummaryData[liveSummaryData.length - 1]?.date;
+    const yesterdayStr = liveSummaryData[liveSummaryData.length - 2]?.date;
+
+    if (dateRange === "Today") {
+      list = list.filter((item) => item.date === todayStr);
+    } else if (dateRange === "Yesterday") {
+      list = list.filter((item) => item.date === yesterdayStr);
+    } else if (dateRange === "7 Days" || dateRange === "Last 7 Days") {
+      list = list.slice(-7);
+    } else if (dateRange === "30 Days" || dateRange === "Last 30 Days") {
+      list = list.slice(-30);
+    }
+    return list;
+  }, [liveSummaryData, dateRange]);
+
+  // 5. Data for detailed report table with search filter
+  const tableData = useMemo(() => {
+    let list = [...filteredData];
+    if (!userSelectedRange && (dateRange === "7 Days" || dateRange === "Last 7 Days")) {
+      list = list.slice(-5);
+    }
     if (searchFilter.trim()) {
       list = list.filter((item) => item.date.includes(searchFilter.trim()));
     }
     return list;
-  }, [liveSummaryData, dateRange, searchFilter]);
+  }, [filteredData, userSelectedRange, dateRange, searchFilter]);
 
-  // Aggregated totals
-  const totalAllocation = useMemo(() => filteredData.reduce((acc, curr) => acc + curr.allocation, 0), [filteredData]);
-  const totalSuccess = useMemo(() => filteredData.reduce((acc, curr) => acc + curr.success, 0), [filteredData]);
-  const totalFailed = useMemo(() => filteredData.reduce((acc, curr) => acc + curr.failed, 0), [filteredData]);
-  const totalEarningsUSD = useMemo(() => filteredData.reduce((acc, curr) => acc + curr.amountUSD, 0), [filteredData]);
+  // Aggregate Metrics
+  const totalAllocation = useMemo(
+    () => filteredData.reduce((acc, curr) => acc + curr.allocation, 0),
+    [filteredData]
+  );
+
+  const totalSuccess = useMemo(
+    () => filteredData.reduce((acc, curr) => acc + curr.success, 0),
+    [filteredData]
+  );
+
+  const totalFailed = useMemo(
+    () => filteredData.reduce((acc, curr) => acc + curr.failed, 0),
+    [filteredData]
+  );
+
+  const totalEarningsUSD = useMemo(
+    () => filteredData.reduce((acc, curr) => acc + curr.amountUSD, 0),
+    [filteredData]
+  );
 
   const overallSuccessRate = useMemo(() => {
     if (totalAllocation === 0) return 0;
     return Number(((totalSuccess / totalAllocation) * 100).toFixed(2));
   }, [totalSuccess, totalAllocation]);
 
-  const formatMoney = (amountUSD: number) => {
+  // Table summary totals
+  const tableAllocation = useMemo(() => tableData.reduce((acc, curr) => acc + curr.allocation, 0), [tableData]);
+  const tableSuccess = useMemo(() => tableData.reduce((acc, curr) => acc + curr.success, 0), [tableData]);
+  const tableFailed = useMemo(() => tableData.reduce((acc, curr) => acc + curr.failed, 0), [tableData]);
+  const tableEarningsUSD = useMemo(() => tableData.reduce((acc, curr) => acc + curr.amountUSD, 0), [tableData]);
+  const tableSuccessRate = useMemo(() => {
+    if (tableAllocation === 0) return 0;
+    return Number(((tableSuccess / tableAllocation) * 100).toFixed(2));
+  }, [tableSuccess, tableAllocation]);
+
+  // Format chart data with formatted date labels
+  const chartData = useMemo(() => {
+    return filteredData.map((d) => {
+      const parts = d.date.split("-");
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const mIdx = Math.max(0, Math.min(11, Number(parts[1]) - 1));
+      const shortMonth = months[mIdx] || "Aug";
+      const shortDate = `${shortMonth} ${parts[2]}`;
+      return {
+        ...d,
+        shortDate,
+        amountDisplay: currency === "BDT" ? d.amountUSD * usdExchangeRate : d.amountUSD,
+      };
+    });
+  }, [filteredData, currency, usdExchangeRate]);
+
+  // Helper to format currency
+  const formatMoney = (usdVal: number) => {
     if (currency === "BDT") {
-      const bdt = amountUSD * usdExchangeRate;
-      return `৳ ${bdt.toFixed(2)}`;
+      const bdtVal = usdVal * usdExchangeRate;
+      return `৳${bdtVal.toFixed(2)}`;
     }
-    return `$ ${formatUSD(amountUSD).replace("$", "")}`;
+    return formatUSD(usdVal);
   };
 
+  // CSV Export
   const handleDownloadCSV = () => {
-    const headers = ["Client Name", "Client Email", "Assigned Agent", "Total OTPs", "Success", "Failed", "Success Rate (%)", "Balance (USD)"];
-    const rows = filteredClientDetails.map((row) => [
-      row.clientName,
-      row.clientEmail,
-      row.agentName,
-      row.totalAllocations,
-      row.totalSuccess,
-      row.totalFailed,
-      `${row.successRate}%`,
-      formatUSD(row.balance),
-    ]);
+    const headers = ["Date", "Allocation", "Success", "Failed", "Rate (%)", `Amount (${currency})`].join(",");
+    const rows = filteredData.map((d) => {
+      const amt = currency === "BDT" ? (d.amountUSD * usdExchangeRate).toFixed(2) : formatUSD(d.amountUSD).replace("$", "");
+      return [d.date, d.allocation, d.success, d.failed, `${d.rate}%`, amt].join(",");
+    });
+    const totalRow = [
+      "TOTAL",
+      totalAllocation,
+      totalSuccess,
+      totalFailed,
+      `${overallSuccessRate}%`,
+      currency === "BDT" ? (totalEarningsUSD * usdExchangeRate).toFixed(2) : formatUSD(totalEarningsUSD).replace("$", ""),
+    ].join(",");
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows, totalRow].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Owner_All_Agents_Clients_Summary_${dateRange.replace(" ", "_")}.csv`);
+    link.setAttribute("download", `owner_global_summary_${dateRange.toLowerCase().replace(/\s+/g, "_")}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#0d1117] text-slate-100 p-3 sm:p-6 space-y-6 font-sans selection:bg-amber-500/30">
-      {/* Header Card */}
-      <div className="bg-gradient-to-r from-slate-900 via-[#151c28] to-slate-900 border border-emerald-500/30 rounded-2xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-emerald-500 p-0.5 shadow-lg shadow-emerald-500/20 shrink-0">
-              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                <Crown className="w-6 h-6 text-amber-400" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  Owner Summary: All Agents & Clients
-                </h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> FULL MASTER ACCESS
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Complete real-time performance breakdown for every agent and all their clients across the network.
-              </p>
-            </div>
-          </div>
-
-          {/* Sub Navigation */}
-          <div className="flex items-center gap-2 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shrink-0">
-            <button
-              onClick={() => onNavigateTab("owner_dashboard")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all"
-            >
-              <LayoutDashboard className="w-4 h-4 text-emerald-400" />
-              <span>Owner Dashboard</span>
-            </button>
-
-            <button
-              onClick={() => onNavigateTab("owner_summary")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold bg-[#2EE59D] text-slate-950 shadow-md transition-all"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>Owner Summary</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Overview Stat Cards for Agents & Clients */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-1 hover:border-purple-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Total Agents</span>
-            <Users className="w-4 h-4 text-purple-400" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-black text-white font-mono">{agentsList.length}</p>
-          <p className="text-[11px] text-slate-400">Team Leaders Onboarded</p>
+    <div className="space-y-6 text-slate-100 font-sans pb-10">
+      {/* HEADER & TITLE */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
+            <span>Owner Summary: All Agents & Clients</span>
+            <span className="text-[11px] font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <Globe className="w-3 h-3" />
+              GLOBAL PLATFORM
+            </span>
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium">
+            Aggregated real-time performance breakdown, OTP success rates, and revenue across all system users.
+          </p>
         </div>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-1 hover:border-sky-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider">Total Clients</span>
-            <UserCheck className="w-4 h-4 text-sky-400" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-black text-white font-mono">{clientsList.length}</p>
-          <p className="text-[11px] text-slate-400">Across all Agents</p>
-        </div>
+        {/* DATE RANGE FILTER DROPDOWN */}
+        <div className="relative shrink-0">
+          <div className="p-3 rounded-2xl bg-[#131722]/90 border border-slate-800 flex items-center gap-3 shadow-lg">
+            <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="text-xs text-slate-400 font-medium hidden sm:inline">Date range</span>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-1 hover:border-emerald-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">System Success Rate</span>
-            <Zap className="w-4 h-4 text-emerald-400" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">{overallSuccessRate}%</p>
-          <p className="text-[11px] text-slate-400">System-wide success</p>
-        </div>
-
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-1 hover:border-amber-500/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Gross Profit</span>
-            <DollarSign className="w-4 h-4 text-amber-400" />
-          </div>
-          <p className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">{formatMoney(totalEarningsUSD)}</p>
-          <p className="text-[11px] text-slate-400">Total system revenue</p>
-        </div>
-      </div>
-
-      {/* MAIN SECTION: All Agents' Clients Master Table */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-2xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-amber-400" /> All Agents & Their Clients Master Details
-            </h2>
-            <p className="text-xs text-slate-400">
-              Live activity, balances, and OTP metrics for every client grouped under their assigned agent.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Agent Dropdown Filter */}
             <div className="relative">
-              <select
-                value={agentFilter}
-                onChange={(e) => setAgentFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-emerald-500/40 hover:border-emerald-400 text-xs font-bold text-white flex items-center gap-2 transition-all shadow-sm active:scale-95"
               >
-                <option value="all">All Agents ({agentsList.length})</option>
-                {agentsList.map((a) => (
-                  <option key={a.email} value={a.email}>
-                    Agent: {a.fullName || a.email.split("@")[0]} ({a.email})
-                  </option>
-                ))}
-                <option value="direct">Direct / House Clients</option>
-              </select>
-            </div>
+                <span>{dateRange}</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-emerald-400 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
+              </button>
 
-            {/* Search Input */}
-            <div className="relative w-full sm:w-56">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              {/* DROPDOWN MENU */}
+              {dropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-[#181d2b] border border-slate-700/80 shadow-2xl z-40 p-1.5 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                    {dateRangeOptions.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setDateRange(option);
+                          setUserSelectedRange(true);
+                          setDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
+                          dateRange === option
+                            ? "bg-[#2EE59D]/20 text-[#2EE59D]"
+                            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                        }`}
+                      >
+                        <span>{option}</span>
+                        {dateRange === option && <Check className="w-3.5 h-3.5 text-[#2EE59D]" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4 TOP METRICS CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* CARD 1: TOTAL ALLOCATION */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-emerald-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-emerald-300 transition-colors">TOTAL ALLOCATION</span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/25 transition-all">
+              <Layers className="w-4 h-4 text-emerald-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">
+              {totalAllocation}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+              <TrendingUp className="w-3 h-3" />
+              <span>Global Allocations</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 2: SUCCESS RATE */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-emerald-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-emerald-300 transition-colors">SUCCESS RATE</span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/25 transition-all">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">
+              {overallSuccessRate}%
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+              <TrendingUp className="w-3 h-3" />
+              <span>Platform Average</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 3: TOTAL EARNINGS */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-amber-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-amber-300 transition-colors">TOTAL EARNINGS</span>
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-500/25 transition-all">
+              <DollarSign className="w-4 h-4 text-amber-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-[#2EE59D] font-mono group-hover:text-amber-300 transition-colors">
+              {formatMoney(totalEarningsUSD)}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+              <TrendingUp className="w-3 h-3" />
+              <span>Total Revenue ({currency})</span>
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 4: TOTAL SUCCESS */}
+        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-purple-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
+          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+            <span className="group-hover:text-purple-300 transition-colors">TOTAL SUCCESS</span>
+            <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/25 transition-all">
+              <CheckSquare className="w-4 h-4 text-purple-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-3xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
+              {totalSuccess}
+            </div>
+            <div className="text-[11px] font-medium text-slate-400">
+              out of <span className="font-bold text-white">{totalAllocation}</span> allocated
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CHARTS SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* CHART 1: SUCCESS VS FAILED TRENDS */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#131722]/90 border border-slate-800 space-y-4 shadow-xl relative overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <span>Success vs Failed Trends</span>
+            </h2>
+            <div className="flex items-center gap-4 text-xs font-semibold">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-[#2EE59D] ring-2 ring-[#2EE59D]/30" />
+                <span className="text-slate-300">Success</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-rose-500 ring-2 ring-rose-500/30" />
+                <span className="text-slate-300">Failed</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-64 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorOwnerSuccess" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2EE59D" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#2EE59D" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorOwnerFailed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#EF4444" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="shortDate" stroke="#64748b" fontSize={11} tickLine={false} />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#181d2b",
+                    borderColor: "#334155",
+                    borderRadius: "12px",
+                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+                    fontSize: "12px",
+                    color: "#f8fafc",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="success"
+                  stroke="#2EE59D"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorOwnerSuccess)"
+                  name="Success"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="failed"
+                  stroke="#EF4444"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorOwnerFailed)"
+                  name="Failed"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* CHART 2: EARNINGS OVERVIEW */}
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#131722]/90 border border-slate-800 space-y-4 shadow-xl relative overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <span>Earnings Overview</span>
+            </h2>
+            <span className="text-xs font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+              {currency}
+            </span>
+          </div>
+
+          <div className="h-64 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="shortDate" stroke="#64748b" fontSize={11} tickLine={false} />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip
+                  formatter={(val: any) => [
+                    currency === "BDT" ? `৳${Number(val).toFixed(2)}` : formatUSD(Number(val)),
+                    "Earnings",
+                  ]}
+                  contentStyle={{
+                    backgroundColor: "#181d2b",
+                    borderColor: "#334155",
+                    borderRadius: "12px",
+                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+                    fontSize: "12px",
+                    color: "#f8fafc",
+                  }}
+                />
+                <Bar dataKey="amountDisplay" fill="#2EE59D" radius={[6, 6, 0, 0]} name="Earnings" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* DETAILED REPORT TABLE */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-[#131722]/90 border border-slate-800 space-y-4 shadow-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">Detailed Report</h2>
+            <p className="text-xs text-slate-400">Daily breakdown of numbers allocated, OTP success rate and payout across all platform users</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Search Filter */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                placeholder="Search agent, client, email..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                placeholder="Search date..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors w-36 sm:w-48"
               />
             </div>
 
-            <button
-              onClick={loadUsers}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-              title="Refresh All Clients Data"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-
+            {/* DOWNLOAD CSV BUTTON */}
             <button
               onClick={handleDownloadCSV}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5"
+              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white flex items-center gap-2 transition-all shadow-sm active:scale-95 cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5" /> Export CSV
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Download CSV</span>
             </button>
           </div>
         </div>
 
-        {/* Master Table */}
+        {/* TABLE CONTAINER */}
         <div className="overflow-x-auto rounded-xl border border-slate-800">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left text-xs font-sans">
             <thead>
-              <tr className="bg-slate-950/90 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
-                <th className="py-3 px-4">Assigned Agent</th>
-                <th className="py-3 px-4">Client Details</th>
-                <th className="py-3 px-4 text-center">Total OTPs</th>
-                <th className="py-3 px-4 text-center text-emerald-400">Success</th>
-                <th className="py-3 px-4 text-center text-rose-400">Failed</th>
-                <th className="py-3 px-4 text-center text-amber-300">Success Rate</th>
-                <th className="py-3 px-4 text-right">Client Balance</th>
-                <th className="py-3 px-4 text-center">Status</th>
+              <tr className="bg-slate-900/90 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-800">
+                <th className="py-3 px-4">DATE</th>
+                <th className="py-3 px-4 text-center">ALLOCATION</th>
+                <th className="py-3 px-4 text-center">SUCCESS</th>
+                <th className="py-3 px-4 text-center">FAILED</th>
+                <th className="py-3 px-4 text-center">RATE</th>
+                <th className="py-3 px-4 text-right">AMOUNT ({currency})</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-sans">
-              {filteredClientDetails.length === 0 ? (
+            <tbody className="divide-y divide-slate-800/60 font-mono">
+              {tableData.length > 0 ? (
+                tableData.map((row) => (
+                  <tr key={row.date} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3 px-4 text-slate-200 font-bold font-sans">{row.date}</td>
+                    <td className="py-3 px-4 text-center text-slate-300 font-bold">{row.allocation}</td>
+                    <td className="py-3 px-4 text-center text-emerald-400 font-bold">{row.success}</td>
+                    <td className="py-3 px-4 text-center text-rose-400 font-bold">{row.failed}</td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-800 text-amber-300 border border-amber-500/20 font-bold text-[11px]">
+                        {row.rate}%
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right text-emerald-400 font-bold">
+                      {formatMoney(row.amountUSD)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <Users className="w-8 h-8 text-slate-600" />
-                      <p className="font-medium text-slate-400">No client records found matching filter.</p>
-                    </div>
+                  <td colSpan={6} className="py-8 text-center text-slate-500 font-sans">
+                    No summary data recorded for this period.
                   </td>
                 </tr>
-              ) : (
-                filteredClientDetails.map((client) => {
-                  const isActive = client.accountStatus !== "DISABLED";
-                  return (
-                    <tr key={client.clientEmail} className="hover:bg-slate-800/40 transition-colors">
-                      {/* Assigned Agent */}
-                      <td className="py-3 px-4 font-bold text-amber-300">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-black text-xs">
-                            {client.agentName.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-amber-300 font-bold">{client.agentName}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{client.agentEmail}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Client Details */}
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="text-white font-bold">{client.clientName}</p>
-                          <p className="text-[10px] text-purple-300 font-mono flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-purple-400" /> {client.clientEmail}
-                          </p>
-                          <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-slate-500" /> {client.mobileNumber} ({client.country})
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* Total OTPs */}
-                      <td className="py-3 px-4 text-center font-mono font-bold text-white text-sm">
-                        {client.totalAllocations}
-                      </td>
-
-                      {/* Success */}
-                      <td className="py-3 px-4 text-center font-mono font-bold text-emerald-400 text-sm">
-                        {client.totalSuccess}
-                      </td>
-
-                      {/* Failed */}
-                      <td className="py-3 px-4 text-center font-mono font-bold text-rose-400 text-sm">
-                        {client.totalFailed}
-                      </td>
-
-                      {/* Success Rate */}
-                      <td className="py-3 px-4 text-center font-mono font-bold text-amber-300">
-                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30">
-                          {client.successRate}%
-                        </span>
-                      </td>
-
-                      {/* Client Balance */}
-                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400 text-sm">
-                        {formatMoney(client.balance)}
-                      </td>
-
-                      {/* Account Status Badge */}
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                            isActive
-                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                              : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
-                          }`}
-                        >
-                          <Power className="w-3 h-3" />
-                          {isActive ? "ACTIVE" : "DISABLED"}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
               )}
             </tbody>
+            <tfoot>
+              <tr className="bg-slate-900/90 text-white font-bold border-t-2 border-emerald-500/40 font-mono">
+                <td className="py-3 px-4 text-emerald-400 uppercase tracking-wider font-sans font-black">TOTAL</td>
+                <td className="py-3 px-4 text-center text-white">{tableAllocation}</td>
+                <td className="py-3 px-4 text-center text-emerald-400">{tableSuccess}</td>
+                <td className="py-3 px-4 text-center text-rose-400">{tableFailed}</td>
+                <td className="py-3 px-4 text-center text-amber-300">{tableSuccessRate}%</td>
+                <td className="py-3 px-4 text-right text-emerald-400 text-sm">{formatMoney(tableEarningsUSD)}</td>
+              </tr>
+            </tfoot>
           </table>
-        </div>
-      </div>
-
-      {/* System Chart */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
-        <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-emerald-400" /> Daily Allocations vs Success Chart (All Clients)
-        </h2>
-
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={filteredData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="date" stroke="#64748b" fontSize={11} />
-              <YAxis stroke="#64748b" fontSize={11} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", fontSize: "12px" }}
-              />
-              <Bar dataKey="allocation" fill="#3b82f6" name="Allocations" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="success" fill="#10b981" name="Success" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="failed" fill="#f43f5e" name="Failed" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
         </div>
       </div>
     </div>
