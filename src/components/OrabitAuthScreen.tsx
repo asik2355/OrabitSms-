@@ -42,6 +42,14 @@ export interface UserProfile {
   rate?: number;
   lastLogin?: string;
   uid?: string;
+  apiKey?: string;
+  paymentMethods?: {
+    bkash?: string;
+    nagad?: string;
+    binanceUid?: string;
+    bep20?: string;
+  };
+  withdrawHistory?: any[];
   firstName?: string;
   lastName?: string;
 }
@@ -356,10 +364,15 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
             telegram: dbProfile.telegram || loggedInUser.telegram,
             country: dbProfile.country || loggedInUser.country,
             city: dbProfile.city || loggedInUser.city,
+            bio: dbProfile.bio || loggedInUser.bio,
             withdrawPin: dbProfile.withdrawPin !== undefined ? dbProfile.withdrawPin : loggedInUser.withdrawPin,
             balance: dbProfile.balance !== undefined ? dbProfile.balance : loggedInUser.balance,
             totalSuccess: dbProfile.totalSuccess !== undefined ? dbProfile.totalSuccess : loggedInUser.totalSuccess,
             role: dbProfile.role || loggedInUser.role,
+            apiKey: dbProfile.apiKey || loggedInUser.apiKey,
+            uid: dbProfile.uid || loggedInUser.uid,
+            paymentMethods: dbProfile.paymentMethods || loggedInUser.paymentMethods,
+            withdrawHistory: dbProfile.withdrawHistory || loggedInUser.withdrawHistory,
           };
         }
       } catch (err) {

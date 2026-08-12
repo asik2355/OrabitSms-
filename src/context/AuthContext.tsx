@@ -137,9 +137,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               telegram: dbProfile?.telegram || baseProfile.telegram,
               country: dbProfile?.country || baseProfile.country,
               city: dbProfile?.city || baseProfile.city,
+              bio: dbProfile?.bio || baseProfile.bio,
               withdrawPin: dbProfile?.withdrawPin !== undefined ? dbProfile.withdrawPin : baseProfile.withdrawPin,
               balance: dbProfile?.balance !== undefined ? dbProfile.balance : baseProfile.balance,
               totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : baseProfile.totalSuccess,
+              apiKey: dbProfile?.apiKey || baseProfile.apiKey,
+              paymentMethods: dbProfile?.paymentMethods || baseProfile.paymentMethods,
+              withdrawHistory: dbProfile?.withdrawHistory || baseProfile.withdrawHistory,
             };
           });
         } catch (e) {

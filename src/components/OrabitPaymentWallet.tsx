@@ -96,33 +96,46 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     return DEFAULT_HISTORY;
   });
 
-  // Sync methods & history when accountKey changes
+  // Sync methods & history when accountKey or userProfile changes
   useEffect(() => {
     try {
-      const savedM = localStorage.getItem(methodsStorageKey);
-      if (savedM) {
-        const parsed = JSON.parse(savedM);
+      if (userProfile?.paymentMethods) {
         setMethods({
-          bkash: parsed.bkash && !parsed.bkash.includes("****") ? parsed.bkash : "",
-          nagad: parsed.nagad && !parsed.nagad.includes("****") ? parsed.nagad : "",
-          binanceUid: parsed.binanceUid && parsed.binanceUid !== "128938402" ? parsed.binanceUid : "",
-          bep20: parsed.bep20 && !parsed.bep20.includes("****") ? parsed.bep20 : "",
+          bkash: userProfile.paymentMethods.bkash || "",
+          nagad: userProfile.paymentMethods.nagad || "",
+          binanceUid: userProfile.paymentMethods.binanceUid || "",
+          bep20: userProfile.paymentMethods.bep20 || "",
         });
       } else {
-        setMethods(DEFAULT_METHODS);
+        const savedM = localStorage.getItem(methodsStorageKey);
+        if (savedM) {
+          const parsed = JSON.parse(savedM);
+          setMethods({
+            bkash: parsed.bkash && !parsed.bkash.includes("****") ? parsed.bkash : "",
+            nagad: parsed.nagad && !parsed.nagad.includes("****") ? parsed.nagad : "",
+            binanceUid: parsed.binanceUid && parsed.binanceUid !== "128938402" ? parsed.binanceUid : "",
+            bep20: parsed.bep20 && !parsed.bep20.includes("****") ? parsed.bep20 : "",
+          });
+        } else {
+          setMethods(DEFAULT_METHODS);
+        }
       }
 
-      const savedH = localStorage.getItem(historyStorageKey);
-      if (savedH) {
-        const parsed = JSON.parse(savedH);
-        setHistory(parsed.filter((item: any) => item.type === "withdrawal" && item.id !== "tx-1" && item.id !== "tx-2"));
+      if (userProfile?.withdrawHistory && Array.isArray(userProfile.withdrawHistory) && userProfile.withdrawHistory.length > 0) {
+        setHistory(userProfile.withdrawHistory);
       } else {
-        setHistory(DEFAULT_HISTORY);
+        const savedH = localStorage.getItem(historyStorageKey);
+        if (savedH) {
+          const parsed = JSON.parse(savedH);
+          setHistory(parsed.filter((item: any) => item.type === "withdrawal" && item.id !== "tx-1" && item.id !== "tx-2"));
+        } else {
+          setHistory(DEFAULT_HISTORY);
+        }
       }
     } catch (e) {
       console.error(e);
     }
-  }, [accountKey]);
+  }, [accountKey, userProfile?.paymentMethods, userProfile?.withdrawHistory]);
 
   // Modals & Forms state
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -216,6 +229,15 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
     };
     setMethods(updated);
     setEditModalOpen(false);
+
+    const updatedProfile = {
+      ...userProfile,
+      withdrawPin: isPinSet ? userProfile.withdrawPin : newWalletPin,
+      paymentMethods: updated,
+      withdrawHistory: history,
+    };
+    if (onUpdateProfile) onUpdateProfile(updatedProfile);
+    saveUserProfileToSupabase(updatedProfile);
   };
 
   const handleWithdrawSubmit = (e: React.FormEvent) => {
@@ -279,7 +301,18 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
       status: "Done",
     };
 
-    setHistory((prev) => [newTx, ...prev]);
+    const newHistory = [newTx, ...history];
+    setHistory(newHistory);
+
+    const updatedProfile = {
+      ...userProfile,
+      balance: newBal,
+      withdrawHistory: newHistory,
+      paymentMethods: methods,
+    };
+    if (onUpdateProfile) onUpdateProfile(updatedProfile);
+    saveUserProfileToSupabase(updatedProfile);
+
     setWithdrawSuccess(`Withdrawal of ৳${amt.toFixed(2)} requested successfully to ${methodNames[selectedMethodKey]} (${savedAddress}).`);
     setWithdrawAmount("");
     setWithdrawModalPin("");

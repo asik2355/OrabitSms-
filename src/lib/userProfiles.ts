@@ -56,8 +56,13 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         telegram: data.telegram || "",
         country: data.country || "",
         city: data.city || "",
+        bio: data.bio || "",
         withdrawPin: data.withdraw_pin || "",
         accountStatus: data.account_status || "Active",
+        apiKey: data.api_key || "",
+        uid: data.uid || "",
+        paymentMethods: data.payment_methods || null,
+        withdrawHistory: data.withdraw_history || null,
       };
     }
 
@@ -72,8 +77,13 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         telegram: meta.telegram || "",
         country: meta.country || "",
         city: meta.city || "",
+        bio: meta.bio || "",
         withdrawPin: meta.withdrawPin !== undefined ? meta.withdrawPin : "",
         role: meta.role || "Client",
+        apiKey: meta.apiKey || "",
+        uid: meta.uid || "",
+        paymentMethods: meta.paymentMethods || null,
+        withdrawHistory: meta.withdrawHistory || null,
       };
     }
   } catch (e) {
@@ -101,8 +111,13 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       telegram: profile.telegram || "",
       country: profile.country || "",
       city: profile.city || "",
+      bio: profile.bio || "",
       withdraw_pin: profile.withdrawPin || "",
       account_status: profile.accountStatus || "Active",
+      api_key: profile.apiKey || "",
+      uid: profile.uid || "",
+      payment_methods: profile.paymentMethods || null,
+      withdraw_history: profile.withdrawHistory || null,
       updated_at: new Date().toISOString(),
     };
 
@@ -123,8 +138,13 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
             telegram: profile.telegram || "",
             country: profile.country || "",
             city: profile.city || "",
+            bio: profile.bio || "",
             withdrawPin: profile.withdrawPin || "",
             role: profile.role || "Client",
+            apiKey: profile.apiKey || "",
+            uid: profile.uid || "",
+            paymentMethods: profile.paymentMethods || null,
+            withdrawHistory: profile.withdrawHistory || null,
           },
         });
       }
