@@ -18,12 +18,13 @@ import {
   fetchUserFeedNumbersFromSupabase,
   saveFeedNumberToSupabase,
   bulkSyncFeedNumbersToSupabase,
+  applyFeedStateLock,
 } from "./lib/supabaseFeed";
 import {
   incrementUserSuccessAndBalanceInSupabase,
   saveUserProfileToSupabase,
 } from "./lib/userProfiles";
-import { safeLocalStorageSet, safeLocalStorageGet } from "./lib/storageUtils";
+import { safeLocalStorageSet, safeLocalStorageGet, formatUSD, formatCurrencyDisplay } from "./lib/storageUtils";
 import { TimeAgoBadge, formatTimeAgo } from "./components/TimeAgoBadge";
 import { UserProfileView } from "./components/UserProfileView";
 import { OrabitPaymentWallet } from "./components/OrabitPaymentWallet";
@@ -451,7 +452,7 @@ export default function App() {
     try {
       const dbFeeds = await fetchUserFeedNumbersFromSupabase(currentUserEmail);
       if (Array.isArray(dbFeeds)) {
-        setFeedNumbers(dbFeeds);
+        setFeedNumbers((prevFeed) => applyFeedStateLock(prevFeed, dbFeeds));
       }
     } catch (e) {
       console.error("Error refreshing feed numbers from database:", e);
@@ -624,14 +625,7 @@ export default function App() {
   }, [yesterdaySuccessMessages]);
 
   const formatBalanceDisplay = (balanceBDT: number, currCurrency: string) => {
-    if (currCurrency === "BDT") {
-      return `৳${(balanceBDT || 0).toFixed(2)}`;
-    }
-    const usdVal = (balanceBDT || 0) / usdExchangeRate;
-    if (balanceBDT > 0 && usdVal < 0.01) {
-      return `$${usdVal.toFixed(3)}`;
-    }
-    return `$${usdVal.toFixed(2)}`;
+    return formatCurrencyDisplay(balanceBDT, currCurrency, usdExchangeRate);
   };
 
   // Auto-sync user profile balance with feed earnings if DB profile balance is lower than total feed earnings

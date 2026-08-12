@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
+import { formatUSD } from "../lib/storageUtils";
 import { FeedNumber } from "../types";
 import { TeamUsersManager } from "./TeamUsersManager";
 import {
@@ -266,7 +267,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
   }, [todayFeeds]);
 
   const todayRevenueUSD = useMemo(() => {
-    return (todayOtpsCount * 0.000837).toFixed(2);
+    return todayOtpsCount * 0.000837;
   }, [todayOtpsCount]);
 
   const yesterdayOtpsCount = useMemo(() => {
@@ -274,7 +275,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
   }, [yesterdayFeeds]);
 
   const yesterdayRevenueUSD = useMemo(() => {
-    return (yesterdayOtpsCount * 0.000837).toFixed(2);
+    return yesterdayOtpsCount * 0.000837;
   }, [yesterdayOtpsCount]);
 
   // Hourly Traffic Data (Calculated dynamically from today's feed items)
@@ -459,7 +460,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
     if (currency === "BDT") {
       return `৳ ${(usd * usdExchangeRate).toFixed(2)}`;
     }
-    return `$${usd.toFixed(2)}`;
+    return formatUSD(usd);
   };
 
   return (

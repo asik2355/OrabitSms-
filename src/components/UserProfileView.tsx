@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { saveUserProfileToSupabase } from "../lib/userProfiles";
+import { formatUSD } from "../lib/storageUtils";
 import {
   User,
   Mail,
@@ -306,7 +307,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <span>
               {currency === "BDT"
                 ? userProfile.balance.toFixed(2)
-                : (userProfile.balance / usdExchangeRate).toFixed(2)}
+                : formatUSD(userProfile.balance / usdExchangeRate).replace("$", "")}
             </span>
             <span className="text-xs text-slate-400 font-sans font-bold ml-1">
               {currency}

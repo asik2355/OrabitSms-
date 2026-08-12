@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
+import { formatUSD } from "../lib/storageUtils";
 import {
   Users,
   CheckCircle2,
@@ -288,7 +289,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       const bdt = amountUSD * usdExchangeRate;
       return `৳${bdt.toFixed(2)}`;
     }
-    return `$${amountUSD.toFixed(2)}`;
+    return formatUSD(amountUSD);
   };
 
   return (
@@ -513,7 +514,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                       BALANCE
                     </span>
                     <span className="text-white font-mono font-bold">
-                      ${userBalance.toFixed(2)}
+                      {formatUSD(userBalance)}
                     </span>
                   </div>
 

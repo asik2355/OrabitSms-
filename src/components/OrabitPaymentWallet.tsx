@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { ServiceLogo } from "./ServiceLogo";
 import { saveUserProfileToSupabase } from "../lib/userProfiles";
+import { formatCurrencyDisplay, formatUSD } from "../lib/storageUtils";
 import {
   Wallet,
   CreditCard,
@@ -304,10 +305,7 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
   });
 
   const formatAmount = (bdtAmount: number) => {
-    if (currency === "USD") {
-      return `$${(bdtAmount / usdExchangeRate).toFixed(2)}`;
-    }
-    return `৳${bdtAmount.toFixed(2)}`;
+    return formatCurrencyDisplay(bdtAmount, currency, usdExchangeRate);
   };
 
   return (
@@ -804,7 +802,8 @@ export const OrabitPaymentWallet: React.FC<OrabitPaymentWalletProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const maxVal = currency === "USD" ? (userProfile.balance / usdExchangeRate).toFixed(2) : userProfile.balance.toString();
+                      const rawUSD = userProfile.balance / usdExchangeRate;
+                      const maxVal = currency === "USD" ? formatUSD(rawUSD).replace("$", "") : userProfile.balance.toString();
                       setWithdrawAmount(maxVal);
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"

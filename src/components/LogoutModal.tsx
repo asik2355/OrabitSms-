@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { LogOut, X, Shield, Wallet, CheckCircle2 } from "lucide-react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { OrabitLogo } from "./OrabitLogo";
+import { formatCurrencyDisplay } from "../lib/storageUtils";
 
 interface LogoutModalProps {
   isOpen: boolean;
@@ -23,9 +24,7 @@ export const LogoutModal: React.FC<LogoutModalProps> = ({
 }) => {
   const formattedBalance =
     userProfile?.balance !== undefined
-      ? currency === "BDT"
-        ? `৳${userProfile.balance.toFixed(2)}`
-        : `$${(userProfile.balance / usdExchangeRate).toFixed(2)}`
+      ? formatCurrencyDisplay(userProfile.balance, currency, usdExchangeRate)
       : "৳0.00";
 
   return (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
+import { formatUSD } from "../lib/storageUtils";
 import { FeedNumber } from "../types";
 import {
   BarChart3,
@@ -270,7 +271,7 @@ export const OwnerSummary: React.FC<OwnerSummaryProps> = ({
       .map((date) => {
         const item = mapByDate[date];
         const rate = item.allocation > 0 ? Number(((item.success / item.allocation) * 100).toFixed(2)) : 0;
-        const amountUSD = Number((item.success * 0.006).toFixed(2));
+        const amountUSD = item.success * 0.006;
         return {
           date,
           allocation: item.allocation,
@@ -317,7 +318,7 @@ export const OwnerSummary: React.FC<OwnerSummaryProps> = ({
       const bdt = amountUSD * usdExchangeRate;
       return `৳ ${bdt.toFixed(2)}`;
     }
-    return `$ ${amountUSD.toFixed(2)}`;
+    return `$ ${formatUSD(amountUSD).replace("$", "")}`;
   };
 
   const handleDownloadCSV = () => {
@@ -330,7 +331,7 @@ export const OwnerSummary: React.FC<OwnerSummaryProps> = ({
       row.totalSuccess,
       row.totalFailed,
       `${row.successRate}%`,
-      `$${row.balance.toFixed(2)}`,
+      formatUSD(row.balance),
     ]);
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");

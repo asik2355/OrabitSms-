@@ -44,13 +44,19 @@ function mapRowToFeedNumber(row: any): FeedNumber {
   const elapsedMs = Date.now() - reqTs;
 
   let finalStatus: "SUCCESS" | "MULTI SUCCESS" | "PENDING" | "FAILED" = row.status as any;
-  if (finalStatus === "PENDING" && elapsedMs >= 15 * 60 * 1000) {
-    finalStatus = "FAILED";
-  }
 
-  // Immutable lock: If row status in DB is SUCCESS or MULTI SUCCESS, never downgrade to FAILED/PENDING
-  if (row.status === "SUCCESS" || row.status === "MULTI SUCCESS") {
-    finalStatus = row.status;
+  // Check if messages or OTP code exists on row
+  const hasOtp = !!(row.otp_code && String(row.otp_code).trim().length > 0) || !!(row.raw_message && String(row.raw_message).trim().length > 0);
+
+  // Immutable lock: If row status in DB is SUCCESS/MULTI SUCCESS or row contains OTP data, never downgrade to FAILED/PENDING
+  if (row.status === "SUCCESS" || row.status === "MULTI SUCCESS" || hasOtp) {
+    if (row.raw_message && row.raw_message.includes("\n---\n")) {
+      finalStatus = "MULTI SUCCESS";
+    } else {
+      finalStatus = "SUCCESS";
+    }
+  } else if (finalStatus === "PENDING" && elapsedMs >= 15 * 60 * 1000) {
+    finalStatus = "FAILED";
   }
 
   const dynamicTimeAgo = formatTimeAgo(reqTs, row.time_ago);
@@ -84,6 +90,106 @@ function mapRowToFeedNumber(row: any): FeedNumber {
     messages: messagesList,
     requestedAt: reqTs,
   };
+}
+
+/**
+ * State Lock helper to merge incoming feed items with current state.
+ * CRITICAL RULE: Once an item has status "SUCCESS" or "MULTI SUCCESS" or contains OTP messages/codes,
+ * it CANNOT be downgraded to "PENDING" or "FAILED" by an incoming poll or DB re-fetch.
+ */
+export function applyFeedStateLock(currentFeed: FeedNumber[], incomingFeed: FeedNumber[]): FeedNumber[] {
+  if (!Array.isArray(currentFeed) || currentFeed.length === 0) {
+    return incomingFeed || [];
+  }
+  if (!Array.isArray(incomingFeed) || incomingFeed.length === 0) {
+    return currentFeed;
+  }
+
+  // Map existing items by ID and by normalized number for fast lookup
+  const currentById = new Map<string, FeedNumber>();
+  const currentByNum = new Map<string, FeedNumber>();
+
+  for (const item of currentFeed) {
+    if (item.id) currentById.set(item.id, item);
+    if (item.number) {
+      const cleanNum = item.number.replace(/\D/g, "");
+      if (cleanNum) currentByNum.set(cleanNum, item);
+    }
+  }
+
+  const processedIds = new Set<string>();
+  const mergedFeed: FeedNumber[] = [];
+
+  for (const incoming of incomingFeed) {
+    const cleanIncNum = (incoming.number || "").replace(/\D/g, "");
+    const existing = (incoming.id ? currentById.get(incoming.id) : null) || (cleanIncNum ? currentByNum.get(cleanIncNum) : null);
+
+    if (existing) {
+      processedIds.add(existing.id);
+
+      const existingHasOtp = !!(existing.otpCode && existing.otpCode.trim().length > 0) || !!(existing.messages && existing.messages.length > 0);
+      const existingIsSuccess = existing.status === "SUCCESS" || existing.status === "MULTI SUCCESS" || existingHasOtp;
+
+      const incomingHasOtp = !!(incoming.otpCode && incoming.otpCode.trim().length > 0) || !!(incoming.messages && incoming.messages.length > 0);
+      const incomingIsSuccess = incoming.status === "SUCCESS" || incoming.status === "MULTI SUCCESS" || incomingHasOtp;
+
+      if (existingIsSuccess) {
+        // STATE LOCK ACTIVE: Existing item is already SUCCESS/MULTI SUCCESS
+        if (!incomingIsSuccess || incoming.status === "PENDING" || incoming.status === "FAILED") {
+          // REJECT incoming PENDING/FAILED. Retain existing SUCCESS state and OTPs!
+          mergedFeed.push({
+            ...incoming,
+            status: existing.status,
+            otpCode: existing.otpCode || incoming.otpCode,
+            rawMessage: existing.rawMessage || incoming.rawMessage,
+            messages: (existing.messages && existing.messages.length > 0) ? existing.messages : incoming.messages,
+            service: (existing.service && existing.service !== "SMS OTP") ? existing.service : incoming.service,
+            requestedAt: existing.requestedAt || incoming.requestedAt,
+            timeAgo: existing.timeAgo || incoming.timeAgo,
+          });
+        } else {
+          // Both existing and incoming claim SUCCESS. Merge messages without losing any OTP.
+          const mergedMessages = [...(existing.messages || [])];
+          const incomingMsgs = incoming.messages || [];
+
+          for (const incM of incomingMsgs) {
+            if (incM.raw && !mergedMessages.some((m) => m.raw === incM.raw)) {
+              mergedMessages.unshift(incM);
+            }
+          }
+
+          const combinedCodes = mergedMessages.map((m) => m.code).filter(Boolean).join(", ");
+          const combinedRaw = mergedMessages.map((m) => m.raw).join("\n---\n");
+          const finalStatus = mergedMessages.length > 1 ? "MULTI SUCCESS" : (existing.status === "MULTI SUCCESS" ? "MULTI SUCCESS" : "SUCCESS");
+
+          mergedFeed.push({
+            ...incoming,
+            status: finalStatus,
+            otpCode: combinedCodes || existing.otpCode || incoming.otpCode,
+            rawMessage: combinedRaw || existing.rawMessage || incoming.rawMessage,
+            messages: mergedMessages.length > 0 ? mergedMessages : existing.messages,
+            service: (existing.service && existing.service !== "SMS OTP") ? existing.service : incoming.service,
+            requestedAt: existing.requestedAt || incoming.requestedAt,
+          });
+        }
+      } else {
+        // Existing item was not SUCCESS yet (was PENDING/FAILED). Adopt incoming item.
+        mergedFeed.push(incoming);
+      }
+    } else {
+      // New incoming item not in current state
+      mergedFeed.push(incoming);
+    }
+  }
+
+  // Preserve any items present in currentFeed that were missing from incomingFeed
+  for (const item of currentFeed) {
+    if (!processedIds.has(item.id)) {
+      mergedFeed.push(item);
+    }
+  }
+
+  return mergedFeed;
 }
 
 /**
@@ -157,34 +263,62 @@ export async function saveFeedNumberToSupabase(userEmail: string, item: FeedNumb
   const cleanEmail = userEmail.toLowerCase().trim();
   const localKey = `orabit_feed_numbers_${cleanEmail}`;
 
-  // 1. Update localStorage cache immediately for high speed UI feedback
+  // Read existing cached items to enforce State Lock on DB writes
+  let existingItems: FeedNumber[] = [];
   try {
     const saved = localStorage.getItem(localKey);
-    let items: FeedNumber[] = saved ? JSON.parse(saved) : [];
-    const idx = items.findIndex((i) => i.id === item.id);
-    if (idx >= 0) {
-      items[idx] = item;
-    } else {
-      items = [item, ...items];
+    if (saved) existingItems = JSON.parse(saved);
+  } catch (e) {
+    console.warn("Failed to read local feed cache:", e);
+  }
+
+  // Enforce state lock against existing item
+  const cleanNum = (item.number || "").replace(/\D/g, "");
+  const existing = existingItems.find(
+    (i) => i.id === item.id || (cleanNum && i.number && i.number.replace(/\D/g, "") === cleanNum)
+  );
+
+  let finalItem = item;
+  if (existing) {
+    const existingIsSuccess = existing.status === "SUCCESS" || existing.status === "MULTI SUCCESS" || !!existing.otpCode;
+    if (existingIsSuccess && (item.status === "PENDING" || item.status === "FAILED")) {
+      finalItem = {
+        ...item,
+        status: existing.status,
+        otpCode: existing.otpCode || item.otpCode,
+        rawMessage: existing.rawMessage || item.rawMessage,
+        messages: existing.messages || item.messages,
+        requestedAt: existing.requestedAt || item.requestedAt,
+      };
     }
-    safeSetLocalCache(localKey, items);
+  }
+
+  // 1. Update localStorage cache
+  try {
+    const idx = existingItems.findIndex((i) => i.id === finalItem.id);
+    if (idx >= 0) {
+      existingItems[idx] = finalItem;
+    } else {
+      existingItems = [finalItem, ...existingItems];
+    }
+    safeSetLocalCache(localKey, existingItems);
   } catch (e) {
     console.warn("Failed to update local feed cache:", e);
   }
 
-  // 2. Upsert to Supabase DB for cross-device sync
+  // 2. Upsert to Supabase DB
   try {
     const payload = {
-      id: item.id,
+      id: finalItem.id,
       user_email: cleanEmail,
-      number: item.number,
-      status: item.status,
-      country: item.country,
-      operator: item.operator,
-      service: item.service,
-      otp_code: item.otpCode || null,
-      raw_message: item.rawMessage || null,
-      requested_at: item.requestedAt || Date.now(),
+      number: finalItem.number,
+      status: finalItem.status,
+      country: finalItem.country,
+      operator: finalItem.operator,
+      service: finalItem.service,
+      otp_code: finalItem.otpCode || null,
+      raw_message: finalItem.rawMessage || null,
+      requested_at: finalItem.requestedAt || Date.now(),
       updated_at: new Date().toISOString(),
     };
 
@@ -192,8 +326,10 @@ export async function saveFeedNumberToSupabase(userEmail: string, item: FeedNumb
     if (error) {
       console.warn("Supabase upsert feed number notice:", error.message);
     } else {
-      const isSuccess = item.status === "SUCCESS" || item.status === "MULTI SUCCESS" || item.status === "success";
-      recordDailyStatToSupabase(cleanEmail, true, isSuccess, 0.006, getBDDateString(item.requestedAt || Date.now()));
+      const isSuccess = finalItem.status === "SUCCESS" || finalItem.status === "MULTI SUCCESS";
+      if (isSuccess) {
+        recordDailyStatToSupabase(cleanEmail, true, true, 0.006, getBDDateString(finalItem.requestedAt || Date.now()));
+      }
     }
   } catch (e) {
     console.error("Failed upserting feed number to Supabase:", e);
@@ -209,14 +345,25 @@ export async function bulkSyncFeedNumbersToSupabase(userEmail: string, items: Fe
   const cleanEmail = userEmail.toLowerCase().trim();
   const localKey = `orabit_feed_numbers_${cleanEmail}`;
 
+  let existingCache: FeedNumber[] = [];
   try {
-    safeSetLocalCache(localKey, items);
+    const saved = localStorage.getItem(localKey);
+    if (saved) existingCache = JSON.parse(saved);
+  } catch (e) {
+    console.warn("Failed local cache read:", e);
+  }
+
+  // Apply state lock to items array before writing to local cache or DB
+  const lockedItems = applyFeedStateLock(existingCache, items);
+
+  try {
+    safeSetLocalCache(localKey, lockedItems);
   } catch (e) {
     console.warn("Failed local cache save:", e);
   }
 
   try {
-    const payloads = items.map((item) => ({
+    const payloads = lockedItems.map((item) => ({
       id: item.id,
       user_email: cleanEmail,
       number: item.number,

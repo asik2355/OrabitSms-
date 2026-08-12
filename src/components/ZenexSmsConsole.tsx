@@ -4,11 +4,12 @@ import {
   fetchUserFeedNumbersFromSupabase,
   saveFeedNumberToSupabase,
   bulkSyncFeedNumbersToSupabase,
+  applyFeedStateLock,
 } from "../lib/supabaseFeed";
 import { incrementUserSuccessAndBalanceInSupabase } from "../lib/userProfiles";
 import { TimeAgoBadge, formatTimeAgo } from "./TimeAgoBadge";
 import { useAuth } from "../context/AuthContext";
-import { safeLocalStorageSet, safeLocalStorageGet } from "../lib/storageUtils";
+import { safeLocalStorageSet, safeLocalStorageGet, formatUSD } from "../lib/storageUtils";
 import {
   requestStexNumber,
   fetchStexOtps,
@@ -359,7 +360,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
     try {
       const feeds = await fetchUserFeedNumbersFromSupabase(userEmail);
       if (Array.isArray(feeds)) {
-        setFeedNumbers(feeds);
+        setFeedNumbers((prevFeed) => applyFeedStateLock(prevFeed, feeds));
       }
     } catch (e) {
       console.error("Failed to fetch user feed in console:", e);
@@ -1114,9 +1115,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
             </div>
           </div>
           <div className="text-2xl font-black text-white font-mono">
-            {todayRevenueBDT > 0 && (todayRevenueBDT / 100) < 0.01
-              ? `$${(todayRevenueBDT / 100).toFixed(3)}`
-              : `$${(todayRevenueBDT / 100).toFixed(2)}`}
+            {formatUSD(todayRevenueBDT / 100)}
           </div>
           <div className="text-[11px] text-slate-500">Earnings from successful OTPs</div>
         </div>
@@ -1142,9 +1141,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
             </div>
           </div>
           <div className="text-2xl font-black text-white font-mono">
-            {yesterdayRevenueBDT > 0 && (yesterdayRevenueBDT / 100) < 0.01
-              ? `$${(yesterdayRevenueBDT / 100).toFixed(3)}`
-              : `$${(yesterdayRevenueBDT / 100).toFixed(2)}`}
+            {formatUSD(yesterdayRevenueBDT / 100)}
           </div>
           <div className="text-[11px] text-slate-500">Previous day performance</div>
         </div>
@@ -1235,9 +1232,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                             </td>
                             <td className="py-3 px-3 font-mono font-bold text-slate-200 text-sm">{item.count}</td>
                             <td className="py-3 px-3 text-right font-mono text-emerald-400 font-bold text-sm">
-                              {earningsUsd > 0 && earningsUsd < 0.01
-                                ? `$${earningsUsd.toFixed(3)}`
-                                : `$${earningsUsd.toFixed(2)}`}
+                              {formatUSD(earningsUsd)}
                             </td>
                           </tr>
                         );

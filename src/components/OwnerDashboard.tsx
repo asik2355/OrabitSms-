@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
+import { formatUSD } from "../lib/storageUtils";
 import { FeedNumber } from "../types";
 import { createAgentInSupabase } from "../lib/userRoles";
 import { TeamUsersManager } from "./TeamUsersManager";
@@ -195,7 +196,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       const bdt = amountUSD * usdExchangeRate;
       return `৳ ${bdt.toFixed(2)}`;
     }
-    return `$ ${amountUSD.toFixed(2)}`;
+    return `$ ${formatUSD(amountUSD).replace("$", "")}`;
   };
 
   // Filtered Users (Restricted to referred clients if Agent)

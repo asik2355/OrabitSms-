@@ -54,3 +54,39 @@ export function safeLocalStorageRemove(key: string): void {
     // Silent fail
   }
 }
+
+/**
+ * Format USD amount accurately handling small fractional cents (e.g. $0.012, $0.006, $0.0008)
+ */
+export function formatUSD(usdVal: number): string {
+  if (usdVal === undefined || usdVal === null || isNaN(usdVal)) return "$0.00";
+  const num = Number(usdVal);
+  if (num === 0) return "$0.00";
+
+  // Check if multiplying by 100 has a fractional component (sub-cent decimals like 0.012 -> 1.2 cents)
+  const cents = num * 100;
+  if (Math.abs(cents - Math.round(cents)) > 0.0001) {
+    // Sub-cent precision needed! Format up to 4 decimal places without trailing zeros
+    let str = num.toFixed(4).replace(/0+$/, "").replace(/\.$/, ".00");
+    const parts = str.split(".");
+    if (parts.length === 1) str += ".00";
+    else if (parts[1].length === 1) str += "0";
+    return `$${str}`;
+  }
+  return `$${num.toFixed(2)}`;
+}
+
+/**
+ * Format balance display in either BDT or USD cleanly
+ */
+export function formatCurrencyDisplay(
+  amountBDT: number,
+  currency: string,
+  usdExchangeRate: number = 100
+): string {
+  if (currency === "BDT") {
+    return `৳${(amountBDT || 0).toFixed(2)}`;
+  }
+  const usdVal = (amountBDT || 0) / usdExchangeRate;
+  return formatUSD(usdVal);
+}

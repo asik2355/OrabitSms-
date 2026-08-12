@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { fetchDailyStatsFromSupabase, DailyStatItem } from "../lib/supabaseDailyStats";
+import { formatUSD, formatCurrencyDisplay } from "../lib/storageUtils";
 import {
   Calendar,
   ChevronDown,
@@ -270,7 +271,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       .map((date) => {
         const item = mapByDate[date];
         const rate = item.allocation > 0 ? Number(((item.success / item.allocation) * 100).toFixed(2)) : 0;
-        const amountUSD = Number((item.success * 0.006).toFixed(2));
+        const amountUSD = item.success * 0.006;
         return {
           date,
           allocation: item.allocation,
@@ -353,7 +354,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
         }).length;
 
         const succRate = totalAlloc > 0 ? Number(((totalSucc / totalAlloc) * 100).toFixed(1)) : 0;
-        const totalEarnedUSD = Number((totalSucc * 0.006).toFixed(2));
+        const totalEarnedUSD = totalSucc * 0.006;
 
         return {
           email: user.email,
@@ -432,14 +433,14 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       const bdtVal = usdVal * usdExchangeRate;
       return `৳${bdtVal.toFixed(2)}`;
     }
-    return `$${usdVal.toFixed(2)}`;
+    return formatUSD(usdVal);
   };
 
   // Export CSV handler
   const handleDownloadCSV = () => {
     const headers = ["Date", "Allocation", "Success", "Failed", "Rate (%)", `Amount (${currency})`].join(",");
     const rows = filteredData.map((d) => {
-      const amt = currency === "BDT" ? (d.amountUSD * usdExchangeRate).toFixed(2) : d.amountUSD.toFixed(2);
+      const amt = currency === "BDT" ? (d.amountUSD * usdExchangeRate).toFixed(2) : formatUSD(d.amountUSD).replace("$", "");
       return [d.date, d.allocation, d.success, d.failed, `${d.rate}%`, amt].join(",");
     });
     const totalRow = [
@@ -448,7 +449,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       totalSuccess,
       totalFailed,
       `${overallSuccessRate}%`,
-      currency === "BDT" ? (totalEarningsUSD * usdExchangeRate).toFixed(2) : totalEarningsUSD.toFixed(2),
+      currency === "BDT" ? (totalEarningsUSD * usdExchangeRate).toFixed(2) : formatUSD(totalEarningsUSD).replace("$", ""),
     ].join(",");
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows, totalRow].join("\n");
@@ -724,7 +725,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                 <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
                 <Tooltip
                   formatter={(val: any) => [
-                    currency === "BDT" ? `৳${Number(val).toFixed(2)}` : `$${Number(val).toFixed(2)}`,
+                    currency === "BDT" ? `৳${Number(val).toFixed(2)}` : formatUSD(Number(val)),
                     "Earnings",
                   ]}
                   contentStyle={{
