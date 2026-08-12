@@ -1387,20 +1387,6 @@ export default function App() {
       }
     });
 
-    if (result.length < 10) {
-      GLOBAL_TRENDING.forEach((defItem) => {
-        if (!usedNames.has(defItem.name) && result.length < 10) {
-          usedNames.add(defItem.name);
-          result.push({
-            id: result.length + 1,
-            name: defItem.name,
-            color: defItem.color,
-            count: defItem.count,
-          });
-        }
-      });
-    }
-
     return result;
   }, [all24hHits, messages]);
 
@@ -2358,7 +2344,7 @@ export default function App() {
                     ))
                   ) : (
                     <div className="text-xs font-mono text-slate-400 bg-slate-950/50 p-4 rounded-xl border border-slate-800/80 text-center">
-                      No console messages received today yet.
+                      No services found in last 24 hours
                     </div>
                   )}
                 </div>
