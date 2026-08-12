@@ -400,6 +400,18 @@ export default function App() {
     | "agent_dashboard"
     | "agent_summary"
   >("dashboard");
+  // Auto-redirect Owner / Agent away from Client dashboard to their respective role dashboard
+  useEffect(() => {
+    if (!userProfile?.email) return;
+    if (activeTab === "dashboard") {
+      if (isOwner) {
+        setActiveTab("owner_dashboard");
+      } else if (isAgent) {
+        setActiveTab("agent_dashboard");
+      }
+    }
+  }, [userProfile?.email, userProfile?.role, isOwner, isAgent, activeTab]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<SmsMessage[]>(INITIAL_MESSAGES);
   const [all24hHits, setAll24hHits] = useState<SmsMessage[]>(() => {
@@ -1408,7 +1420,18 @@ export default function App() {
   if (!userProfile) {
     return (
       <OrabitAuthScreen
-        onLoginSuccess={(u) => login(u)}
+        onLoginSuccess={(u) => {
+          login(u);
+          const roleLower = (u?.role || "").toLowerCase();
+          const emailLower = (u?.email || "").toLowerCase().trim();
+          if (roleLower === "owner" || emailLower === "orabitsms@gmail.com") {
+            setActiveTab("owner_dashboard");
+          } else if (roleLower === "agent") {
+            setActiveTab("agent_dashboard");
+          } else {
+            setActiveTab("dashboard");
+          }
+        }}
         domainName={domainName}
       />
     );
@@ -1453,7 +1476,7 @@ export default function App() {
           <OrabitLogo
             size="md"
             showSubtitle={false}
-            onClick={() => setActiveTab("dashboard")}
+            onClick={() => navigateToTab("dashboard")}
           />
         </div>
 
