@@ -6,6 +6,7 @@ import { createAgentInSupabase } from "../lib/userRoles";
 import { TeamUsersManager } from "./TeamUsersManager";
 import { fetchDailyStatsFromSupabase, getBDDateString } from "../lib/supabaseDailyStats";
 import { supabase } from "../lib/supabase";
+import { ServiceLogo } from "./ServiceLogo";
 import {
   Users,
   ShieldCheck,
@@ -182,6 +183,20 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     isLoading: true,
   });
 
+  const [globalTopPerformers, setGlobalTopPerformers] = useState<{
+    service: string;
+    volume: number;
+    earningsUSD: number;
+  }[]>([]);
+
+  const getServiceRateBDT = (serviceName: string): number => {
+    const norm = (serviceName || "").toUpperCase().trim();
+    if (norm.includes("WHATSAPP") || norm === "WA" || norm.includes("TELEGRAM") || norm === "TG") {
+      return 0;
+    }
+    return 0.60;
+  };
+
   const loadGlobalMetrics = async () => {
     try {
       const nowMs = Date.now();
@@ -328,6 +343,87 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         yesterdayNewUsers: yesterdayUsersCount,
         isLoading: false,
       });
+
+      // 3. GLOBAL TOP PERFORMERS LOGIC (Today's performance across all users)
+      const dbFeedItems: FeedNumber[] = [];
+      try {
+        const { data: dbFeeds, error: dbFeedsErr } = await supabase
+          .from("user_feed_numbers")
+          .select("*");
+        if (!dbFeedsErr && dbFeeds && Array.isArray(dbFeeds)) {
+          dbFeeds.forEach((row: any) => {
+            const rawMsg = row.raw_message ? String(row.raw_message).trim() : "";
+            const isFailNotice = rawMsg.toLowerCase().includes("no sms received") || 
+                                 rawMsg.toLowerCase().includes("timed out") || 
+                                 rawMsg.toLowerCase().includes("failed");
+            const otpCode = row.otp_code ? String(row.otp_code).trim() : "";
+            const hasValidOtpCode = otpCode.length > 0 && otpCode !== "------";
+            const hasValidOtpMsg = rawMsg.length > 0 && !isFailNotice;
+            const hasRealOtp = hasValidOtpCode || hasValidOtpMsg;
+            const isSuccessStatus = row.status === "SUCCESS" || row.status === "MULTI SUCCESS" || row.status === "success";
+
+            if (isSuccessStatus && !isFailNotice && hasRealOtp) {
+              const reqTs = row.requested_at ? Number(row.requested_at) : Date.now();
+              dbFeedItems.push({
+                id: row.id,
+                number: row.number,
+                status: row.status,
+                country: row.country || "Bangladesh",
+                operator: row.operator || "Grameenphone",
+                timeAgo: "Today",
+                service: row.service || "SMS OTP",
+                rawMessage: rawMsg,
+                otpCode: otpCode,
+                requestedAt: reqTs,
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("Notice querying user_feed_numbers for top performers:", e);
+      }
+
+      const combinedFeedsList = [...dbFeedItems, ...uniqueFeeds];
+      const seenTopKeys = new Set<string>();
+      const serviceStatsMap: Record<string, { service: string; volume: number; earningsUSD: number }> = {};
+
+      combinedFeedsList.forEach((f) => {
+        const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
+        const isFailNotice = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
+        if (isSuccess && !isFailNotice) {
+          const reqDate = getBDDateString(f.requestedAt || Date.now());
+          if (reqDate === todayStr) {
+            const key = f.id || `${f.number}_${f.requestedAt}_${f.service}`;
+            if (!seenTopKeys.has(key)) {
+              seenTopKeys.add(key);
+
+              const serviceName = (f.service || "SMS OTP").toUpperCase().trim();
+              const validMsgs = f.messages ? f.messages.filter((m) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+              const count = validMsgs.length > 0 ? validMsgs.length : 1;
+
+              const rateBDT = getServiceRateBDT(serviceName);
+              const earningsUSD = (count * rateBDT) / (usdExchangeRate || 100);
+
+              if (!serviceStatsMap[serviceName]) {
+                serviceStatsMap[serviceName] = {
+                  service: serviceName,
+                  volume: 0,
+                  earningsUSD: 0,
+                };
+              }
+
+              serviceStatsMap[serviceName].volume += count;
+              serviceStatsMap[serviceName].earningsUSD += earningsUSD;
+            }
+          }
+        }
+      });
+
+      const performersList = Object.values(serviceStatsMap)
+        .sort((a, b) => b.volume - a.volume || b.earningsUSD - a.earningsUSD)
+        .slice(0, 10);
+
+      setGlobalTopPerformers(performersList);
     } catch (e) {
       console.error("Error loading global owner metrics:", e);
       setGlobalStats((prev) => ({ ...prev, isLoading: false }));
@@ -692,6 +788,59 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               <span>Registered Yesterday</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* GLOBAL TOP PERFORMERS TABLE (MATCHING CLIENT DASHBOARD STYLE) */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-[#131722]/90 border border-slate-800 space-y-4 shadow-xl hover:border-slate-700/80 transition-all duration-300">
+        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2 font-bold text-base text-white">
+            <Crown className="w-4.5 h-4.5 text-amber-400" />
+            <span>Global Top Performers</span>
+          </div>
+          <span className="text-[10px] font-mono font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Platform Today
+          </span>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-800">
+          <table className="w-full text-xs text-left">
+            <thead>
+              <tr className="bg-slate-900/90 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-800">
+                <th className="py-3 px-4">SERVICE</th>
+                <th className="py-3 px-4 text-center">VOLUME</th>
+                <th className="py-3 px-4 text-right">EARNINGS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-mono">
+              {globalTopPerformers && globalTopPerformers.length > 0 ? (
+                globalTopPerformers.map((item) => (
+                  <tr key={item.service} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3 px-4 flex items-center gap-3 font-sans">
+                      <ServiceLogo name={item.service} size={32} className="w-8 h-8 rounded-lg" />
+                      <span className="font-bold text-slate-100 text-sm">{item.service}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center text-slate-200 font-bold text-sm">
+                      {item.volume}
+                    </td>
+                    <td className="py-3 px-4 text-right text-emerald-400 font-bold text-sm">
+                      {formatMoney(item.earningsUSD)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="py-10 text-center font-sans text-slate-500 text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Crown className="w-6 h-6 text-slate-600" />
+                      <span>No global OTP activity recorded today</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
