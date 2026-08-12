@@ -113,20 +113,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           else if (fetchedRole === "agent") normalizedRole = "Agent";
 
           setUserProfile((prev) => {
-            if (!prev) return prev;
+            const baseProfile = prev || {
+              fullName: validEmail.split("@")[0],
+              mobileNumber: "",
+              email: validEmail,
+              telegram: "@orabit_user",
+              city: "Dhaka",
+              country: "Bangladesh",
+              referralEmail: "agent@orabit.bd",
+              withdrawPin: "",
+              balance: validEmail === "orabitsms@gmail.com" ? 999.0 : 0.0,
+              password: "",
+              role: normalizedRole,
+            };
+
             return {
-              ...prev,
+              ...baseProfile,
               email: validEmail,
               role: normalizedRole,
               uid: validUser.id,
-              fullName: dbProfile?.fullName || prev.fullName,
-              mobileNumber: dbProfile?.mobileNumber || prev.mobileNumber,
-              telegram: dbProfile?.telegram || prev.telegram,
-              country: dbProfile?.country || prev.country,
-              city: dbProfile?.city || prev.city,
-              withdrawPin: dbProfile?.withdrawPin !== undefined ? dbProfile.withdrawPin : prev.withdrawPin,
-              balance: dbProfile?.balance !== undefined ? dbProfile.balance : prev.balance,
-              totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : prev.totalSuccess,
+              fullName: dbProfile?.fullName || baseProfile.fullName,
+              mobileNumber: dbProfile?.mobileNumber || baseProfile.mobileNumber,
+              telegram: dbProfile?.telegram || baseProfile.telegram,
+              country: dbProfile?.country || baseProfile.country,
+              city: dbProfile?.city || baseProfile.city,
+              withdrawPin: dbProfile?.withdrawPin !== undefined ? dbProfile.withdrawPin : baseProfile.withdrawPin,
+              balance: dbProfile?.balance !== undefined ? dbProfile.balance : baseProfile.balance,
+              totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : baseProfile.totalSuccess,
             };
           });
         } catch (e) {

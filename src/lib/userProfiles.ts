@@ -38,18 +38,14 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
   const cleanEmail = email.toLowerCase().trim();
 
   try {
+    // 1. First try user_profiles table in Supabase
     const { data, error } = await supabase
       .from(USER_PROFILES_TABLE)
       .select("*")
       .ilike("email", cleanEmail)
       .maybeSingle();
 
-    if (error) {
-      console.warn("Supabase user_profiles fetch notice:", error.message);
-      return null;
-    }
-
-    if (data) {
+    if (!error && data) {
       return {
         email: data.email,
         fullName: data.full_name || "",
@@ -64,6 +60,22 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         accountStatus: data.account_status || "Active",
       };
     }
+
+    // 2. Fallback to Supabase Auth metadata if current user matches
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user && authData.user.email?.toLowerCase().trim() === cleanEmail) {
+      const meta = authData.user.user_metadata || {};
+      return {
+        email: cleanEmail,
+        fullName: meta.fullName || "",
+        mobileNumber: meta.mobileNumber || "",
+        telegram: meta.telegram || "",
+        country: meta.country || "",
+        city: meta.city || "",
+        withdrawPin: meta.withdrawPin !== undefined ? meta.withdrawPin : "",
+        role: meta.role || "Client",
+      };
+    }
   } catch (e) {
     console.error("Exception fetching profile from Supabase:", e);
   }
@@ -72,7 +84,7 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
 }
 
 /**
- * Saves or updates user profile in Supabase user_profiles table.
+ * Saves or updates user profile in Supabase user_profiles table & Auth Metadata.
  */
 export async function saveUserProfileToSupabase(profile: UserProfile): Promise<boolean> {
   if (!profile || !profile.email) return false;
@@ -94,11 +106,32 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       updated_at: new Date().toISOString(),
     };
 
+    // 1. Update Supabase user_profiles table
     const { error } = await supabase.from(USER_PROFILES_TABLE).upsert(payload, { onConflict: "email" });
     if (error) {
       console.warn("Supabase user_profiles upsert notice:", error.message);
-      return false;
     }
+
+    // 2. Also update Supabase Auth User Metadata for instant cross-device fallback
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user && authData.user.email?.toLowerCase().trim() === cleanEmail) {
+        await supabase.auth.updateUser({
+          data: {
+            fullName: profile.fullName || "",
+            mobileNumber: profile.mobileNumber || "",
+            telegram: profile.telegram || "",
+            country: profile.country || "",
+            city: profile.city || "",
+            withdrawPin: profile.withdrawPin || "",
+            role: profile.role || "Client",
+          },
+        });
+      }
+    } catch (e) {
+      console.warn("Notice updating auth metadata:", e);
+    }
+
     return true;
   } catch (e) {
     console.error("Exception saving user profile to Supabase:", e);

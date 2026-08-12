@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { getUserRoleFromSupabase } from "../lib/userRoles";
+import { fetchUserProfileFromSupabase } from "../lib/userProfiles";
 import { OrabitLogo } from "./OrabitLogo";
 import {
   User,
@@ -334,16 +335,50 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     }
 
     if (loggedInUser) {
-      // Fetch user role from Supabase user_roles table
+      // Fetch user role & profile from Supabase user_profiles table
       try {
-        const fetchedRole = await getUserRoleFromSupabase(loggedInUser.email);
+        const [fetchedRole, dbProfile] = await Promise.all([
+          getUserRoleFromSupabase(loggedInUser.email),
+          fetchUserProfileFromSupabase(loggedInUser.email),
+        ]);
+
         if (fetchedRole) {
           if (fetchedRole === "owner") loggedInUser.role = "Owner";
           else if (fetchedRole === "agent") loggedInUser.role = "Agent";
           else loggedInUser.role = "Client";
         }
+
+        if (dbProfile) {
+          loggedInUser = {
+            ...loggedInUser,
+            fullName: dbProfile.fullName || loggedInUser.fullName,
+            mobileNumber: dbProfile.mobileNumber || loggedInUser.mobileNumber,
+            telegram: dbProfile.telegram || loggedInUser.telegram,
+            country: dbProfile.country || loggedInUser.country,
+            city: dbProfile.city || loggedInUser.city,
+            withdrawPin: dbProfile.withdrawPin !== undefined ? dbProfile.withdrawPin : loggedInUser.withdrawPin,
+            balance: dbProfile.balance !== undefined ? dbProfile.balance : loggedInUser.balance,
+            totalSuccess: dbProfile.totalSuccess !== undefined ? dbProfile.totalSuccess : loggedInUser.totalSuccess,
+            role: dbProfile.role || loggedInUser.role,
+          };
+        }
       } catch (err) {
-        console.warn("Failed to query user_roles table on login:", err);
+        console.warn("Failed to query user_profiles or user_roles table on login:", err);
+      }
+
+      // Sync updated account into local storage cache
+      try {
+        const stored = localStorage.getItem("orabit_registered_users");
+        let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+        const idx = list.findIndex(u => u.email.toLowerCase() === loggedInUser!.email.toLowerCase());
+        if (idx !== -1) {
+          list[idx] = { ...list[idx], ...loggedInUser };
+        } else {
+          list.push(loggedInUser);
+        }
+        localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+      } catch (e) {
+        console.error("Failed to sync registered users on login:", e);
       }
 
       setIsSubmitting(false);
