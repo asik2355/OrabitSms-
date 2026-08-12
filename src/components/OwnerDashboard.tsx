@@ -562,221 +562,226 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         </div>
       )}
 
-      {/* 6 GLOBAL OWNER KPI CARDS (MATCHING CLIENT SUMMARY DASHBOARD STYLES) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* CARD 1: TODAY TOTAL REVENUE */}
-        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-emerald-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
-          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
-            <span className="group-hover:text-emerald-300 transition-colors">Today Total Revenue</span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/25 transition-all">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
+      {/* OVERVIEW / MAIN DASHBOARD VIEW ONLY */}
+      {(!activeSection || activeSection === "overview") && (
+        <>
+          {/* 6 GLOBAL OWNER KPI CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* CARD 1: TODAY TOTAL REVENUE */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-emerald-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-emerald-300 transition-colors">Today Total Revenue</span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/25 transition-all">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-[#2EE59D] font-mono group-hover:text-emerald-300 transition-colors">
+                  {formatMoney(globalStats.todayRevenue)}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                  <TrendingUp className="w-3 h-3" />
+                  <span>Today's Platform Revenue</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-black text-[#2EE59D] font-mono group-hover:text-emerald-300 transition-colors">
-              {formatMoney(globalStats.todayRevenue)}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
-              <TrendingUp className="w-3 h-3" />
-              <span>Today's Platform Revenue</span>
-            </div>
-          </div>
-        </div>
 
-        {/* CARD 2: TODAY TOTAL OTP */}
-        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-amber-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
-          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
-            <span className="group-hover:text-amber-300 transition-colors">Today Total OTP</span>
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-500/25 transition-all">
-              <Zap className="w-4 h-4 text-amber-400" />
+            {/* CARD 2: TODAY TOTAL OTP */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-amber-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-amber-300 transition-colors">Today Total OTP</span>
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-500/25 transition-all">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
+                  {globalStats.todayOtps}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Successful OTPs Today</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-black text-white font-mono group-hover:text-amber-300 transition-colors">
-              {globalStats.todayOtps}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
-              <CheckCircle2 className="w-3 h-3" />
-              <span>Successful OTPs Today</span>
-            </div>
-          </div>
-        </div>
 
-        {/* CARD 3: YESTERDAY TOTAL REVENUE */}
-        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-blue-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
-          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
-            <span className="group-hover:text-blue-300 transition-colors">Yesterday Total Revenue</span>
-            <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-500/25 transition-all">
-              <Calendar className="w-4 h-4 text-blue-400" />
+            {/* CARD 3: YESTERDAY TOTAL REVENUE */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-blue-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-blue-300 transition-colors">Yesterday Total Revenue</span>
+                <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-500/25 transition-all">
+                  <Calendar className="w-4 h-4 text-blue-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-blue-400 font-mono group-hover:text-blue-300 transition-colors">
+                  {formatMoney(globalStats.yesterdayRevenue)}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                  <span>Previous Day Revenue</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-black text-blue-400 font-mono group-hover:text-blue-300 transition-colors">
-              {formatMoney(globalStats.yesterdayRevenue)}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
-              <span>Previous Day Revenue</span>
-            </div>
-          </div>
-        </div>
 
-        {/* CARD 4: YESTERDAY TOTAL OTP */}
-        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-purple-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
-          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
-            <span className="group-hover:text-purple-300 transition-colors">Yesterday Total OTP</span>
-            <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/25 transition-all">
-              <Hash className="w-4 h-4 text-purple-400" />
+            {/* CARD 4: YESTERDAY TOTAL OTP */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-purple-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-purple-300 transition-colors">Yesterday Total OTP</span>
+                <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-500/25 transition-all">
+                  <Key className="w-4 h-4 text-purple-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
+                  {globalStats.yesterdayOtps}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                  <span>Previous Day OTPs</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-black text-white font-mono group-hover:text-purple-300 transition-colors">
-              {globalStats.yesterdayOtps}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
-              <span>Previous Day OTPs</span>
-            </div>
-          </div>
-        </div>
 
-        {/* CARD 5: TODAY NEW USER */}
-        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-cyan-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-cyan-500/10 hover:-translate-y-1 transition-all duration-300">
-          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
-            <span className="group-hover:text-cyan-300 transition-colors">Today New User</span>
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-500/25 transition-all">
-              <UserPlus className="w-4 h-4 text-cyan-400" />
+            {/* CARD 5: TODAY NEW USER */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-cyan-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-cyan-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-cyan-300 transition-colors">Today New User</span>
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-500/25 transition-all">
+                  <UserPlus className="w-4 h-4 text-cyan-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-cyan-300 font-mono group-hover:text-cyan-200 transition-colors">
+                  {globalStats.todayNewUsers}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-cyan-400">
+                  <Users className="w-3 h-3" />
+                  <span>Registered Today</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-black text-cyan-300 font-mono group-hover:text-cyan-200 transition-colors">
-              {globalStats.todayNewUsers}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-bold text-cyan-400">
-              <Users className="w-3 h-3" />
-              <span>Registered Today</span>
-            </div>
-          </div>
-        </div>
 
-        {/* CARD 6: YESTERDAY NEW USER */}
-        <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-rose-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300">
-          <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
-            <span className="group-hover:text-rose-300 transition-colors">Yesterday New User</span>
-            <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-rose-500/25 transition-all">
-              <UserCheck className="w-4 h-4 text-rose-400" />
+            {/* CARD 6: YESTERDAY NEW USER */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-rose-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-rose-300 transition-colors">Yesterday New User</span>
+                <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-rose-500/25 transition-all">
+                  <UserCheck className="w-4 h-4 text-rose-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-white font-mono group-hover:text-rose-300 transition-colors">
+                  {globalStats.yesterdayNewUsers}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                  <span>Registered Yesterday</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-black text-white font-mono group-hover:text-rose-300 transition-colors">
-              {globalStats.yesterdayNewUsers}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
-              <span>Registered Yesterday</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* GLOBAL TOP PERFORMERS TABLE (MATCHING CLIENT DASHBOARD STYLE) */}
-      <div className="p-5 sm:p-6 rounded-2xl bg-[#131722]/90 border border-slate-800 space-y-4 shadow-xl hover:border-slate-700/80 transition-all duration-300">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-          <div className="flex items-center gap-2 font-bold text-base text-white">
-            <Crown className="w-4.5 h-4.5 text-amber-400" />
-            <span>Global Top Performers</span>
-          </div>
-          <span className="text-[10px] font-mono font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Platform Today
-          </span>
-        </div>
+          {/* GLOBAL TOP PERFORMERS TABLE */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-[#131722]/90 border border-slate-800 space-y-4 shadow-xl hover:border-slate-700/80 transition-all duration-300">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2 font-bold text-base text-white">
+                <Crown className="w-4.5 h-4.5 text-amber-400" />
+                <span>Global Top Performers</span>
+              </div>
+              <span className="text-[10px] font-mono font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Platform Today
+              </span>
+            </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-800">
-          <table className="w-full text-xs text-left">
-            <thead>
-              <tr className="bg-slate-900/90 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-800">
-                <th className="py-3 px-4">SERVICE</th>
-                <th className="py-3 px-4 text-center">VOLUME</th>
-                <th className="py-3 px-4 text-right">EARNINGS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
-              {globalTopPerformers && globalTopPerformers.length > 0 ? (
-                globalTopPerformers.map((item) => (
-                  <tr key={item.service} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4 flex items-center gap-3 font-sans">
-                      <ServiceLogo name={item.service} size={32} className="w-8 h-8 rounded-lg" />
-                      <span className="font-bold text-slate-100 text-sm">{item.service}</span>
-                    </td>
-                    <td className="py-3 px-4 text-center text-slate-200 font-bold text-sm">
-                      {item.volume}
-                    </td>
-                    <td className="py-3 px-4 text-right text-emerald-400 font-bold text-sm">
-                      {formatMoney(item.earningsUSD)}
-                    </td>
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="bg-slate-900/90 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-800">
+                    <th className="py-3 px-4">SERVICE</th>
+                    <th className="py-3 px-4 text-center">VOLUME</th>
+                    <th className="py-3 px-4 text-right">EARNINGS</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={3} className="py-10 text-center font-sans text-slate-500 text-xs">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Crown className="w-6 h-6 text-slate-600" />
-                      <span>No global OTP activity recorded today</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* System Banner / Notice Controller */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Server className="w-4 h-4 text-emerald-400" />
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Global System Notice</h2>
-          </div>
-          {!isEditingNotice ? (
-            <button
-              onClick={() => setIsEditingNotice(true)}
-              className="text-xs font-semibold text-emerald-400 hover:underline"
-            >
-              Edit Notice
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSaveNotice}
-                className="px-3 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setIsEditingNotice(false)}
-                className="px-3 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700"
-              >
-                Cancel
-              </button>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono">
+                  {globalTopPerformers && globalTopPerformers.length > 0 ? (
+                    globalTopPerformers.map((item) => (
+                      <tr key={item.service} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 flex items-center gap-3 font-sans">
+                          <ServiceLogo name={item.service} size={32} className="w-8 h-8 rounded-lg" />
+                          <span className="font-bold text-slate-100 text-sm">{item.service}</span>
+                        </td>
+                        <td className="py-3 px-4 text-center text-slate-200 font-bold text-sm">
+                          {item.volume}
+                        </td>
+                        <td className="py-3 px-4 text-right text-emerald-400 font-bold text-sm">
+                          {formatMoney(item.earningsUSD)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="py-10 text-center font-sans text-slate-500 text-xs">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Crown className="w-6 h-6 text-slate-600" />
+                          <span>No global OTP activity recorded today</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+          </div>
 
-        {isEditingNotice ? (
-          <input
-            type="text"
-            value={tempNotice}
-            onChange={(e) => setTempNotice(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-          />
-        ) : (
-          <p className="text-xs text-slate-300 bg-slate-950/80 p-3 rounded-xl border border-slate-800 font-mono">
-            {systemNotice}
-          </p>
-        )}
-      </div>
+          {/* System Banner / Notice Controller */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Server className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider">Global System Notice</h2>
+              </div>
+              {!isEditingNotice ? (
+                <button
+                  onClick={() => setIsEditingNotice(true)}
+                  className="text-xs font-semibold text-emerald-400 hover:underline"
+                >
+                  Edit Notice
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSaveNotice}
+                    className="px-3 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setIsEditingNotice(false)}
+                    className="px-3 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {isEditingNotice ? (
+              <input
+                type="text"
+                value={tempNotice}
+                onChange={(e) => setTempNotice(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+              />
+            ) : (
+              <p className="text-xs text-slate-300 bg-slate-950/80 p-3 rounded-xl border border-slate-800 font-mono">
+                {systemNotice}
+              </p>
+            )}
+          </div>
+        </>
+      )}
 
       {/* PANEL MANAGEMENT SECTION */}
-      {(!activeSection || activeSection === "overview" || activeSection === "panel_mgmt") && (
+      {activeSection === "panel_mgmt" && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
@@ -833,7 +838,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       )}
 
       {/* NUMBER FILE MANAGEMENT SECTION */}
-      {(!activeSection || activeSection === "overview" || activeSection === "number_file") && (
+      {activeSection === "number_file" && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
@@ -871,7 +876,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       )}
 
       {/* API MANAGEMENT SECTION */}
-      {(!activeSection || activeSection === "overview" || activeSection === "otp_mgmt") && (
+      {activeSection === "otp_mgmt" && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
@@ -916,7 +921,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       )}
 
       {/* RATE MANAGEMENT SECTION */}
-      {(!activeSection || activeSection === "overview" || activeSection === "rate_mgmt") && (
+      {activeSection === "rate_mgmt" && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
@@ -955,7 +960,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       )}
 
       {/* PAYMENT MANAGEMENT SECTION */}
-      {(!activeSection || activeSection === "overview" || activeSection === "payment_mgmt") && (
+      {activeSection === "payment_mgmt" && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
             <div>
@@ -994,7 +999,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       )}
 
       {/* Agent Management Section */}
-      {(!activeSection || activeSection === "overview" || activeSection === "agent_mgmt") && (
+      {activeSection === "agent_mgmt" && (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
           <div>
@@ -1133,7 +1138,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       )}
 
       {/* Team Users & Accounts Management */}
-      {(!activeSection || activeSection === "overview" || activeSection === "user_mgmt") && (
+      {activeSection === "user_mgmt" && (
         <TeamUsersManager
           currentUser={userProfile}
           users={registeredUsers}
