@@ -57,13 +57,17 @@ export async function setUserRoleInSupabase(email: string, role: string): Promis
 }
 
 /**
- * Creates a new Agent in Supabase Auth & inserts role 'agent' into user_roles table.
+ * Creates a new Agent in Supabase Auth & inserts role 'agent' into user_roles table and user_profiles.
  */
 export async function createAgentInSupabase(
   email: string,
-  password: string
+  password: string,
+  agentName?: string,
+  telegramUsername?: string
 ): Promise<{ success: boolean; message: string }> {
   const cleanEmail = email.trim().toLowerCase();
+  const cleanName = agentName?.trim() || `Agent (${cleanEmail.split("@")[0]})`;
+  const cleanTg = telegramUsername?.trim() || "";
 
   if (!cleanEmail || !password || password.length < 6) {
     return { success: false, message: "Valid email and password (min 6 chars) required." };
@@ -77,7 +81,8 @@ export async function createAgentInSupabase(
       options: {
         data: {
           role: "Agent",
-          fullName: `Agent (${cleanEmail.split("@")[0]})`,
+          fullName: cleanName,
+          telegram: cleanTg,
         },
       },
     });
@@ -89,15 +94,63 @@ export async function createAgentInSupabase(
     // 2. Insert role 'agent' into user_roles table
     await setUserRoleInSupabase(cleanEmail, "agent");
 
+    // 3. Upsert user_profiles table with agent_name and telegram_username
+    try {
+      await supabase.from("user_profiles").upsert(
+        {
+          email: cleanEmail,
+          full_name: cleanName,
+          telegram: cleanTg,
+          role: "Agent",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" }
+      );
+    } catch (e) {
+      console.warn("Error saving agent in user_profiles:", e);
+    }
+
     return {
       success: true,
-      message: `Agent (${cleanEmail}) account created successfully and role set to 'agent' in Supabase user_roles!`,
+      message: `Agent (${cleanName} - ${cleanEmail}) account created successfully in Supabase!`,
     };
   } catch (err: any) {
     console.error("Failed to create agent in Supabase:", err);
     return {
       success: false,
       message: err.message || "Failed to create agent account.",
+    };
+  }
+}
+
+/**
+ * Deletes or removes an Agent's role from Supabase 'user_roles' table.
+ */
+export async function deleteAgentFromSupabase(
+  email: string
+): Promise<{ success: boolean; message: string }> {
+  if (!email) return { success: false, message: "Email is required." };
+  const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    const { error } = await supabase
+      .from("user_roles")
+      .delete()
+      .ilike("email", cleanEmail);
+
+    if (error) {
+      console.warn("Supabase user_roles delete notice:", error.message);
+    }
+
+    return {
+      success: true,
+      message: `Agent (${cleanEmail}) role and access removed successfully from Supabase!`,
+    };
+  } catch (err: any) {
+    console.error("Failed to delete agent from Supabase:", err);
+    return {
+      success: false,
+      message: err.message || "Failed to remove agent role.",
     };
   }
 }

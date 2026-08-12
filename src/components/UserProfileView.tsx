@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { saveUserProfileToSupabase } from "../lib/userProfiles";
 import { formatUSD } from "../lib/storageUtils";
+import { supabase } from "../lib/supabase";
 import {
   User,
   Mail,
@@ -23,6 +24,8 @@ import {
   Sparkles,
   CreditCard,
   Lock,
+  Send,
+  ShieldCheck,
 } from "lucide-react";
 
 interface UserProfileViewProps {
@@ -70,7 +73,129 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
   }, [userProfile.fullName, userProfile.mobileNumber, userProfile.country, userProfile.city, userProfile.telegram, userProfile.bio]);
 
-  // Security Toggles & Withdraw PIN
+  // Assigned Agent State for Clients
+  const [assignedAgent, setAssignedAgent] = useState<{
+    fullName: string;
+    telegramUsername: string;
+    email: string;
+  } | null>(null);
+  const [isLoadingAgent, setIsLoadingAgent] = useState(false);
+
+  useEffect(() => {
+    if (isOwnerOrAgent) return;
+
+    let isMounted = true;
+    const loadAssignedAgent = async () => {
+      setIsLoadingAgent(true);
+      const refEmail = (
+        userProfile.referralEmail ||
+        userProfile.referredBy ||
+        (userProfile as any).referredByAgentEmail ||
+        ""
+      ).toLowerCase().trim();
+
+      let matchedAgent: { fullName: string; telegramUsername: string; email: string } | null = null;
+
+      // 1. Try querying Supabase user_profiles table for exact refEmail
+      if (refEmail) {
+        try {
+          const { data } = await supabase
+            .from("user_profiles")
+            .select("full_name, telegram, email, role")
+            .ilike("email", refEmail)
+            .maybeSingle();
+
+          if (data && data.email) {
+            matchedAgent = {
+              fullName: data.full_name || `Agent (${data.email.split("@")[0]})`,
+              telegramUsername: data.telegram || "",
+              email: data.email,
+            };
+          }
+        } catch (err) {
+          console.warn("Supabase agent fetch notice:", err);
+        }
+      }
+
+      // 2. Search local storage registered users
+      if (!matchedAgent) {
+        try {
+          const stored = localStorage.getItem("orabit_registered_users");
+          if (stored) {
+            const list: UserProfile[] = JSON.parse(stored);
+            let agentAcc: UserProfile | undefined = undefined;
+
+            if (refEmail) {
+              agentAcc = list.find(
+                (u) =>
+                  (u.role?.toLowerCase() === "agent" || u.role?.toLowerCase() === "owner") &&
+                  (u.email.toLowerCase().trim() === refEmail ||
+                    u.referralEmail?.toLowerCase().trim() === refEmail ||
+                    u.fullName?.toLowerCase().trim() === refEmail)
+              );
+            }
+
+            // Fallback to first registered agent if no exact match
+            if (!agentAcc) {
+              agentAcc = list.find((u) => u.role?.toLowerCase() === "agent");
+            }
+
+            if (agentAcc) {
+              matchedAgent = {
+                fullName: agentAcc.fullName || `Agent (${agentAcc.email.split("@")[0]})`,
+                telegramUsername: agentAcc.telegram || "",
+                email: agentAcc.email,
+              };
+            }
+          }
+        } catch (e) {
+          console.warn("Error reading local registered users:", e);
+        }
+      }
+
+      // 3. Fallback: Query Supabase for any user with role = 'agent'
+      if (!matchedAgent) {
+        try {
+          const { data } = await supabase
+            .from("user_profiles")
+            .select("full_name, telegram, email")
+            .ilike("role", "agent")
+            .limit(1)
+            .maybeSingle();
+
+          if (data && data.email) {
+            matchedAgent = {
+              fullName: data.full_name || `Agent (${data.email.split("@")[0]})`,
+              telegramUsername: data.telegram || "",
+              email: data.email,
+            };
+          }
+        } catch (e) {
+          console.warn("Fallback agent query notice:", e);
+        }
+      }
+
+      // 4. Default fallback if system has no created agents yet
+      if (!matchedAgent) {
+        matchedAgent = {
+          fullName: "Alif Sheikh",
+          telegramUsername: "@alifsheikh",
+          email: "agent@orabit.bd",
+        };
+      }
+
+      if (isMounted) {
+        setAssignedAgent(matchedAgent);
+        setIsLoadingAgent(false);
+      }
+    };
+
+    loadAssignedAgent();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile, isOwnerOrAgent]);
   const [showWithdrawPinSetup, setShowWithdrawPinSetup] = useState(false);
   const [pinMode, setPinMode] = useState<"set" | "change" | "disable">("set");
   const [currentWithdrawPin, setCurrentWithdrawPin] = useState("");
@@ -371,6 +496,77 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* CARD: ASSIGNED AGENT (Only for regular Clients/Users) */}
+      {!isOwnerOrAgent && (
+        <div className="p-6 sm:p-7 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-xl space-y-4 relative overflow-hidden text-center">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+
+          {/* Card Heading */}
+          <h3 className="text-center font-bold text-white text-base sm:text-lg tracking-tight flex items-center justify-center gap-2">
+            🎧 Assigned Agent
+          </h3>
+
+          {isLoadingAgent ? (
+            <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
+              <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+              <span>Loading assigned agent details...</span>
+            </div>
+          ) : assignedAgent ? (
+            <div className="flex flex-col items-center justify-center space-y-3 pt-1">
+              {/* Avatar Icon */}
+              <div className="relative">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-slate-950 border-2 border-indigo-500/40 p-1 flex items-center justify-center shadow-xl shadow-indigo-500/20">
+                  <div className="w-full h-full rounded-full bg-gradient-to-tr from-slate-900 via-indigo-950/80 to-slate-900 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                    <User className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-400" />
+                  </div>
+                </div>
+                <div className="absolute bottom-0 right-0 bg-emerald-500 text-slate-950 p-1 rounded-full border-2 border-slate-900 shadow-md">
+                  <ShieldCheck className="w-4 h-4 text-slate-950 fill-emerald-400" />
+                </div>
+              </div>
+
+              {/* Agent Name */}
+              <div className="space-y-1 text-center">
+                <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  {assignedAgent.fullName}
+                </h4>
+
+                {/* VERIFIED AGENT Badge */}
+                <div className="flex justify-center pt-0.5">
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono font-bold tracking-wider flex items-center gap-1.5 shadow-sm">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    VERIFIED AGENT
+                  </span>
+                </div>
+              </div>
+
+              {/* Contact Agent Button */}
+              <div className="w-full max-w-xs pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tgHandle = (assignedAgent.telegramUsername || "").replace(/^@/, "").trim();
+                    if (tgHandle) {
+                      window.open(`https://t.me/${tgHandle}`, "_blank", "noopener,noreferrer");
+                    } else {
+                      alert("Agent's Telegram username is not configured yet.");
+                    }
+                  }}
+                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer"
+                >
+                  <Send className="w-4 h-4 text-white" />
+                  <span>Contact Agent</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-center text-slate-500 text-xs">
+              No agent assigned to your account.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* CARD 3: PERSONAL INFORMATION */}
       <div className="p-5 sm:p-6 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-xl space-y-5">

@@ -163,6 +163,8 @@ export interface FeedNumber {
   operator: string;
   timeAgo: string;
   service: string;
+  userEmail?: string;
+  email?: string;
   otpCode?: string;
   rawMessage?: string;
   messages?: Array<{

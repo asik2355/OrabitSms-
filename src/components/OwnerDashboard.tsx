@@ -2,11 +2,21 @@ import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { formatUSD } from "../lib/storageUtils";
 import { FeedNumber } from "../types";
-import { createAgentInSupabase } from "../lib/userRoles";
+import { createAgentInSupabase, deleteAgentFromSupabase } from "../lib/userRoles";
 import { TeamUsersManager } from "./TeamUsersManager";
 import { fetchDailyStatsFromSupabase, getBDDateString } from "../lib/supabaseDailyStats";
 import { supabase } from "../lib/supabase";
 import { ServiceLogo } from "./ServiceLogo";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Cell,
+} from "recharts";
 import {
   Users,
   ShieldCheck,
@@ -43,6 +53,10 @@ import {
   CheckSquare,
   FileText,
   Calendar,
+  Trash2,
+  Trophy,
+  User,
+  Send,
 } from "lucide-react";
 
 interface OwnerDashboardProps {
@@ -93,21 +107,27 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   // Agent Creation state
   const [newAgentEmail, setNewAgentEmail] = useState("");
   const [newAgentPassword, setNewAgentPassword] = useState("");
+  const [newAgentName, setNewAgentName] = useState("");
+  const [newAgentTelegram, setNewAgentTelegram] = useState("");
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
   const [agentNotice, setAgentNotice] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const handleCreateAgentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanE = newAgentEmail.trim().toLowerCase();
+    const cleanName = newAgentName.trim() || `Agent (${cleanE.split("@")[0]})`;
+    const rawTg = newAgentTelegram.trim();
+    const cleanTg = rawTg ? (rawTg.startsWith("@") ? rawTg : `@${rawTg}`) : "";
+
     if (!cleanE || !newAgentPassword.trim()) {
-      setAgentNotice({ text: "Please enter both Email and Password for the Agent.", type: "error" });
+      setAgentNotice({ text: "Please enter Email and Password for the Agent.", type: "error" });
       return;
     }
 
     setIsCreatingAgent(true);
     setAgentNotice(null);
 
-    const res = await createAgentInSupabase(cleanE, newAgentPassword);
+    const res = await createAgentInSupabase(cleanE, newAgentPassword, cleanName, cleanTg);
 
     if (res.success) {
       try {
@@ -116,10 +136,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         const existingIdx = list.findIndex((u) => u.email.toLowerCase() === cleanE);
 
         const newAgentObj: UserProfile = {
-          fullName: `Agent (${cleanE.split("@")[0]})`,
+          fullName: cleanName,
           mobileNumber: "01700000000",
           email: cleanE,
-          telegram: "@agent_orabit",
+          telegram: cleanTg || "@agent_orabit",
           city: "Dhaka",
           country: "Bangladesh",
           referralEmail: "orabitsms@gmail.com",
@@ -130,7 +150,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         };
 
         if (existingIdx >= 0) {
-          list[existingIdx] = { ...list[existingIdx], role: "Agent", password: newAgentPassword };
+          list[existingIdx] = {
+            ...list[existingIdx],
+            fullName: cleanName,
+            telegram: cleanTg || "@agent_orabit",
+            role: "Agent",
+            password: newAgentPassword,
+          };
         } else {
           list.push(newAgentObj);
         }
@@ -144,12 +170,140 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       setAgentNotice({ text: res.message, type: "success" });
       setNewAgentEmail("");
       setNewAgentPassword("");
+      setNewAgentName("");
+      setNewAgentTelegram("");
     } else {
       setAgentNotice({ text: res.message, type: "error" });
     }
 
     setIsCreatingAgent(false);
   };
+
+  // Handle Delete Agent
+  const handleDeleteAgent = async (agentEmail: string) => {
+    const cleanE = agentEmail.trim().toLowerCase();
+    if (!window.confirm(`Are you sure you want to delete agent "${cleanE}"? This will remove their agent role and access.`)) {
+      return;
+    }
+
+    const res = await deleteAgentFromSupabase(cleanE);
+
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      let list: UserProfile[] = stored ? JSON.parse(stored) : registeredUsers;
+      const updatedList = list.filter((u) => u.email.toLowerCase().trim() !== cleanE);
+      localStorage.setItem("orabit_registered_users", JSON.stringify(updatedList));
+      setRegisteredUsers(updatedList);
+    } catch (err) {
+      console.error("Local storage error on agent deletion:", err);
+    }
+
+    setAgentNotice({
+      text: res.success ? `Agent (${cleanE}) has been deleted successfully.` : res.message,
+      type: res.success ? "success" : "error",
+    });
+  };
+
+  // Top 10 Performing Agents Data Calculation
+  const topAgentsData = useMemo(() => {
+    const agents = registeredUsers.filter((u) => u.role?.toLowerCase() === "agent");
+    if (agents.length === 0) return [];
+
+    const allFeedsMapByEmail: Record<string, FeedNumber[]> = {};
+
+    feedNumbers.forEach((f) => {
+      const em = (f.userEmail || f.email || "").toLowerCase().trim();
+      if (em) {
+        if (!allFeedsMapByEmail[em]) allFeedsMapByEmail[em] = [];
+        allFeedsMapByEmail[em].push(f);
+      }
+    });
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("orabit_feed_numbers")) {
+          let em = "";
+          if (key.startsWith("orabit_feed_numbers_")) {
+            em = key.replace("orabit_feed_numbers_", "").toLowerCase().trim();
+          }
+          const val = localStorage.getItem(key);
+          if (val) {
+            try {
+              const parsed: FeedNumber[] = JSON.parse(val);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((f) => {
+                  const itemEm = (f.userEmail || f.email || em).toLowerCase().trim();
+                  if (itemEm) {
+                    if (!allFeedsMapByEmail[itemEm]) allFeedsMapByEmail[itemEm] = [];
+                    allFeedsMapByEmail[itemEm].push(f);
+                  }
+                });
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+
+    const calcSuccessOtps = (feeds: FeedNumber[]) => {
+      const seen = new Set<string>();
+      let total = 0;
+      feeds.forEach((f) => {
+        const k = f.id || `${f.number}_${f.requestedAt}_${f.status}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
+          const isFail = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
+          if (isSuccess && !isFail) {
+            const validMsgs = f.messages ? f.messages.filter((m) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+            total += validMsgs.length > 0 ? validMsgs.length : 1;
+          }
+        }
+      });
+      return total;
+    };
+
+    const agentPerformance = agents.map((agent) => {
+      const agEmail = agent.email.toLowerCase().trim();
+      const agCode = (agent.referralEmail || agent.referralCode || "").toLowerCase().trim();
+
+      const referredClients = registeredUsers.filter((u) => {
+        const refEmail = (u.referralEmail || u.referredBy || u.referredByAgentEmail || "").toLowerCase().trim();
+        return (
+          refEmail === agEmail ||
+          (agCode && (refEmail === agCode || u.referredBy?.trim().toLowerCase() === agCode))
+        );
+      });
+
+      const clientEmails = new Set<string>();
+      clientEmails.add(agEmail);
+      referredClients.forEach((c) => clientEmails.add(c.email.toLowerCase().trim()));
+
+      const agentFeeds: FeedNumber[] = [];
+      clientEmails.forEach((cEmail) => {
+        if (allFeedsMapByEmail[cEmail]) {
+          agentFeeds.push(...allFeedsMapByEmail[cEmail]);
+        }
+      });
+
+      const totalSuccessOtps = calcSuccessOtps(agentFeeds);
+      const displayName = agent.fullName && agent.fullName !== `Agent (${agEmail.split("@")[0]})`
+        ? agent.fullName
+        : agEmail.split("@")[0];
+
+      return {
+        agentEmail: agEmail,
+        name: displayName,
+        shortEmail: agEmail.length > 18 ? agEmail.substring(0, 15) + "..." : agEmail,
+        totalOtps: totalSuccessOtps,
+        clientsCount: referredClients.length,
+      };
+    });
+
+    agentPerformance.sort((a, b) => b.totalOtps - a.totalOtps);
+    return agentPerformance.slice(0, 10);
+  }, [registeredUsers, feedNumbers]);
 
   // Load all registered users from storage
   const loadRegisteredUsers = () => {
@@ -1040,6 +1194,26 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="relative">
+              <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={newAgentName}
+                onChange={(e) => setNewAgentName(e.target.value)}
+                placeholder="Agent Name (e.g. Alif Sheikh)"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="relative">
+              <Send className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={newAgentTelegram}
+                onChange={(e) => setNewAgentTelegram(e.target.value)}
+                placeholder="Telegram Username (e.g. @username)"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
               <input
                 type="email"
@@ -1096,12 +1270,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                   <th className="py-2.5 px-3">Assigned Role</th>
                   <th className="py-2.5 px-3">Status</th>
                   <th className="py-2.5 px-3 text-right">Referred Clients</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
                 {registeredUsers.filter((u) => u.role?.toLowerCase() === "agent").length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-slate-500 font-sans">
+                    <td colSpan={5} className="py-4 text-center text-slate-500 font-sans">
                       No agents created yet. Use the form above to add an agent.
                     </td>
                   </tr>
@@ -1114,7 +1289,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                       ).length;
                       return (
                         <tr key={agent.email} className="hover:bg-slate-800/30">
-                          <td className="py-2.5 px-3 text-indigo-300 font-bold">{agent.email}</td>
+                          <td className="py-2.5 px-3">
+                            <div className="font-sans text-xs text-white font-bold">{agent.fullName || agent.email.split("@")[0]}</div>
+                            <div className="text-[11px] text-indigo-300 font-mono">{agent.email}</div>
+                            {agent.telegram && (
+                              <div className="text-[10px] text-sky-400 font-sans">{agent.telegram}</div>
+                            )}
+                          </td>
                           <td className="py-2.5 px-3">
                             <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 text-[10px] uppercase font-bold border border-indigo-500/30">
                               agent
@@ -1126,6 +1307,16 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-right text-white font-bold">{referredCount} Clients</td>
+                          <td className="py-2.5 px-3 text-right">
+                            <button
+                              onClick={() => handleDeleteAgent(agent.email)}
+                              className="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
+                              title="Delete Agent"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Delete</span>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })
@@ -1133,6 +1324,80 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Top 10 Performing Agents Chart Section */}
+        <div className="pt-4 border-t border-slate-800/80 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-400" /> Top Performing Agents
+              </h3>
+              <p className="text-xs text-slate-400">
+                Top 10 agents ranked by total successful OTP volume generated across their referred client base.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold font-mono self-start sm:self-auto">
+              TOP 10 RANKING
+            </span>
+          </div>
+
+          {topAgentsData.length === 0 ? (
+            <div className="p-6 rounded-xl bg-slate-950/60 border border-dashed border-slate-800 text-center text-xs text-slate-500">
+              No agent performance data available yet.
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <div className="h-64 sm:h-72 w-full pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topAgentsData} margin={{ top: 20, right: 15, left: -10, bottom: 25 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis
+                      dataKey="shortEmail"
+                      stroke="#64748b"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={{ stroke: '#334155' }}
+                      angle={-20}
+                      textAnchor="end"
+                    />
+                    <YAxis
+                      stroke="#64748b"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={{ stroke: '#334155' }}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#0f172a",
+                        borderColor: "#334155",
+                        borderRadius: "0.75rem",
+                        color: "#fff",
+                        fontSize: "12px",
+                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
+                      }}
+                      formatter={(value: any) => [`${value} SUCCESS OTPs`, "Volume"]}
+                      labelFormatter={(label: any, payload: any) => {
+                        if (payload && payload.length > 0) {
+                          return `${payload[0].payload.name} (${payload[0].payload.agentEmail})`;
+                        }
+                        return label;
+                      }}
+                    />
+                    <Bar dataKey="totalOtps" radius={[6, 6, 0, 0]}>
+                      {topAgentsData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={index === 0 ? "#f59e0b" : index === 1 ? "#eab308" : index === 2 ? "#fbbf24" : "#94a3b8"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       )}
