@@ -1,0 +1,1066 @@
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  UserPlus,
+  Plus,
+  Eye,
+  Wallet,
+  Pencil,
+  Trash2,
+  X,
+  UserCheck,
+  Users,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  User,
+  Send,
+  Mail,
+  Lock,
+  Trophy,
+  Key,
+  Zap,
+  Coins,
+  TrendingUp,
+  BarChart,
+  ShieldCheck,
+  DollarSign,
+  Minus,
+  Activity,
+  BadgeCheck,
+} from "lucide-react";
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { supabase } from "../lib/supabase";
+import { createAgentInSupabase, deleteAgentFromSupabase, setUserRoleInSupabase } from "../lib/userRoles";
+import { saveUserProfileToSupabase } from "../lib/userProfiles";
+import { UserProfile } from "./OrabitAuthScreen";
+import { FeedNumber } from "../types";
+import { fetchDailyStatsFromSupabase } from "../lib/supabaseDailyStats";
+
+interface AgentManagementProps {
+  registeredUsers: UserProfile[];
+  setRegisteredUsers: React.Dispatch<React.SetStateAction<UserProfile[]>>;
+  feedNumbers: FeedNumber[];
+  currency?: string;
+  usdExchangeRate?: number;
+  onUpdateUserBalance?: (userEmail: string, addAmount: number) => void;
+}
+
+export const AgentManagement: React.FC<AgentManagementProps> = ({
+  registeredUsers,
+  setRegisteredUsers,
+  feedNumbers,
+  currency = "USD",
+  usdExchangeRate = 120,
+  onUpdateUserBalance,
+}) => {
+  // Creation Form state
+  const [newAgentEmail, setNewAgentEmail] = useState("");
+  const [newAgentPassword, setNewAgentPassword] = useState("");
+  const [newAgentName, setNewAgentName] = useState("");
+  const [newAgentTelegram, setNewAgentTelegram] = useState("");
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const [agentNotice, setAgentNotice] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Modal 1: View Agent Details State
+  const [viewingAgent, setViewingAgent] = useState<UserProfile | null>(null);
+  const [viewStats, setViewStats] = useState<{
+    currentBalance: number;
+    lifetimeTotalBalance: number;
+    totalUsers: number;
+    lifetimeTotalOtp: number;
+    usersActiveApi: number;
+    isLoading: boolean;
+  }>({
+    currentBalance: 0,
+    lifetimeTotalBalance: 0,
+    totalUsers: 0,
+    lifetimeTotalOtp: 0,
+    usersActiveApi: 0,
+    isLoading: false,
+  });
+
+  // Modal 2: Edit Agent Info State
+  const [editingAgent, setEditingAgent] = useState<UserProfile | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editTelegram, setEditTelegram] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Modal 3: Balance Management State
+  const [balancingAgent, setBalancingAgent] = useState<UserProfile | null>(null);
+  const [balAmount, setBalAmount] = useState<string>("10");
+  const [isUpdatingBal, setIsUpdatingBal] = useState(false);
+
+  // Filter Active System Agents
+  const agentList = useMemo(() => {
+    return registeredUsers.filter((u) => u.role?.toLowerCase() === "agent");
+  }, [registeredUsers]);
+
+  // Create New Agent Handler
+  const handleCreateAgentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanE = newAgentEmail.trim().toLowerCase();
+    const cleanName = newAgentName.trim() || `Agent (${cleanE.split("@")[0]})`;
+    const rawTg = newAgentTelegram.trim();
+    const cleanTg = rawTg ? (rawTg.startsWith("@") ? rawTg : `@${rawTg}`) : "";
+
+    if (!cleanE || !newAgentPassword.trim()) {
+      setAgentNotice({ text: "Please enter Email and Password for the Agent.", type: "error" });
+      return;
+    }
+
+    setIsCreatingAgent(true);
+    setAgentNotice(null);
+
+    const res = await createAgentInSupabase(cleanE, newAgentPassword, cleanName, cleanTg);
+
+    if (res.success) {
+      try {
+        const stored = localStorage.getItem("orabit_registered_users");
+        let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+        const existingIdx = list.findIndex((u) => u.email.toLowerCase() === cleanE);
+
+        const newAgentObj: UserProfile = {
+          fullName: cleanName,
+          mobileNumber: "01700000000",
+          email: cleanE,
+          telegram: cleanTg,
+          city: "Dhaka",
+          country: "Bangladesh",
+          referralEmail: "orabitsms@gmail.com",
+          withdrawPin: "",
+          balance: 0.0,
+          password: newAgentPassword,
+          role: "Agent",
+        };
+
+        if (existingIdx >= 0) {
+          list[existingIdx] = {
+            ...list[existingIdx],
+            fullName: cleanName,
+            telegram: cleanTg,
+            role: "Agent",
+            password: newAgentPassword,
+          };
+        } else {
+          list.push(newAgentObj);
+        }
+
+        localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+        setRegisteredUsers(list);
+      } catch (err) {
+        console.error("Local storage error on agent creation:", err);
+      }
+
+      setAgentNotice({ text: res.message, type: "success" });
+      setNewAgentEmail("");
+      setNewAgentPassword("");
+      setNewAgentName("");
+      setNewAgentTelegram("");
+    } else {
+      setAgentNotice({ text: res.message, type: "error" });
+    }
+
+    setIsCreatingAgent(false);
+  };
+
+  // Delete Agent Handler
+  const handleDeleteAgent = async (agentEmail: string) => {
+    const cleanE = agentEmail.trim().toLowerCase();
+    if (!window.confirm(`Are you sure you want to delete agent "${cleanE}"? This will remove their agent role and access.`)) {
+      return;
+    }
+
+    const res = await deleteAgentFromSupabase(cleanE);
+
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      let list: UserProfile[] = stored ? JSON.parse(stored) : registeredUsers;
+      const updatedList = list.filter((u) => u.email.toLowerCase().trim() !== cleanE);
+      localStorage.setItem("orabit_registered_users", JSON.stringify(updatedList));
+      setRegisteredUsers(updatedList);
+    } catch (err) {
+      console.error("Local storage error on agent deletion:", err);
+    }
+
+    setAgentNotice({
+      text: res.success ? `Agent (${cleanE}) has been deleted successfully.` : res.message,
+      type: res.success ? "success" : "error",
+    });
+  };
+
+  // Load View Modal Details and Supabase Statistics
+  useEffect(() => {
+    if (!viewingAgent) return;
+
+    let isMounted = true;
+    const loadAgentStats = async () => {
+      setViewStats((prev) => ({ ...prev, isLoading: true }));
+
+      const agEmail = viewingAgent.email.toLowerCase().trim();
+      const agCode = (viewingAgent.referralEmail || viewingAgent.referralCode || "").toLowerCase().trim();
+
+      // 1. Referred clients
+      const referredClients = registeredUsers.filter((u) => {
+        const refEmail = (u.referralEmail || u.referredBy || u.referredByAgentEmail || "").toLowerCase().trim();
+        return (
+          refEmail === agEmail ||
+          (agCode && (refEmail === agCode || u.referredBy?.trim().toLowerCase() === agCode))
+        );
+      });
+
+      const totalUsers = referredClients.length;
+
+      // 2. Users Active API count
+      const usersActiveApi = referredClients.filter(
+        (c) => c.apiKey && c.apiKey.trim().length > 0
+      ).length;
+
+      // 3. Current balance from agent profile or Supabase
+      let currentBal = viewingAgent.balance || 0;
+      let totalSuccessOtps = viewingAgent.totalSuccess || 0;
+      let totalEarnedUSD = 0;
+
+      try {
+        const { data: dbProfile } = await supabase
+          .from("user_profiles")
+          .select("balance, total_success")
+          .ilike("email", agEmail)
+          .maybeSingle();
+
+        if (dbProfile) {
+          if (typeof dbProfile.balance === "number") currentBal = dbProfile.balance;
+          if (typeof dbProfile.total_success === "number") totalSuccessOtps = dbProfile.total_success;
+        }
+      } catch (e) {
+        console.warn("View agent profile query notice:", e);
+      }
+
+      // 4. Calculate Lifetime OTPs across all clients of this agent
+      const clientEmails = new Set<string>();
+      clientEmails.add(agEmail);
+      referredClients.forEach((c) => clientEmails.add(c.email.toLowerCase().trim()));
+
+      // Calculate feeds OTPs
+      let feedOtpsCount = 0;
+      feedNumbers.forEach((f) => {
+        const fEmail = (f.userEmail || f.email || "").toLowerCase().trim();
+        if (clientEmails.has(fEmail)) {
+          const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
+          const isFail = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
+          if (isSuccess && !isFail) {
+            const validMsgs = f.messages ? f.messages.filter((m) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+            feedOtpsCount += validMsgs.length > 0 ? validMsgs.length : 1;
+          }
+        }
+      });
+
+      // Also query Supabase daily_stats for all clients
+      try {
+        const allStats = await fetchDailyStatsFromSupabase();
+        let dbOtpsCount = 0;
+        let dbRevCount = 0;
+        allStats.forEach((st) => {
+          if (st.user_email && clientEmails.has(st.user_email.toLowerCase().trim())) {
+            dbOtpsCount += st.total_otps || 0;
+            dbRevCount += st.total_revenue || 0;
+          }
+        });
+
+        const finalOtps = Math.max(feedOtpsCount, dbOtpsCount, totalSuccessOtps);
+        totalEarnedUSD = dbRevCount > 0 ? dbRevCount : finalOtps * 0.05; // calculate approx lifetime revenue
+
+        if (isMounted) {
+          setViewStats({
+            currentBalance: currentBal,
+            lifetimeTotalBalance: currentBal + totalEarnedUSD,
+            totalUsers: totalUsers,
+            lifetimeTotalOtp: finalOtps,
+            usersActiveApi: usersActiveApi,
+            isLoading: false,
+          });
+        }
+      } catch (e) {
+        if (isMounted) {
+          setViewStats({
+            currentBalance: currentBal,
+            lifetimeTotalBalance: currentBal,
+            totalUsers: totalUsers,
+            lifetimeTotalOtp: Math.max(feedOtpsCount, totalSuccessOtps),
+            usersActiveApi: usersActiveApi,
+            isLoading: false,
+          });
+        }
+      }
+    };
+
+    loadAgentStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [viewingAgent, registeredUsers, feedNumbers]);
+
+  // Handle Edit Agent Modal Submit
+  const handleEditAgentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAgent) return;
+
+    setIsSavingEdit(true);
+    const cleanE = editingAgent.email.toLowerCase().trim();
+    const cleanName = editName.trim() || `Agent (${cleanE.split("@")[0]})`;
+    const rawTg = editTelegram.trim();
+    const cleanTg = rawTg ? (rawTg.startsWith("@") ? rawTg : `@${rawTg}`) : "";
+
+    try {
+      // 1. Update user_profiles in Supabase
+      await supabase.from("user_profiles").upsert(
+        {
+          email: cleanE,
+          full_name: cleanName,
+          telegram: cleanTg,
+          role: "Agent",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" }
+      );
+
+      // 2. Ensure role in user_roles
+      await setUserRoleInSupabase(cleanE, "agent");
+
+      // 3. Update local state & localStorage
+      const updatedUsers = registeredUsers.map((u) => {
+        if (u.email.toLowerCase().trim() === cleanE) {
+          return {
+            ...u,
+            fullName: cleanName,
+            telegram: cleanTg,
+            password: editPassword.trim() || u.password,
+            role: "Agent",
+          };
+        }
+        return u;
+      });
+
+      localStorage.setItem("orabit_registered_users", JSON.stringify(updatedUsers));
+      setRegisteredUsers(updatedUsers);
+
+      setAgentNotice({ text: `Agent (${cleanName}) profile updated successfully!`, type: "success" });
+      setEditingAgent(null);
+    } catch (err: any) {
+      console.error("Failed to update agent profile:", err);
+      setAgentNotice({ text: err.message || "Failed to update agent profile.", type: "error" });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Handle Balance Modal Action (Add / Deduct)
+  const handleBalanceUpdate = async (action: "add" | "deduct") => {
+    if (!balancingAgent) return;
+    const amt = parseFloat(balAmount);
+    if (isNaN(amt) || amt <= 0) {
+      alert("Please enter a valid amount greater than 0.");
+      return;
+    }
+
+    setIsUpdatingBal(true);
+    const cleanE = balancingAgent.email.toLowerCase().trim();
+    const currentBal = balancingAgent.balance || 0;
+    const newBal = action === "add" ? currentBal + amt : Math.max(0, currentBal - amt);
+
+    try {
+      // 1. Update Supabase user_profiles balance
+      await supabase.from("user_profiles").upsert(
+        {
+          email: cleanE,
+          balance: newBal,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" }
+      );
+
+      // 2. Update local state & localStorage
+      const updatedUsers = registeredUsers.map((u) => {
+        if (u.email.toLowerCase().trim() === cleanE) {
+          return {
+            ...u,
+            balance: newBal,
+          };
+        }
+        return u;
+      });
+
+      localStorage.setItem("orabit_registered_users", JSON.stringify(updatedUsers));
+      setRegisteredUsers(updatedUsers);
+
+      if (onUpdateUserBalance) {
+        onUpdateUserBalance(cleanE, action === "add" ? amt : -amt);
+      }
+
+      setAgentNotice({
+        text: `${action === "add" ? "Added" : "Deducted"} $${amt.toFixed(2)} ${
+          action === "add" ? "to" : "from"
+        } Agent (${balancingAgent.fullName || cleanE}) balance! New balance: $${newBal.toFixed(2)}`,
+        type: "success",
+      });
+
+      setBalancingAgent(null);
+    } catch (err: any) {
+      console.error("Failed to update balance:", err);
+      alert("Error updating balance in Supabase.");
+    } finally {
+      setIsUpdatingBal(false);
+    }
+  };
+
+  // Top 10 Performing Agents Data Calculation
+  const topAgentsData = useMemo(() => {
+    if (agentList.length === 0) return [];
+
+    const allFeedsMapByEmail: Record<string, FeedNumber[]> = {};
+
+    feedNumbers.forEach((f) => {
+      const em = (f.userEmail || f.email || "").toLowerCase().trim();
+      if (em) {
+        if (!allFeedsMapByEmail[em]) allFeedsMapByEmail[em] = [];
+        allFeedsMapByEmail[em].push(f);
+      }
+    });
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("orabit_feed_numbers")) {
+          let em = "";
+          if (key.startsWith("orabit_feed_numbers_")) {
+            em = key.replace("orabit_feed_numbers_", "").toLowerCase().trim();
+          }
+          const val = localStorage.getItem(key);
+          if (val) {
+            try {
+              const parsed: FeedNumber[] = JSON.parse(val);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((f) => {
+                  const itemEm = (f.userEmail || f.email || em).toLowerCase().trim();
+                  if (itemEm) {
+                    if (!allFeedsMapByEmail[itemEm]) allFeedsMapByEmail[itemEm] = [];
+                    allFeedsMapByEmail[itemEm].push(f);
+                  }
+                });
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+
+    const calcSuccessOtps = (feeds: FeedNumber[]) => {
+      const seen = new Set<string>();
+      let total = 0;
+      feeds.forEach((f) => {
+        const k = f.id || `${f.number}_${f.requestedAt}_${f.status}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
+          const isFail = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
+          if (isSuccess && !isFail) {
+            const validMsgs = f.messages ? f.messages.filter((m) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+            total += validMsgs.length > 0 ? validMsgs.length : 1;
+          }
+        }
+      });
+      return total;
+    };
+
+    const agentPerformance = agentList.map((agent) => {
+      const agEmail = agent.email.toLowerCase().trim();
+      const agCode = (agent.referralEmail || agent.referralCode || "").toLowerCase().trim();
+
+      const referredClients = registeredUsers.filter((u) => {
+        const refEmail = (u.referralEmail || u.referredBy || u.referredByAgentEmail || "").toLowerCase().trim();
+        return (
+          refEmail === agEmail ||
+          (agCode && (refEmail === agCode || u.referredBy?.trim().toLowerCase() === agCode))
+        );
+      });
+
+      const clientEmails = new Set<string>();
+      clientEmails.add(agEmail);
+      referredClients.forEach((c) => clientEmails.add(c.email.toLowerCase().trim()));
+
+      const agentFeeds: FeedNumber[] = [];
+      clientEmails.forEach((cEmail) => {
+        if (allFeedsMapByEmail[cEmail]) {
+          agentFeeds.push(...allFeedsMapByEmail[cEmail]);
+        }
+      });
+
+      const totalSuccessOtps = calcSuccessOtps(agentFeeds);
+      const displayName = agent.fullName && agent.fullName !== `Agent (${agEmail.split("@")[0]})`
+        ? agent.fullName
+        : agEmail.split("@")[0];
+
+      return {
+        agentEmail: agEmail,
+        name: displayName,
+        shortEmail: agEmail.length > 18 ? agEmail.substring(0, 15) + "..." : agEmail,
+        totalOtps: totalSuccessOtps,
+        clientsCount: referredClients.length,
+      };
+    });
+
+    agentPerformance.sort((a, b) => b.totalOtps - a.totalOtps);
+    return agentPerformance.slice(0, 10);
+  }, [agentList, registeredUsers, feedNumbers]);
+
+  return (
+    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xl">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+        <div>
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-indigo-400" /> Agent Management
+          </h2>
+          <p className="text-xs text-slate-400">
+            Create, manage, and inspect system Agents and their referred clients.
+          </p>
+        </div>
+        <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold font-mono">
+          System Agents ({agentList.length})
+        </span>
+      </div>
+
+      {/* Notice Toast */}
+      {agentNotice && (
+        <div
+          className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 ${
+            agentNotice.type === "success"
+              ? "bg-emerald-950/80 border-emerald-500 text-emerald-300"
+              : "bg-rose-950/80 border-rose-500 text-rose-300"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {agentNotice.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span>{agentNotice.text}</span>
+          </div>
+          <button onClick={() => setAgentNotice(null)} className="text-slate-400 hover:text-white">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Create Agent Form */}
+      <form onSubmit={handleCreateAgentSubmit} className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
+        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+          <Plus className="w-3.5 h-3.5 text-indigo-400" /> Create New Agent Account
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="relative">
+            <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={newAgentName}
+              onChange={(e) => setNewAgentName(e.target.value)}
+              placeholder="Agent Name (e.g. Alif Sheikh)"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+          <div className="relative">
+            <Send className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={newAgentTelegram}
+              onChange={(e) => setNewAgentTelegram(e.target.value)}
+              placeholder="Telegram Username (e.g. @username)"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+          <div className="relative">
+            <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+            <input
+              type="email"
+              value={newAgentEmail}
+              onChange={(e) => setNewAgentEmail(e.target.value)}
+              placeholder="Agent Email (e.g. agent@domain.com)"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              required
+            />
+          </div>
+          <div className="relative">
+            <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+            <input
+              type="password"
+              value={newAgentPassword}
+              onChange={(e) => setNewAgentPassword(e.target.value)}
+              placeholder="Agent Password (min 6 characters)"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              required
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={isCreatingAgent}
+            className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            {isCreatingAgent ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Creating Agent & Setting Role...</span>
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Create Agent & Set 'agent' Role</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      {/* ACTIVE SYSTEM AGENTS TABLE */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          Active System Agents ({agentList.length})
+        </h3>
+        <div className="overflow-x-auto rounded-xl border border-slate-800">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-950/90 text-slate-400 font-semibold border-b border-slate-800">
+                <th className="py-2.5 px-3">Agent Email</th>
+                <th className="py-2.5 px-3">Assigned Role</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-right">Referred Clients</th>
+                <th className="py-2.5 px-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-mono">
+              {agentList.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-4 text-center text-slate-500 font-sans">
+                    No agents created yet. Use the form above to add an agent.
+                  </td>
+                </tr>
+              ) : (
+                agentList.map((agent) => {
+                  const referredCount = registeredUsers.filter(
+                    (cl) => cl.referralEmail?.toLowerCase().trim() === agent.email.toLowerCase().trim()
+                  ).length;
+                  return (
+                    <tr key={agent.email} className="hover:bg-slate-800/30">
+                      <td className="py-2.5 px-3">
+                        <div className="font-sans text-xs text-white font-bold">{agent.fullName || agent.email.split("@")[0]}</div>
+                        <div className="text-[11px] text-indigo-300 font-mono">{agent.email}</div>
+                        {agent.telegram && (
+                          <div className="text-[10px] text-sky-400 font-sans">{agent.telegram}</div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 text-[10px] uppercase font-bold border border-indigo-500/30">
+                          agent
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="text-emerald-400 text-[10px] font-bold flex items-center gap-1 font-sans">
+                          <UserCheck className="w-3 h-3" /> Active
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-white font-bold">{referredCount} Clients</td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* 1. View Button */}
+                          <button
+                            onClick={() => setViewingAgent(agent)}
+                            className="p-1.5 px-2 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
+                            title="View Agent Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View</span>
+                          </button>
+
+                          {/* 2. ± Bal Button */}
+                          <button
+                            onClick={() => {
+                              setBalancingAgent(agent);
+                              setBalAmount("10");
+                            }}
+                            className="p-1.5 px-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
+                            title="Balance Management"
+                          >
+                            <Wallet className="w-3.5 h-3.5" />
+                            <span>± Bal</span>
+                          </button>
+
+                          {/* 3. Edit Button */}
+                          <button
+                            onClick={() => {
+                              setEditingAgent(agent);
+                              setEditName(agent.fullName || "");
+                              setEditEmail(agent.email);
+                              setEditPassword(agent.password || "");
+                              setEditTelegram(agent.telegram || "");
+                            }}
+                            className="p-1.5 px-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
+                            title="Edit Agent Info"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+
+                          {/* 4. Delete Button */}
+                          <button
+                            onClick={() => handleDeleteAgent(agent.email)}
+                            className="p-1.5 px-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
+                            title="Delete Agent"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MODAL 1: VIEW AGENT DETAILS */}
+      {viewingAgent && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-5 sm:p-6 space-y-5 shadow-2xl relative overflow-hidden text-left my-auto">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+
+            {/* Header / Avatar */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-indigo-500/20 shrink-0">
+                  {(viewingAgent.fullName || viewingAgent.email)[0].toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+                    {viewingAgent.fullName || viewingAgent.email.split("@")[0]}
+                    <BadgeCheck className="w-4 h-4 text-sky-400" />
+                  </h3>
+                  <p className="text-xs text-indigo-300 font-mono">{viewingAgent.email}</p>
+                  {viewingAgent.telegram && (
+                    <span className="text-xs text-sky-400 font-medium">{viewingAgent.telegram}</span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingAgent(null)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content: 5 Statistics Cards Grid */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-indigo-400" /> Agent Statistics & Metrics
+              </h4>
+
+              {viewStats.isLoading ? (
+                <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
+                  <span>Loading agent metrics from Supabase...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                  {/* Card 1: Current Balance */}
+                  <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Wallet className="w-3.5 h-3.5 text-emerald-400" /> Current Balance
+                    </span>
+                    <p className="text-lg font-black font-mono text-emerald-400">
+                      ${viewStats.currentBalance.toFixed(2)}{" "}
+                      <span className="text-xs text-slate-500 font-normal">
+                        (৳{(viewStats.currentBalance * usdExchangeRate).toFixed(0)})
+                      </span>
+                    </p>
+                  </div>
+
+                  {/* Card 2: Lifetime Total Balance */}
+                  <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <TrendingUp className="w-3.5 h-3.5 text-indigo-400" /> Lifetime Total Balance
+                    </span>
+                    <p className="text-lg font-black font-mono text-indigo-300">
+                      ${viewStats.lifetimeTotalBalance.toFixed(2)}{" "}
+                      <span className="text-xs text-slate-500 font-normal">
+                        (৳{(viewStats.lifetimeTotalBalance * usdExchangeRate).toFixed(0)})
+                      </span>
+                    </p>
+                  </div>
+
+                  {/* Card 3: Total Users */}
+                  <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-sky-400" /> Total Users
+                    </span>
+                    <p className="text-lg font-black font-mono text-sky-300">
+                      {viewStats.totalUsers} <span className="text-xs text-slate-500 font-normal">Referred Clients</span>
+                    </p>
+                  </div>
+
+                  {/* Card 4: Lifetime Total OTP */}
+                  <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" /> Lifetime Total OTP
+                    </span>
+                    <p className="text-lg font-black font-mono text-amber-400">
+                      {viewStats.lifetimeTotalOtp} <span className="text-xs text-slate-500 font-normal">Success OTPs</span>
+                    </p>
+                  </div>
+
+                  {/* Card 5: Users Active API */}
+                  <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1 sm:col-span-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Key className="w-3.5 h-3.5 text-purple-400" /> Users Active API
+                    </span>
+                    <p className="text-lg font-black font-mono text-purple-300">
+                      {viewStats.usersActiveApi}{" "}
+                      <span className="text-xs text-slate-500 font-normal">
+                        out of {viewStats.totalUsers} clients have active API keys
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-800/80">
+              <button
+                onClick={() => setViewingAgent(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: EDIT AGENT INFO */}
+      {editingAgent && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-2xl relative overflow-hidden text-left my-auto">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-amber-400" /> Edit Agent Information
+              </h3>
+              <button
+                onClick={() => setEditingAgent(null)}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditAgentSubmit} className="space-y-3">
+              {/* Name */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Agent Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  required
+                />
+              </div>
+
+              {/* Email (Readonly) */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Agent Email</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  disabled
+                  className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-xs text-slate-400 font-mono cursor-not-allowed"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Password</label>
+                <input
+                  type="text"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Telegram Username */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Telegram Username</label>
+                <input
+                  type="text"
+                  value={editTelegram}
+                  onChange={(e) => setEditTelegram(e.target.value)}
+                  placeholder="@username"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => setEditingAgent(null)}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: BALANCE MANAGEMENT */}
+      {balancingAgent && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative overflow-hidden text-left my-auto">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-emerald-400" /> Balance Management
+              </h3>
+              <button
+                onClick={() => setBalancingAgent(null)}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Agent Info Box */}
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+              <p className="text-xs font-bold text-white">{balancingAgent.fullName || balancingAgent.email}</p>
+              <p className="text-[11px] text-slate-400 font-mono">{balancingAgent.email}</p>
+              <div className="pt-1 flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-400">Current Balance:</span>
+                <span className="text-emerald-400 font-mono">${(balancingAgent.balance || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Amount Input */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                Enter Amount ($ USD)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-bold">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={balAmount}
+                  onChange={(e) => setBalAmount(e.target.value)}
+                  placeholder="10.00"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-7 pr-3 py-2 text-sm text-white font-mono font-bold focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Approx ৳{(parseFloat(balAmount || "0") * usdExchangeRate).toFixed(0)} BDT
+              </p>
+            </div>
+
+            {/* Action Buttons: Add Balance (Green) & Deduct Balance (Red/Orange) */}
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+              <button
+                type="button"
+                disabled={isUpdatingBal}
+                onClick={() => handleBalanceUpdate("add")}
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Balance</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isUpdatingBal}
+                onClick={() => handleBalanceUpdate("deduct")}
+                className="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Minus className="w-3.5 h-3.5" />
+                <span>Deduct Balance</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top 10 Performing Agents Chart Section */}
+      <div className="pt-4 border-t border-slate-800/80 space-y-3">
+        <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+          <Trophy className="w-4 h-4 text-amber-400" /> Top Performing Agents (By OTP Volume)
+        </h3>
+        {topAgentsData.length === 0 ? (
+          <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-center text-xs text-slate-500 font-sans">
+            No agent performance data available yet.
+          </div>
+        ) : (
+          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsBarChart data={topAgentsData} margin={{ top: 20, right: 15, left: -10, bottom: 25 }}>
+                  <XAxis
+                    dataKey="name"
+                    stroke="#64748b"
+                    fontSize={10}
+                    tickLine={false}
+                    interval={0}
+                    angle={-20}
+                    textAnchor="end"
+                  />
+                  <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#020617", borderColor: "#1e293b", borderRadius: "12px", fontSize: "12px" }}
+                    formatter={(val: any) => [`${val} OTPs`, "Success OTPs"]}
+                  />
+                  <Bar dataKey="totalOtps" radius={[6, 6, 0, 0]}>
+                    {topAgentsData.map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={index === 0 ? "#818cf8" : index === 1 ? "#38bdf8" : index === 2 ? "#34d399" : "#6366f1"}
+                      />
+                    ))}
+                  </Bar>
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
