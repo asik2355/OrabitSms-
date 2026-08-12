@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { saveUserProfileToSupabase } from "../lib/userProfiles";
 import {
@@ -47,12 +47,25 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     userProfile?.role?.toLowerCase() === "admin" ||
     userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com";
   // Form State
-  const [fullName, setFullName] = useState(userProfile.fullName || "Alif Sheikh");
-  const [mobileNumber, setMobileNumber] = useState(userProfile.mobileNumber || "0175257721");
-  const [bio, setBio] = useState("");
+  const [fullName, setFullName] = useState(userProfile.fullName || "");
+  const [mobileNumber, setMobileNumber] = useState(userProfile.mobileNumber || "");
+  const [bio, setBio] = useState(userProfile.bio || "");
   const [country, setCountry] = useState(userProfile.country || "Bangladesh");
   const [city, setCity] = useState(userProfile.city || "Dhaka");
-  const [telegramUsername, setTelegramUsername] = useState(userProfile.telegram || "@alif_sheikh");
+  const [telegramUsername, setTelegramUsername] = useState(userProfile.telegram || "");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Sync form inputs when userProfile prop updates or loads
+  useEffect(() => {
+    if (userProfile) {
+      if (userProfile.fullName) setFullName(userProfile.fullName);
+      if (userProfile.mobileNumber) setMobileNumber(userProfile.mobileNumber);
+      if (userProfile.country) setCountry(userProfile.country);
+      if (userProfile.city) setCity(userProfile.city);
+      if (userProfile.telegram) setTelegramUsername(userProfile.telegram);
+      if (userProfile.bio) setBio(userProfile.bio);
+    }
+  }, [userProfile.fullName, userProfile.mobileNumber, userProfile.country, userProfile.city, userProfile.telegram, userProfile.bio]);
 
   // Security Toggles & Withdraw PIN
   const [showWithdrawPinSetup, setShowWithdrawPinSetup] = useState(false);
@@ -179,17 +192,38 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
   };
 
-  const handleSaveChangesClick = (e: React.FormEvent) => {
+  const handleSaveChangesClick = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Update parent user profile directly without OTP
-    onUpdateProfile({
+    setIsSavingProfile(true);
+
+    const updatedProfile: UserProfile = {
       ...userProfile,
       fullName: fullName.trim(),
-      mobileNumber: mobileNumber,
-      country: country,
-      telegram: telegramUsername,
-    });
+      mobileNumber: mobileNumber.trim(),
+      country: country.trim(),
+      city: city.trim(),
+      telegram: telegramUsername.trim(),
+      bio: bio.trim(),
+    };
 
+    // 1. Update React state in parent & AuthContext
+    onUpdateProfile(updatedProfile);
+
+    // 2. Persist to Supabase user_profiles table
+    try {
+      await saveUserProfileToSupabase(updatedProfile);
+    } catch (err) {
+      console.error("Failed to save user profile to Supabase:", err);
+    }
+
+    // 3. Persist to localStorage
+    try {
+      localStorage.setItem("orabit_user_profile", JSON.stringify(updatedProfile));
+    } catch (err) {
+      console.error("Failed to update local storage:", err);
+    }
+
+    setIsSavingProfile(false);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 4000);
   };
@@ -414,10 +448,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+              disabled={isSavingProfile}
+              className="px-5 py-2.5 rounded-xl bg-[#2EE59D] hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Save Changes</span>
+              {isSavingProfile ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
+              <span>{isSavingProfile ? "Saving..." : "Save Changes"}</span>
             </button>
           </div>
         </form>

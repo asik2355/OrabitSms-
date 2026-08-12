@@ -119,6 +119,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: validEmail,
               role: normalizedRole,
               uid: validUser.id,
+              fullName: dbProfile?.fullName || prev.fullName,
+              mobileNumber: dbProfile?.mobileNumber || prev.mobileNumber,
+              telegram: dbProfile?.telegram || prev.telegram,
+              country: dbProfile?.country || prev.country,
+              city: dbProfile?.city || prev.city,
+              withdrawPin: dbProfile?.withdrawPin || prev.withdrawPin,
               balance: dbProfile?.balance !== undefined ? dbProfile.balance : prev.balance,
               totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : prev.totalSuccess,
             };

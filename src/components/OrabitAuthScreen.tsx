@@ -28,6 +28,7 @@ export interface UserProfile {
   telegram?: string;
   country: string;
   city?: string;
+  bio?: string;
   referralEmail?: string;
   withdrawPin?: string;
   balance: number;
