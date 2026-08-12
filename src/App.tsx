@@ -634,8 +634,13 @@ export default function App() {
 
     let totalFeedEarnedBDT = 0;
     feedNumbers.forEach((f) => {
-      if (f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success") {
-        const msgCount = f.messages && f.messages.length > 0 ? f.messages.length : 1;
+      const isFailNotice = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
+      const hasRealOtp = !!(f.otpCode && f.otpCode !== "------") || 
+        (f.messages && f.messages.some(m => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))));
+
+      if ((f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success") && !isFailNotice && hasRealOtp) {
+        const validMsgs = f.messages ? f.messages.filter(m => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+        const msgCount = validMsgs.length > 0 ? validMsgs.length : 1;
         totalFeedEarnedBDT += getServiceRateBDT(f.service) * msgCount;
       }
     });
@@ -983,9 +988,11 @@ export default function App() {
               const existingRaw = item.rawMessage || "";
               const existingMessages = item.messages || [];
 
-              // Filter to unrecorded OTP messages
+              // Filter to unrecorded OTP messages (excluding fail/timeout notices)
               const unrecordedOtps = matchingOtps.filter((o) => {
                 if (!o.message) return false;
+                const msgLower = o.message.toLowerCase();
+                if (msgLower.includes("no sms received") || msgLower.includes("timed out") || msgLower.includes("failed")) return false;
                 const existsInRaw = existingRaw.includes(o.message);
                 const existsInMsgs = existingMessages.some((m) => m.raw === o.message);
                 return !existsInRaw && !existsInMsgs;
@@ -1083,6 +1090,7 @@ export default function App() {
                     status: "FAILED" as const,
                     timeAgo: formatTimeAgo(reqTimestamp),
                     rawMessage: "No SMS received within 15 minutes",
+                    otpCode: undefined,
                   };
                 } else {
                   const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);

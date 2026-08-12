@@ -593,9 +593,11 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
               const existingRaw = item.rawMessage || "";
               const existingMessages = item.messages || [];
 
-              // Filter to unrecorded OTP messages
+              // Filter to unrecorded OTP messages (excluding fail/timeout notices)
               const unrecordedOtps = matchingOtps.filter((o) => {
                 if (!o.message) return false;
+                const msgLower = o.message.toLowerCase();
+                if (msgLower.includes("no sms received") || msgLower.includes("timed out") || msgLower.includes("failed")) return false;
                 const existsInRaw = existingRaw.includes(o.message);
                 const existsInMsgs = existingMessages.some((m) => m.raw === o.message);
                 return !existsInRaw && !existsInMsgs;
@@ -693,6 +695,7 @@ export const ZenexSmsConsole: React.FC<ZenexSmsConsoleProps> = ({ domainName, us
                     status: "FAILED" as const,
                     timeAgo: formatTimeAgo(reqTimestamp),
                     rawMessage: "No SMS received within 15 minutes",
+                    otpCode: undefined,
                   };
                 } else {
                   const timeAgoStr = formatTimeAgo(reqTimestamp, item.timeAgo);

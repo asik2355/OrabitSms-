@@ -43,28 +43,37 @@ function mapRowToFeedNumber(row: any): FeedNumber {
   const reqTs = row.requested_at ? Number(row.requested_at) : Date.now();
   const elapsedMs = Date.now() - reqTs;
 
+  const rawMsg = row.raw_message ? String(row.raw_message).trim() : "";
+  const isFailNotice = rawMsg.toLowerCase().includes("no sms received") || 
+                       rawMsg.toLowerCase().includes("timed out") || 
+                       rawMsg.toLowerCase().includes("failed");
+
+  const otpCode = row.otp_code ? String(row.otp_code).trim() : "";
+  const hasValidOtpCode = otpCode.length > 0 && otpCode !== "------";
+  const hasValidOtpMsg = rawMsg.length > 0 && !isFailNotice;
+
+  const hasRealOtp = hasValidOtpCode || hasValidOtpMsg;
+
   let finalStatus: "SUCCESS" | "MULTI SUCCESS" | "PENDING" | "FAILED" = row.status as any;
 
-  // Check if messages or OTP code exists on row
-  const hasOtp = !!(row.otp_code && String(row.otp_code).trim().length > 0) || !!(row.raw_message && String(row.raw_message).trim().length > 0);
-
-  // Immutable lock: If row status in DB is SUCCESS/MULTI SUCCESS or row contains OTP data, never downgrade to FAILED/PENDING
-  if (row.status === "SUCCESS" || row.status === "MULTI SUCCESS" || hasOtp) {
-    if (row.raw_message && row.raw_message.includes("\n---\n")) {
+  if (row.status === "FAILED" || (finalStatus === "PENDING" && elapsedMs >= 15 * 60 * 1000 && !hasRealOtp)) {
+    finalStatus = "FAILED";
+  } else if (hasRealOtp) {
+    if (rawMsg && rawMsg.includes("\n---\n")) {
       finalStatus = "MULTI SUCCESS";
     } else {
       finalStatus = "SUCCESS";
     }
-  } else if (finalStatus === "PENDING" && elapsedMs >= 15 * 60 * 1000) {
-    finalStatus = "FAILED";
+  } else if (row.status === "SUCCESS" || row.status === "MULTI SUCCESS") {
+    finalStatus = isFailNotice ? "FAILED" : row.status;
   }
 
   const dynamicTimeAgo = formatTimeAgo(reqTs, row.time_ago);
 
-  // Parse structured messages list if raw_message contains delimited messages
+  // Parse structured messages list if raw_message contains delimited messages and is not a fail notice
   let messagesList: Array<{ code?: string; raw: string; timestamp: number }> | undefined = undefined;
-  if (row.raw_message) {
-    const rawParts = row.raw_message.split("\n---\n").filter(Boolean);
+  if (rawMsg && !isFailNotice) {
+    const rawParts = rawMsg.split("\n---\n").filter(Boolean);
     if (rawParts.length > 0) {
       messagesList = rawParts.map((part: string, idx: number) => {
         const match = part.match(/\b\d{4,8}\b/);
@@ -85,8 +94,8 @@ function mapRowToFeedNumber(row: any): FeedNumber {
     operator: row.operator || "GSM Network",
     service: row.service || "SMS OTP",
     timeAgo: dynamicTimeAgo,
-    otpCode: row.otp_code || undefined,
-    rawMessage: row.raw_message || undefined,
+    otpCode: hasValidOtpCode ? otpCode : undefined,
+    rawMessage: rawMsg || undefined,
     messages: messagesList,
     requestedAt: reqTs,
   };
@@ -94,7 +103,7 @@ function mapRowToFeedNumber(row: any): FeedNumber {
 
 /**
  * State Lock helper to merge incoming feed items with current state.
- * CRITICAL RULE: Once an item has status "SUCCESS" or "MULTI SUCCESS" or contains OTP messages/codes,
+ * CRITICAL RULE: Once an item has status "SUCCESS" or "MULTI SUCCESS" and contains real OTP messages/codes,
  * it CANNOT be downgraded to "PENDING" or "FAILED" by an incoming poll or DB re-fetch.
  */
 export function applyFeedStateLock(currentFeed: FeedNumber[], incomingFeed: FeedNumber[]): FeedNumber[] {
@@ -127,14 +136,20 @@ export function applyFeedStateLock(currentFeed: FeedNumber[], incomingFeed: Feed
     if (existing) {
       processedIds.add(existing.id);
 
-      const existingHasOtp = !!(existing.otpCode && existing.otpCode.trim().length > 0) || !!(existing.messages && existing.messages.length > 0);
-      const existingIsSuccess = existing.status === "SUCCESS" || existing.status === "MULTI SUCCESS" || existingHasOtp;
+      const existingFailNotice = existing.rawMessage ? existing.rawMessage.toLowerCase().includes("no sms received") : false;
+      const existingHasRealOtp = !!(existing.otpCode && existing.otpCode !== "------") || 
+        (existing.messages && existing.messages.some(m => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))));
 
-      const incomingHasOtp = !!(incoming.otpCode && incoming.otpCode.trim().length > 0) || !!(incoming.messages && incoming.messages.length > 0);
-      const incomingIsSuccess = incoming.status === "SUCCESS" || incoming.status === "MULTI SUCCESS" || incomingHasOtp;
+      const existingIsSuccess = (existing.status === "SUCCESS" || existing.status === "MULTI SUCCESS") && !existingFailNotice && existingHasRealOtp;
+
+      const incomingFailNotice = incoming.rawMessage ? incoming.rawMessage.toLowerCase().includes("no sms received") : false;
+      const incomingHasRealOtp = !!(incoming.otpCode && incoming.otpCode !== "------") || 
+        (incoming.messages && incoming.messages.some(m => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))));
+
+      const incomingIsSuccess = (incoming.status === "SUCCESS" || incoming.status === "MULTI SUCCESS") && !incomingFailNotice && incomingHasRealOtp;
 
       if (existingIsSuccess) {
-        // STATE LOCK ACTIVE: Existing item is already SUCCESS/MULTI SUCCESS
+        // STATE LOCK ACTIVE: Existing item is already real SUCCESS/MULTI SUCCESS
         if (!incomingIsSuccess || incoming.status === "PENDING" || incoming.status === "FAILED") {
           // REJECT incoming PENDING/FAILED. Retain existing SUCCESS state and OTPs!
           mergedFeed.push({
@@ -173,7 +188,7 @@ export function applyFeedStateLock(currentFeed: FeedNumber[], incomingFeed: Feed
           });
         }
       } else {
-        // Existing item was not SUCCESS yet (was PENDING/FAILED). Adopt incoming item.
+        // Existing item was not SUCCESS yet or was a FAILED/PENDING item. Adopt incoming item.
         mergedFeed.push(incoming);
       }
     } else {
@@ -280,7 +295,11 @@ export async function saveFeedNumberToSupabase(userEmail: string, item: FeedNumb
 
   let finalItem = item;
   if (existing) {
-    const existingIsSuccess = existing.status === "SUCCESS" || existing.status === "MULTI SUCCESS" || !!existing.otpCode;
+    const existingFailNotice = existing.rawMessage ? existing.rawMessage.toLowerCase().includes("no sms received") : false;
+    const existingHasRealOtp = !!(existing.otpCode && existing.otpCode !== "------") || 
+      (existing.messages && existing.messages.some(m => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))));
+    const existingIsSuccess = (existing.status === "SUCCESS" || existing.status === "MULTI SUCCESS") && !existingFailNotice && existingHasRealOtp;
+
     if (existingIsSuccess && (item.status === "PENDING" || item.status === "FAILED")) {
       finalItem = {
         ...item,
