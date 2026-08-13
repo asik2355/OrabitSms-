@@ -27,6 +27,7 @@ import {
   Minus,
   Activity,
   BadgeCheck,
+  Clock,
 } from "lucide-react";
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { supabase } from "../lib/supabase";
@@ -67,14 +68,18 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     currentBalance: number;
     lifetimeTotalBalance: number;
     totalUsers: number;
+    todayUsers: number;
     lifetimeTotalOtp: number;
+    todayOtp: number;
     usersActiveApi: number;
     isLoading: boolean;
   }>({
     currentBalance: 0,
     lifetimeTotalBalance: 0,
     totalUsers: 0,
+    todayUsers: 0,
     lifetimeTotalOtp: 0,
+    todayOtp: 0,
     usersActiveApi: 0,
     isLoading: false,
   });
@@ -396,7 +401,9 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       currentBalance: typeof agent.balance === "number" ? agent.balance : 0,
       lifetimeTotalBalance: typeof agent.balance === "number" ? agent.balance : 0,
       totalUsers: referredClients.length,
+      todayUsers: 0,
       lifetimeTotalOtp: typeof agent.totalSuccess === "number" ? agent.totalSuccess : 0,
+      todayOtp: 0,
       usersActiveApi: referredClients.filter((c) => Boolean(c.apiKey && c.apiKey.trim().length > 0)).length,
       isLoading: true,
     });
@@ -409,7 +416,9 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       currentBalance: 0,
       lifetimeTotalBalance: 0,
       totalUsers: 0,
+      todayUsers: 0,
       lifetimeTotalOtp: 0,
+      todayOtp: 0,
       usersActiveApi: 0,
       isLoading: false,
     });
@@ -495,19 +504,68 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         return clean ? clientEmails.has(clean) : false;
       };
 
+      // Helper for Bangladesh date string YYYY-MM-DD
+      const nowMs = Date.now();
+      const getBDDateString = (tsMs: number): string => {
+        const d = new Date(tsMs + 6 * 60 * 60 * 1000);
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      };
+      const todayStr = getBDDateString(nowMs);
+
+      const helperGetDateStr = (dateInput: any): string => {
+        if (!dateInput) return "";
+        if (typeof dateInput === "number") {
+          return getBDDateString(dateInput);
+        }
+        if (typeof dateInput === "string") {
+          if (dateInput.includes("T") || dateInput.includes(" ") || dateInput.includes("-")) {
+            const ts = new Date(dateInput).getTime();
+            if (!isNaN(ts) && ts > 0) return getBDDateString(ts);
+            return dateInput.split("T")[0].split(" ")[0];
+          }
+          return dateInput.substring(0, 10);
+        }
+        return "";
+      };
+
+      // Calculate Today Users for this agent
+      let todayUsersCount = 0;
+      const processedTodayEmails = new Set<string>();
+
+      referredClients.forEach((u) => {
+        const emailLower = (u.email || "").toLowerCase().trim();
+        if (emailLower && !processedTodayEmails.has(emailLower)) {
+          const rawDate = (u as any).created_at || (u as any).createdAt || (u as any).created_date || u.lastLogin;
+          if (rawDate && helperGetDateStr(rawDate) === todayStr) {
+            todayUsersCount++;
+            processedTodayEmails.add(emailLower);
+          }
+        }
+      });
+
       if (isOfficialAg) {
         try {
           const { data: dbProfiles } = await supabase
             .from("user_profiles")
-            .select("email, role, referral_email, assigned_agent, referred_by");
+            .select("email, role, referral_email, assigned_agent, referred_by, created_at, createdAt");
 
           if (dbProfiles && Array.isArray(dbProfiles)) {
-            dbProfiles.forEach((u) => {
+            dbProfiles.forEach((u: any) => {
               const uRole = (u.role || "").toLowerCase().trim();
               if (uRole !== "agent" && uRole !== "owner" && u.email) {
                 const em = u.email.toLowerCase().trim();
                 if (isClientOfViewingAgent(em)) {
                   clientEmails.add(em);
+                  if (!processedTodayEmails.has(em)) {
+                    const rawDate = u.created_at || u.createdAt || u.created_date;
+                    if (rawDate && helperGetDateStr(rawDate) === todayStr) {
+                      todayUsersCount++;
+                      processedTodayEmails.add(em);
+                    }
+                  }
                 }
               }
             });
@@ -539,6 +597,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       }
 
       let feedOtpsCount = 0;
+      let todayFeedOtpsCount = 0;
       const seenFeedKeys = new Set<string>();
 
       allLocalFeeds.forEach((f) => {
@@ -552,7 +611,13 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
           const isFail = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
           if (isSuccess && !isFail) {
             const validMsgs = f.messages ? f.messages.filter((m) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
-            feedOtpsCount += validMsgs.length > 0 ? validMsgs.length : 1;
+            const msgCount = validMsgs.length > 0 ? validMsgs.length : 1;
+            feedOtpsCount += msgCount;
+
+            const fDate = getBDDateString(f.requestedAt || Date.now());
+            if (fDate === todayStr) {
+              todayFeedOtpsCount += msgCount;
+            }
           }
         }
       });
@@ -560,16 +625,22 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       // Query Supabase daily_stats for agent clients
       let dbOtpsCount = 0;
       let dbRevCount = 0;
+      let todayDbOtpsCount = 0;
       try {
         const { data: dbStats } = await supabase
           .from("daily_stats")
-          .select("total_otps, total_revenue, user_email");
+          .select("date, total_otps, total_revenue, user_email");
 
         if (dbStats && Array.isArray(dbStats)) {
-          dbStats.forEach((st) => {
+          dbStats.forEach((st: any) => {
             if (isClientOfViewingAgent(st.user_email)) {
               dbOtpsCount += Number(st.total_otps || 0);
               dbRevCount += Number(st.total_revenue || 0);
+
+              const stDate = helperGetDateStr(st.date);
+              if (stDate === todayStr) {
+                todayDbOtpsCount += Number(st.total_otps || 0);
+              }
             }
           });
         }
@@ -579,16 +650,21 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
       // Query Supabase user_feed_numbers
       let supabaseUserFeedCount = 0;
+      let todaySupabaseUserFeedCount = 0;
       try {
         const { data: userFeeds } = await supabase
           .from("user_feed_numbers")
-          .select("user_email, status")
+          .select("user_email, status, requested_at, created_at")
           .in("status", ["SUCCESS", "MULTI SUCCESS", "success"]);
 
         if (userFeeds && Array.isArray(userFeeds)) {
-          userFeeds.forEach((uf) => {
+          userFeeds.forEach((uf: any) => {
             if (isClientOfViewingAgent(uf.user_email)) {
               supabaseUserFeedCount++;
+              const ufDate = helperGetDateStr(uf.requested_at || uf.created_at);
+              if (ufDate === todayStr) {
+                todaySupabaseUserFeedCount++;
+              }
             }
           });
         }
@@ -596,16 +672,21 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
       // Query Supabase otp_logs
       let otpLogsCount = 0;
+      let todayOtpLogsCount = 0;
       try {
         const { data: logsData } = await supabase
           .from("otp_logs")
-          .select("user_email, status")
+          .select("user_email, status, created_at")
           .ilike("status", "%success%");
 
         if (logsData && Array.isArray(logsData)) {
-          logsData.forEach((lg) => {
+          logsData.forEach((lg: any) => {
             if (isClientOfViewingAgent(lg.user_email)) {
               otpLogsCount++;
+              const lgDate = helperGetDateStr(lg.created_at);
+              if (lgDate === todayStr) {
+                todayOtpLogsCount++;
+              }
             }
           });
         }
@@ -652,6 +733,12 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         otpLogsCount,
         agentProfileTotalSuccess
       );
+      const finalTodayOtps = Math.max(
+        todayFeedOtpsCount,
+        todayDbOtpsCount,
+        todaySupabaseUserFeedCount,
+        todayOtpLogsCount
+      );
       const totalEarnedUSD = dbRevCount > 0 ? dbRevCount : finalOtps * 0.05;
 
       if (isMounted) {
@@ -659,7 +746,9 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
           currentBalance: currentBal,
           lifetimeTotalBalance: currentBal + totalEarnedUSD,
           totalUsers: totalUsers,
+          todayUsers: todayUsersCount,
           lifetimeTotalOtp: finalOtps,
+          todayOtp: finalTodayOtps,
           usersActiveApi: usersActiveApi,
           isLoading: false,
         });
@@ -1222,13 +1311,33 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
                     </p>
                   </div>
 
-                  {/* Card 4: Lifetime Total OTP */}
+                  {/* Card 4: Today Users */}
+                  <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <UserPlus className="w-3.5 h-3.5 text-emerald-400" /> Today Users
+                    </span>
+                    <p className="text-lg font-black font-mono text-emerald-400">
+                      {viewStats.todayUsers} <span className="text-xs text-slate-500 font-normal">New Joined Today</span>
+                    </p>
+                  </div>
+
+                  {/* Card 5: Lifetime Total OTP */}
                   <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                       <Zap className="w-3.5 h-3.5 text-amber-400" /> Lifetime Total OTP
                     </span>
                     <p className="text-lg font-black font-mono text-amber-400">
                       {viewStats.lifetimeTotalOtp} <span className="text-xs text-slate-500 font-normal">Success OTPs</span>
+                    </p>
+                  </div>
+
+                  {/* Card 6: Today OTP */}
+                  <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-300" /> Today OTP
+                    </span>
+                    <p className="text-lg font-black font-mono text-amber-300">
+                      {viewStats.todayOtp} <span className="text-xs text-slate-500 font-normal">Today Success OTPs</span>
                     </p>
                   </div>
 
