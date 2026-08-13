@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { formatUSD } from "../lib/storageUtils";
-import { saveUserProfileToSupabase } from "../lib/userProfiles";
+import { saveUserProfileToSupabase, getCleanUid } from "../lib/userProfiles";
 import {
   Users,
   CheckCircle2,
@@ -121,50 +121,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       });
     }
 
-    // Default sample users if list is empty
-    if (list.length === 0) {
-      const demoUsers: UserProfile[] = [
-        {
-          firstName: "Crypto",
-          lastName: "Comrade",
-          fullName: "Crypto Comrade",
-          email: "cryptocomrade1522@gmail.com",
-          mobileNumber: "+8801703333600",
-          telegram: "@cryptocomrade",
-          withdrawPin: "1234",
-          country: "Bangladesh",
-          city: "Pirojpur",
-          uid: "CC89201XA",
-          balance: 0.0,
-          customOtpRate: 0.0070,
-          rate: 0.0070,
-          accountStatus: "Active",
-          referralEmail: agentEmail || "agent@orabitsms.com",
-          role: "Client",
-          lastLogin: new Date(Date.now() - 21 * 60 * 1000).toISOString(),
-        },
-        {
-          firstName: "Rafiul",
-          lastName: "Hasan",
-          fullName: "Rafiul Hasan",
-          email: "rafiul62725@gmail.com",
-          mobileNumber: "+8801890423974",
-          telegram: "@rafiul_hasan",
-          withdrawPin: "5678",
-          country: "United Kingdom",
-          city: "Hafodunos",
-          uid: "M3J6XAB2Y2D",
-          balance: 12.5,
-          customOtpRate: 0.0075,
-          rate: 0.0075,
-          accountStatus: "Active",
-          referralEmail: agentEmail || "agent@orabitsms.com",
-          role: "Client",
-          lastLogin: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-        },
-      ];
-      return demoUsers;
-    }
+    // Return list directly without fake demo users
     return list;
   }, [users, isOwner, agentEmail, agentCode]);
 
@@ -218,17 +175,19 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
 
   // Relative Time Formatter
   const formatRelativeTime = (lastLogin?: string) => {
-    if (!lastLogin) return "21 min ago";
+    if (!lastLogin) return "Never";
     const ts = new Date(lastLogin).getTime();
-    if (isNaN(ts)) return "21 min ago";
+    if (isNaN(ts) || ts <= 0) return "Never";
     const diffSec = Math.floor((Date.now() - ts) / 1000);
+    if (diffSec < 0) return "Just now";
     if (diffSec < 60) return "Just now";
     const diffMin = Math.floor(diffSec / 60);
     if (diffMin < 60) return `${diffMin} min ago`;
     const diffHour = Math.floor(diffMin / 60);
     if (diffHour < 24) return `${diffHour} hr ago`;
     const diffDay = Math.floor(diffHour / 24);
-    return `${diffDay} d ago`;
+    if (diffDay < 30) return `${diffDay} d ago`;
+    return new Date(lastLogin).toLocaleDateString();
   };
 
   // Open Edit Modal
@@ -515,20 +474,21 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
           filteredUsers.map((user) => {
             const st = user.accountStatus || "Active";
             const isUserActive = st.toLowerCase() === "active";
-            const fullName = user.fullName || `${user.firstName || "Crypto"} ${user.lastName || "Comrade"}`;
-            const userEmail = user.email || "cryptocomrade1522@gmail.com";
-            const userPhone = user.mobileNumber || "+8801703333600";
+            const fullName = user.fullName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email.split("@")[0];
+            const userEmail = user.email;
+            const userPhone = user.mobileNumber && user.mobileNumber.trim() ? user.mobileNumber.trim() : "";
             const userCountry = user.country || "Bangladesh";
-            const userCity = user.city || "Pirojpur";
-            const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0.0070);
-            const userBalance = user.balance || 0;
+            const userCity = user.city || "Dhaka";
+            const userRate = user.customOtpRate !== undefined && user.customOtpRate > 0 ? user.customOtpRate : (user.rate !== undefined && user.rate > 0 ? user.rate : 0.0070);
+            const userBalance = user.balance !== undefined ? user.balance : 0;
+            const userUid = user.uid || getCleanUid(userEmail);
             const initials = fullName
               .split(" ")
               .filter(Boolean)
               .map((n) => n[0])
               .join("")
               .substring(0, 2)
-              .toUpperCase() || "CC";
+              .toUpperCase() || "U";
 
             return (
               <div
@@ -547,7 +507,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                       </h3>
                       <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
                         <span className="px-1.5 py-0.5 bg-[#1a2130] text-slate-300 rounded text-[10px] border border-slate-700/60 font-bold">
-                          UID: {user.uid || "CC89201XA"}
+                          UID: {userUid}
                         </span>
                       </p>
                     </div>
@@ -565,7 +525,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                       <span className="text-white font-medium truncate" title={userEmail}>
                         {userEmail}
                       </span>
-                      <span className="text-slate-400 shrink-0">({userPhone})</span>
+                      {userPhone ? <span className="text-slate-400 shrink-0">({userPhone})</span> : null}
                     </div>
                   </div>
 

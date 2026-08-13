@@ -722,7 +722,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       if (idx >= 0) {
         savedAccounts[idx].balance = (savedAccounts[idx].balance || 0) + amount;
         localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
-        setRegisteredUsers(savedAccounts);
+        setRegisteredUsers([...savedAccounts]);
+        saveUserProfileToSupabase(savedAccounts[idx]).catch((e) => console.warn("Notice saving topup balance:", e));
 
         // If updating callback provided
         if (onUpdateUserBalance) {

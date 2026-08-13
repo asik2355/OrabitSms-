@@ -31,6 +31,24 @@ WITH CHECK (true);
 `;
 
 /**
+ * Generates a clean deterministic UID for a user if missing or placeholder.
+ */
+export function getCleanUid(email: string, existingUid?: string): string {
+  if (existingUid && existingUid.trim() && existingUid !== "CC89201XA") {
+    return existingUid.trim();
+  }
+  const cleanE = (email || "user").toLowerCase().trim();
+  let hash = 0;
+  for (let i = 0; i < cleanE.length; i++) {
+    hash = (hash << 5) - hash + cleanE.charCodeAt(i);
+    hash |= 0;
+  }
+  const code = Math.abs(hash).toString(36).toUpperCase().padStart(5, "0").substring(0, 5);
+  const prefix = cleanE.substring(0, 3).toUpperCase();
+  return `ORB-${prefix}${code}`;
+}
+
+/**
  * Fetches ALL user/agent profiles directly from Supabase user_profiles table as the Source of Truth.
  */
 export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
@@ -70,6 +88,8 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         else if (r === "client") effectiveRole = "Client";
       }
 
+      const userRate = row.custom_otp_rate !== undefined && row.custom_otp_rate !== null ? Number(row.custom_otp_rate) : (row.rate !== undefined && row.rate !== null ? Number(row.rate) : 0.0070);
+
       return {
         email: emailClean,
         fullName: row.full_name || row.fullName || emailClean.split("@")[0] || "User",
@@ -86,7 +106,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         withdrawPin: row.withdraw_pin || "",
         accountStatus: row.account_status || "Active",
         apiKey: row.api_key || "",
-        uid: row.uid || "",
+        uid: getCleanUid(emailClean, row.uid),
         paymentMethods: row.payment_methods || null,
         withdrawHistory: row.withdraw_history || null,
         referralEmail: assigned,
@@ -94,8 +114,8 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         assignedAgent: assigned,
         isOfficial: !!row.is_official || emailClean === "official@orabitsms.xyz",
         password: row.password || "",
-        customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : row.rate !== undefined ? Number(row.rate) : 0.0070,
-        rate: row.rate !== undefined ? Number(row.rate) : 0.0070,
+        customOtpRate: userRate,
+        rate: userRate,
         apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : true,
         lastLogin: row.last_login || row.updated_at || row.created_at,
         createdAt: row.created_at || row.createdAt,
@@ -181,6 +201,8 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
     if (!error && data) {
       const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
       const assigned = (data.assigned_agent || data.referral_email || data.referred_by || officialEmail).toLowerCase().trim();
+      const userRate = data.custom_otp_rate !== undefined && data.custom_otp_rate !== null ? Number(data.custom_otp_rate) : (data.rate !== undefined && data.rate !== null ? Number(data.rate) : 0.0070);
+
       return {
         email: data.email,
         fullName: data.full_name || "",
@@ -195,12 +217,16 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         withdrawPin: data.withdraw_pin || "",
         accountStatus: data.account_status || "Active",
         apiKey: data.api_key || "",
-        uid: data.uid || "",
+        uid: getCleanUid(cleanEmail, data.uid),
         paymentMethods: data.payment_methods || null,
         withdrawHistory: data.withdraw_history || null,
         referralEmail: assigned,
         referredBy: assigned,
         assignedAgent: assigned,
+        customOtpRate: userRate,
+        rate: userRate,
+        apiEnabled: data.api_enabled !== undefined ? !!data.api_enabled : true,
+        lastLogin: data.last_login || data.updated_at || data.created_at,
       };
     }
 
@@ -210,6 +236,8 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
       const meta = authData.user.user_metadata || {};
       const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
       const assigned = (meta.assignedAgent || meta.referralEmail || meta.referredBy || officialEmail).toLowerCase().trim();
+      const userRate = meta.customOtpRate !== undefined ? Number(meta.customOtpRate) : (meta.rate !== undefined ? Number(meta.rate) : 0.0070);
+
       return {
         email: cleanEmail,
         fullName: meta.fullName || "",
@@ -219,14 +247,19 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         city: meta.city || "",
         bio: meta.bio || "",
         withdrawPin: meta.withdrawPin !== undefined ? meta.withdrawPin : "",
+        accountStatus: meta.accountStatus || "Active",
         role: meta.role || "Client",
         apiKey: meta.apiKey || "",
-        uid: meta.uid || "",
+        uid: getCleanUid(cleanEmail, meta.uid),
         paymentMethods: meta.paymentMethods || null,
         withdrawHistory: meta.withdrawHistory || null,
         referralEmail: assigned,
         referredBy: assigned,
         assignedAgent: assigned,
+        customOtpRate: userRate,
+        rate: userRate,
+        apiEnabled: meta.apiEnabled !== undefined ? !!meta.apiEnabled : true,
+        lastLogin: meta.lastLogin,
       };
     }
   } catch (e) {
@@ -252,13 +285,15 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
     officialEmail
   ).toLowerCase().trim();
 
+  const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.0070);
+
   try {
     const payload = {
       email: cleanEmail,
       full_name: profile.fullName || "",
       mobile_number: profile.mobileNumber || "",
-      balance: profile.balance || 0,
-      total_success: profile.totalSuccess || 0,
+      balance: profile.balance !== undefined ? Number(profile.balance) : 0,
+      total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
       role: profile.role || "Client",
       telegram: profile.telegram || "",
       country: profile.country || "",
@@ -267,12 +302,16 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       withdraw_pin: profile.withdrawPin || "",
       account_status: profile.accountStatus || "Active",
       api_key: profile.apiKey || "",
-      uid: profile.uid || "",
+      uid: getCleanUid(cleanEmail, profile.uid),
       payment_methods: profile.paymentMethods || null,
       withdraw_history: profile.withdrawHistory || null,
       referral_email: assignedAgentVal,
       assigned_agent: assignedAgentVal,
       referred_by: assignedAgentVal,
+      custom_otp_rate: numRate,
+      rate: numRate,
+      api_enabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : true,
+      last_login: profile.lastLogin || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
