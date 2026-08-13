@@ -1281,6 +1281,9 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               );
               if (idx >= 0) list[idx] = updatedUser;
               else list.push(updatedUser);
+              try {
+                localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+              } catch (e) {}
               return list;
             });
           }}

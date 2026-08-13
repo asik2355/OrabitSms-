@@ -41,13 +41,19 @@ export async function setUserRoleInSupabase(email: string, role: string): Promis
   const cleanRole = role.trim().toLowerCase();
 
   try {
-    const { error } = await supabase
+    const { data: updateData, error: updateErr } = await supabase
       .from("user_roles")
-      .upsert({ email: cleanEmail, role: cleanRole }, { onConflict: "email" });
+      .update({ role: cleanRole })
+      .ilike("email", cleanEmail)
+      .select();
 
-    if (error) {
-      console.warn("Supabase user_roles upsert warning:", error.message);
-      return false;
+    if (updateErr || !updateData || updateData.length === 0) {
+      const { error: insertErr } = await supabase
+        .from("user_roles")
+        .insert({ email: cleanEmail, role: cleanRole });
+      if (insertErr) {
+        await supabase.from("user_roles").upsert({ email: cleanEmail, role: cleanRole }, { onConflict: "email" });
+      }
     }
     return true;
   } catch (err) {

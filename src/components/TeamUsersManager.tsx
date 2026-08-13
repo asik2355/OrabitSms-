@@ -219,7 +219,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   };
 
   // Save Edit User
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!editingUser) return;
 
     let numRate = parseFloat(editRate);
@@ -257,8 +257,11 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       referredBy: cleanAgentEmail,
     };
 
+    // Save directly to Supabase as primary Source of Truth
+    await saveUserProfileToSupabase(updated);
+
+    // Update parent state
     onUpdateUser(updated);
-    saveUserProfileToSupabase(updated).catch((e) => console.warn("Supabase user update notice:", e));
 
     // Save to local storage
     try {

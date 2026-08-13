@@ -793,18 +793,38 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     const cleanTg = rawTg ? (rawTg.startsWith("@") ? rawTg : `@${rawTg}`) : "";
 
     try {
-      // 1. Update user_profiles in Supabase
-      await supabase.from("user_profiles").upsert(
-        {
-          email: cleanE,
-          full_name: cleanName,
-          telegram: cleanTg,
-          role: "Agent",
-          is_official: editIsOfficial,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "email" }
-      );
+      const targetAgent = registeredUsers.find((u) => u.email.toLowerCase().trim() === cleanE) || editingAgent;
+      const updatedAgentProfile: UserProfile = {
+        ...targetAgent,
+        email: cleanE,
+        fullName: cleanName,
+        firstName: cleanName.split(" ")[0] || "",
+        lastName: cleanName.split(" ").slice(1).join(" ") || "",
+        telegram: cleanTg,
+        password: editPassword.trim() || targetAgent.password || "",
+        role: "Agent",
+        isOfficial: editIsOfficial,
+      };
+
+      // 1. Save full agent profile to Supabase user_profiles & user_roles
+      await saveUserProfileToSupabase(updatedAgentProfile);
+      await setUserRoleInSupabase(cleanE, "agent");
+
+      // Direct explicit update on user_profiles table for name and official status
+      try {
+        await supabase
+          .from("user_profiles")
+          .update({
+            full_name: cleanName,
+            telegram: cleanTg,
+            is_official: editIsOfficial,
+            role: "Agent",
+            updated_at: new Date().toISOString(),
+          })
+          .ilike("email", cleanE);
+      } catch (e) {
+        console.warn("Notice updating agent user_profiles directly:", e);
+      }
 
       if (editIsOfficial) {
         const otherAgents = agentList.filter((a) => a.email.toLowerCase().trim() !== cleanE);
@@ -817,20 +837,10 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         localStorage.setItem("orabit_official_agent_email", cleanE);
       }
 
-      // 2. Ensure role in user_roles
-      await setUserRoleInSupabase(cleanE, "agent");
-
-      // 3. Update local state & localStorage
+      // 2. Update local state & localStorage
       const updatedUsers = registeredUsers.map((u) => {
         if (u.email.toLowerCase().trim() === cleanE) {
-          return {
-            ...u,
-            fullName: cleanName,
-            telegram: cleanTg,
-            password: editPassword.trim() || u.password,
-            role: "Agent",
-            isOfficial: editIsOfficial,
-          };
+          return updatedAgentProfile;
         }
         if (editIsOfficial && u.role?.toLowerCase() === "agent") {
           return {

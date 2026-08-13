@@ -99,12 +99,29 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
       });
     }
 
+    // Load local cache map to preserve custom agent names and metadata if DB returns empty/defaults
+    let cachedUsersMap: Record<string, UserProfile> = {};
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((u: UserProfile) => {
+            if (u && u.email) {
+              cachedUsersMap[u.email.toLowerCase().trim()] = u;
+            }
+          });
+        }
+      }
+    } catch (e) {}
+
     const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
 
     // Map profiles
     const mapped: UserProfile[] = (Array.isArray(data) ? data : []).map((row: any) => {
       const emailClean = (row.email || "").toLowerCase().trim();
       const assigned = (row.assigned_agent || row.referral_email || row.referred_by || officialEmail).toLowerCase().trim();
+      const cached = cachedUsersMap[emailClean];
       
       // Determine effective role (prefer user_roles table if present)
       let effectiveRole = row.role || "Client";
@@ -141,8 +158,8 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         }
       } catch (e) {}
 
-      const effectiveBal = Math.max(dbBal, feedCalc, localFeedCalc);
-      const effectiveSuccess = Math.max(Number(row.total_success || 0), feedEarningsMap[emailClean]?.count || 0);
+      const effectiveBal = Math.max(dbBal, feedCalc, localFeedCalc, cached?.balance || 0);
+      const effectiveSuccess = Math.max(Number(row.total_success || 0), feedEarningsMap[emailClean]?.count || 0, cached?.totalSuccess || 0);
 
       // Auto-sync computed balance to Supabase if DB balance was 0 or outdated
       if (effectiveBal > dbBal && emailClean) {
@@ -155,35 +172,47 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         });
       }
 
+      const emailPrefix = emailClean.split("@")[0] || "User";
+      const dbFullName = (row.full_name || row.fullName || "").trim();
+      let effectiveFullName = dbFullName;
+      if (!effectiveFullName || effectiveFullName.toLowerCase() === emailPrefix.toLowerCase()) {
+        if (cached && cached.fullName && cached.fullName.trim() && cached.fullName.toLowerCase() !== emailPrefix.toLowerCase()) {
+          effectiveFullName = cached.fullName.trim();
+        }
+      }
+      if (!effectiveFullName) {
+        effectiveFullName = emailPrefix;
+      }
+
       return {
         email: emailClean,
-        fullName: row.full_name || row.fullName || emailClean.split("@")[0] || "User",
-        firstName: row.first_name || row.full_name?.split(" ")[0] || "",
-        lastName: row.last_name || row.full_name?.split(" ").slice(1).join(" ") || "",
-        mobileNumber: row.mobile_number || row.mobileNumber || "",
+        fullName: effectiveFullName,
+        firstName: row.first_name || cached?.firstName || effectiveFullName.split(" ")[0] || "",
+        lastName: row.last_name || cached?.lastName || effectiveFullName.split(" ").slice(1).join(" ") || "",
+        mobileNumber: row.mobile_number || row.mobileNumber || cached?.mobileNumber || "",
         balance: Number(effectiveBal),
         totalSuccess: Number(effectiveSuccess),
         role: effectiveRole,
-        telegram: row.telegram || "",
-        country: row.country || "Bangladesh",
-        city: row.city || "Dhaka",
-        bio: row.bio || "",
-        withdrawPin: row.withdraw_pin || "",
-        accountStatus: row.account_status || "Active",
-        apiKey: row.api_key || "",
-        uid: getCleanUid(emailClean, row.uid),
-        paymentMethods: row.payment_methods || null,
-        withdrawHistory: row.withdraw_history || null,
+        telegram: row.telegram || cached?.telegram || "",
+        country: row.country || cached?.country || "Bangladesh",
+        city: row.city || cached?.city || "Dhaka",
+        bio: row.bio || cached?.bio || "",
+        withdrawPin: row.withdraw_pin || cached?.withdrawPin || "",
+        accountStatus: row.account_status || cached?.accountStatus || "Active",
+        apiKey: row.api_key || cached?.apiKey || "",
+        uid: getCleanUid(emailClean, row.uid || cached?.uid),
+        paymentMethods: row.payment_methods || cached?.paymentMethods || null,
+        withdrawHistory: row.withdraw_history || cached?.withdrawHistory || null,
         referralEmail: assigned,
         referredBy: assigned,
         assignedAgent: assigned,
-        isOfficial: !!row.is_official || emailClean === "official@orabitsms.xyz",
-        password: row.password || "",
+        isOfficial: row.is_official !== undefined ? !!row.is_official : (cached?.isOfficial !== undefined ? !!cached.isOfficial : emailClean === "official@orabitsms.xyz"),
+        password: row.password || cached?.password || "",
         customOtpRate: userRate,
         rate: userRate,
-        apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : true,
-        lastLogin: row.last_login || row.updated_at || row.created_at,
-        createdAt: row.created_at || row.createdAt,
+        apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : (cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true),
+        lastLogin: row.last_login || row.updated_at || row.created_at || cached?.lastLogin,
+        createdAt: row.created_at || row.createdAt || cached?.createdAt,
       };
     });
 
@@ -193,6 +222,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         if (!r.email) return;
         const eClean = r.email.toLowerCase().trim();
         if (!mapped.some((m) => m.email === eClean)) {
+          const cached = cachedUsersMap[eClean];
           let roleName = "Client";
           const rLower = (r.role || "").toLowerCase();
           if (rLower === "owner") roleName = "Owner";
@@ -200,22 +230,25 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
 
           mapped.push({
             email: eClean,
-            fullName: eClean.split("@")[0],
-            mobileNumber: "",
-            balance: 0,
-            totalSuccess: 0,
+            fullName: cached?.fullName || eClean.split("@")[0],
+            firstName: cached?.firstName || "",
+            lastName: cached?.lastName || "",
+            mobileNumber: cached?.mobileNumber || "",
+            balance: cached?.balance || 0,
+            totalSuccess: cached?.totalSuccess || 0,
             role: roleName,
-            telegram: "",
-            country: "Bangladesh",
-            city: "Dhaka",
+            telegram: cached?.telegram || "",
+            country: cached?.country || "Bangladesh",
+            city: cached?.city || "Dhaka",
             referralEmail: officialEmail,
             referredBy: officialEmail,
             assignedAgent: officialEmail,
-            isOfficial: eClean === "official@orabitsms.xyz",
-            accountStatus: "Active",
-            customOtpRate: 0.006,
-            rate: 0.006,
-            apiEnabled: true,
+            isOfficial: cached?.isOfficial !== undefined ? !!cached.isOfficial : eClean === "official@orabitsms.xyz",
+            password: cached?.password || "",
+            accountStatus: cached?.accountStatus || "Active",
+            customOtpRate: cached?.customOtpRate || 0.006,
+            rate: cached?.rate || 0.006,
+            apiEnabled: cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true,
           });
         }
       });
@@ -352,10 +385,28 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
 
   const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.006);
 
+  // 0. Update localStorage registered users cache immediately so local state never reverts
   try {
-    const payload = {
+    const stored = localStorage.getItem("orabit_registered_users");
+    let userList: UserProfile[] = stored ? JSON.parse(stored) : [];
+    if (!Array.isArray(userList)) userList = [];
+    const idx = userList.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+    if (idx >= 0) {
+      userList[idx] = { ...userList[idx], ...profile, email: cleanEmail };
+    } else {
+      userList.push(profile);
+    }
+    localStorage.setItem("orabit_registered_users", JSON.stringify(userList));
+  } catch (e) {
+    console.warn("Notice updating local storage cache in saveUserProfileToSupabase:", e);
+  }
+
+  try {
+    const payload: any = {
       email: cleanEmail,
       full_name: profile.fullName || "",
+      first_name: profile.firstName || (profile.fullName ? profile.fullName.split(" ")[0] : ""),
+      last_name: profile.lastName || (profile.fullName ? profile.fullName.split(" ").slice(1).join(" ") : ""),
       mobile_number: profile.mobileNumber || "",
       balance: profile.balance !== undefined ? Number(profile.balance) : 0,
       total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
@@ -376,23 +427,90 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       custom_otp_rate: numRate,
       rate: numRate,
       api_enabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : true,
+      is_official: !!profile.isOfficial,
+      password: profile.password || "",
       last_login: profile.lastLogin || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Update Supabase user_profiles table
-    const { error } = await supabase.from(USER_PROFILES_TABLE).upsert(payload, { onConflict: "email" });
-    if (error) {
-      console.warn("Supabase user_profiles upsert notice:", error.message);
+    // 1. Update Supabase user_profiles table with robust UPDATE then INSERT fallback
+    const { data: updateRes, error: updateErr } = await supabase
+      .from(USER_PROFILES_TABLE)
+      .update(payload)
+      .ilike("email", cleanEmail)
+      .select();
+
+    let saveSuccess = !updateErr && Array.isArray(updateRes) && updateRes.length > 0;
+
+    if (!saveSuccess) {
+      // 1a. Fallback core payload if extended columns cause schema errors
+      const corePayload = {
+        email: cleanEmail,
+        full_name: profile.fullName || "",
+        mobile_number: profile.mobileNumber || "",
+        balance: profile.balance !== undefined ? Number(profile.balance) : 0,
+        total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
+        role: profile.role || "Client",
+        telegram: profile.telegram || "",
+        country: profile.country || "",
+        city: profile.city || "",
+        withdraw_pin: profile.withdrawPin || "",
+        account_status: profile.accountStatus || "Active",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: coreUpdateRes, error: coreUpdateErr } = await supabase
+        .from(USER_PROFILES_TABLE)
+        .update(corePayload)
+        .ilike("email", cleanEmail)
+        .select();
+
+      if (!coreUpdateErr && Array.isArray(coreUpdateRes) && coreUpdateRes.length > 0) {
+        saveSuccess = true;
+      } else {
+        // 1b. Minimal update payload (guaranteed standard columns)
+        const minPayload = {
+          email: cleanEmail,
+          full_name: profile.fullName || "",
+          role: profile.role || "Client",
+          telegram: profile.telegram || "",
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data: minUpdateRes, error: minUpdateErr } = await supabase
+          .from(USER_PROFILES_TABLE)
+          .update(minPayload)
+          .ilike("email", cleanEmail)
+          .select();
+
+        if (!minUpdateErr && Array.isArray(minUpdateRes) && minUpdateRes.length > 0) {
+          saveSuccess = true;
+        } else {
+          // 1c. Insert if record doesn't exist yet in user_profiles
+          const { error: insertErr } = await supabase.from(USER_PROFILES_TABLE).insert(payload);
+          if (insertErr) {
+            const { error: coreInsertErr } = await supabase.from(USER_PROFILES_TABLE).insert(corePayload);
+            if (coreInsertErr) {
+              await supabase.from(USER_PROFILES_TABLE).insert(minPayload);
+            }
+          }
+        }
+      }
     }
 
     // 1b. Update user_roles table as well so roles match on all devices
     if (profile.role) {
       try {
-        await supabase.from("user_roles").upsert(
-          { email: cleanEmail, role: profile.role.toLowerCase().trim() },
-          { onConflict: "email" }
-        );
+        const cleanRoleStr = profile.role.toLowerCase().trim();
+        const { data: roleUpdateRes, error: roleUpdateErr } = await supabase
+          .from("user_roles")
+          .update({ role: cleanRoleStr })
+          .ilike("email", cleanEmail)
+          .select();
+
+        if (roleUpdateErr || !roleUpdateRes || roleUpdateRes.length === 0) {
+          await supabase.from("user_roles").insert({ email: cleanEmail, role: cleanRoleStr });
+        }
       } catch (e) {
         console.warn("Notice updating user_roles table:", e);
       }
@@ -422,6 +540,19 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
     } catch (e) {
       console.warn("Notice updating auth metadata:", e);
     }
+
+    // 3. Immediately update localStorage registered users list so local cache matches Supabase write
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+      const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...profile };
+      } else {
+        list.push(profile);
+      }
+      localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+    } catch (e) {}
 
     return true;
   } catch (e) {
