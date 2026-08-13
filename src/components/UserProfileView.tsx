@@ -180,27 +180,35 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         };
       }
 
-      // 4. Fallback: Query Supabase for any official or registered agent
+      // 4. Guaranteed Fallback to Official Agent if matchedAgent is still missing
       if (!matchedAgent) {
         try {
           const { data } = await supabase
             .from("user_profiles")
             .select("full_name, telegram, email")
-            .ilike("role", "agent")
-            .order("is_official", { ascending: false })
+            .or(`is_official.eq.true,role.ilike.agent,email.ilike.${officialEmail || "orabitsms@gmail.com"}`)
             .limit(1)
             .maybeSingle();
 
           if (data && data.email) {
             matchedAgent = {
               fullName: getBestAgentName(data.full_name, null, data.email),
-              telegramUsername: data.telegram || "",
+              telegramUsername: data.telegram || "@OrabitSupport",
               email: data.email,
             };
           }
         } catch (e) {
           console.warn("Fallback agent query notice:", e);
         }
+      }
+
+      // 5. Ultimate Fallback Object
+      if (!matchedAgent) {
+        matchedAgent = {
+          fullName: "Official System Agent",
+          telegramUsername: "@OrabitSupport",
+          email: officialEmail || "orabitsms@gmail.com",
+        };
       }
 
       if (isMounted) {

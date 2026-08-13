@@ -56,6 +56,9 @@ export interface UserProfile {
   isOfficial?: boolean;
   referredByAgentEmail?: string;
   referredBy?: string;
+  assignedAgent?: string;
+  assigned_agent?: string;
+  referralCode?: string;
 }
 
 interface OrabitAuthScreenProps {
@@ -220,13 +223,12 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
-    if (!agentReferralEmail.trim() || !emailRegex.test(agentReferralEmail.trim())) {
-      newErrors.agentReferralEmail = true;
-      setErrors(newErrors);
-      showAlert("Valid Agent Referral Email is required to register", "error");
-      return;
+    const officialFallbackEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+    let finalReferralEmail = agentReferralEmail.trim();
+
+    if (!finalReferralEmail || !emailRegex.test(finalReferralEmail)) {
+      finalReferralEmail = officialFallbackEmail;
     }
-    const finalReferralEmail = agentReferralEmail.trim();
 
     if (!password || password.length < 8) {
       newErrors.password = true;

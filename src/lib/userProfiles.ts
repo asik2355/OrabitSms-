@@ -46,6 +46,8 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
       .maybeSingle();
 
     if (!error && data) {
+      const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+      const assigned = (data.assigned_agent || data.referral_email || data.referred_by || officialEmail).toLowerCase().trim();
       return {
         email: data.email,
         fullName: data.full_name || "",
@@ -63,6 +65,9 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         uid: data.uid || "",
         paymentMethods: data.payment_methods || null,
         withdrawHistory: data.withdraw_history || null,
+        referralEmail: assigned,
+        referredBy: assigned,
+        assignedAgent: assigned,
       };
     }
 
@@ -70,6 +75,8 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
     const { data: authData } = await supabase.auth.getUser();
     if (authData?.user && authData.user.email?.toLowerCase().trim() === cleanEmail) {
       const meta = authData.user.user_metadata || {};
+      const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+      const assigned = (meta.assignedAgent || meta.referralEmail || meta.referredBy || officialEmail).toLowerCase().trim();
       return {
         email: cleanEmail,
         fullName: meta.fullName || "",
@@ -84,6 +91,9 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         uid: meta.uid || "",
         paymentMethods: meta.paymentMethods || null,
         withdrawHistory: meta.withdrawHistory || null,
+        referralEmail: assigned,
+        referredBy: assigned,
+        assignedAgent: assigned,
       };
     }
   } catch (e) {
@@ -99,6 +109,15 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
 export async function saveUserProfileToSupabase(profile: UserProfile): Promise<boolean> {
   if (!profile || !profile.email) return false;
   const cleanEmail = profile.email.toLowerCase().trim();
+
+  const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+  const assignedAgentVal = (
+    profile.assignedAgent ||
+    (profile as any).assigned_agent ||
+    profile.referralEmail ||
+    profile.referredBy ||
+    officialEmail
+  ).toLowerCase().trim();
 
   try {
     const payload = {
@@ -118,6 +137,9 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       uid: profile.uid || "",
       payment_methods: profile.paymentMethods || null,
       withdraw_history: profile.withdrawHistory || null,
+      referral_email: assignedAgentVal,
+      assigned_agent: assignedAgentVal,
+      referred_by: assignedAgentVal,
       updated_at: new Date().toISOString(),
     };
 

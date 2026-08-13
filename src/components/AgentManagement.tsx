@@ -330,8 +330,12 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     officialEmailStr: string
   ): UserProfile[] => {
     const agEmail = agent.email.toLowerCase().trim();
+    const officialClean = (officialEmailStr || "").toLowerCase().trim();
     const isOfficialAg = Boolean(
-      agent.isOfficial || (officialEmailStr && officialEmailStr === agEmail)
+      agent.isOfficial ||
+      (officialClean && officialClean === agEmail) ||
+      agEmail === "official@orabitsms.xyz" ||
+      agEmail === "orabitsms@gmail.com"
     );
 
     return allUsers.filter((u) => {
@@ -341,15 +345,24 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       const uRefEmail = (u.referralEmail || "").toLowerCase().trim();
       const uReferredBy = (u.referredBy || "").toLowerCase().trim();
       const uReferredByAgent = (u.referredByAgentEmail || "").toLowerCase().trim();
+      const uAssignedAgent = ((u as any).assignedAgent || (u as any).assigned_agent || "").toLowerCase().trim();
 
       const matchesExplicit =
-        uRefEmail === agEmail || uReferredBy === agEmail || uReferredByAgent === agEmail;
+        uRefEmail === agEmail ||
+        uReferredBy === agEmail ||
+        uReferredByAgent === agEmail ||
+        uAssignedAgent === agEmail ||
+        (agent.referralCode && (uRefEmail === agent.referralCode.toLowerCase() || uReferredBy === agent.referralCode.toLowerCase()));
 
       if (matchesExplicit) return true;
 
-      // Official agent receives unreferred / default clients
+      // Official agent receives unreferred / default clients (where assigned_agent / referral is null, empty or undefined)
       if (isOfficialAg) {
-        const isUnreferred = !uRefEmail && !uReferredBy && !uReferredByAgent;
+        const isUnreferred =
+          (!uRefEmail || uRefEmail === "orabitsms@gmail.com" || uRefEmail === "official@orabitsms.xyz") &&
+          !uReferredBy &&
+          !uReferredByAgent &&
+          (!uAssignedAgent || uAssignedAgent === "orabitsms@gmail.com" || uAssignedAgent === "official@orabitsms.xyz");
         return isUnreferred;
       }
 
@@ -435,6 +448,41 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       referredClients.forEach((c) => {
         if (c.email) clientEmails.add(c.email.toLowerCase().trim());
       });
+
+      const isOfficialAg = Boolean(
+        viewingAgent.isOfficial ||
+        (officialEmailStr && officialEmailStr === agEmail) ||
+        agEmail === "official@orabitsms.xyz" ||
+        agEmail === "orabitsms@gmail.com"
+      );
+
+      if (isOfficialAg) {
+        try {
+          const { data: dbProfiles } = await supabase
+            .from("user_profiles")
+            .select("email, role, referral_email, assigned_agent, referred_by");
+
+          if (dbProfiles && Array.isArray(dbProfiles)) {
+            dbProfiles.forEach((u) => {
+              const uRole = (u.role || "").toLowerCase().trim();
+              if (uRole !== "agent" && uRole !== "owner" && u.email) {
+                const em = u.email.toLowerCase().trim();
+                const assigned = (u.assigned_agent || u.referral_email || u.referred_by || "").toLowerCase().trim();
+                const isAssignedToOtherAgent = agentList.some((ag) => {
+                  const e = ag.email.toLowerCase().trim();
+                  return e !== agEmail && (assigned === e || (ag.referralCode && assigned === ag.referralCode.toLowerCase().trim()));
+                });
+
+                if (!isAssignedToOtherAgent) {
+                  clientEmails.add(em);
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("Notice querying DB user_profiles for official agent view:", e);
+        }
+      }
 
       // Collect local feeds from localStorage keys
       const allLocalFeeds: FeedNumber[] = [];
@@ -793,17 +841,12 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       return total;
     };
 
+    const officialEmailStr = officialAgent?.email?.toLowerCase().trim() || "orabitsms@gmail.com";
+
     const agentPerformance = agentList.map((agent) => {
       const agEmail = agent.email.toLowerCase().trim();
-      const agCode = (agent.referralEmail || agent.referralCode || "").toLowerCase().trim();
 
-      const referredClients = registeredUsers.filter((u) => {
-        const refEmail = (u.referralEmail || u.referredBy || u.referredByAgentEmail || "").toLowerCase().trim();
-        return (
-          refEmail === agEmail ||
-          (agCode && (refEmail === agCode || u.referredBy?.trim().toLowerCase() === agCode))
-        );
-      });
+      const referredClients = getReferredClientsForAgent(agent, registeredUsers, officialEmailStr);
 
       const clientEmails = new Set<string>();
       clientEmails.add(agEmail);
