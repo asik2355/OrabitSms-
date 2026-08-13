@@ -290,9 +290,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       });
 
       const totalSuccessOtps = calcSuccessOtps(agentFeeds);
-      const displayName = agent.fullName && agent.fullName !== `Agent (${agEmail.split("@")[0]})`
-        ? agent.fullName
-        : agEmail.split("@")[0];
+      const displayName = agent.fullName || agEmail.split("@")[0];
 
       return {
         agentEmail: agEmail,

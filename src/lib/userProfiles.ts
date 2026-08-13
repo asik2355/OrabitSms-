@@ -353,9 +353,14 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
   const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.006);
 
   try {
+    const fn = profile.firstName || profile.fullName?.split(" ")[0] || "";
+    const ln = profile.lastName || profile.fullName?.split(" ").slice(1).join(" ") || "";
+
     const payload = {
       email: cleanEmail,
       full_name: profile.fullName || "",
+      first_name: fn,
+      last_name: ln,
       mobile_number: profile.mobileNumber || "",
       balance: profile.balance !== undefined ? Number(profile.balance) : 0,
       total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
@@ -376,6 +381,8 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       custom_otp_rate: numRate,
       rate: numRate,
       api_enabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : true,
+      is_official: profile.isOfficial !== undefined ? !!profile.isOfficial : false,
+      password: profile.password || "",
       last_login: profile.lastLogin || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -396,6 +403,37 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       } catch (e) {
         console.warn("Notice updating user_roles table:", e);
       }
+    }
+
+    // 1c. Instantly sync orabit_registered_users and orabit_user_profile in localStorage
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+      const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+      const mergedUser: UserProfile = {
+        ...(list[idx] || {}),
+        ...profile,
+        email: cleanEmail,
+        fullName: profile.fullName || list[idx]?.fullName || cleanEmail.split("@")[0],
+        firstName: fn,
+        lastName: ln,
+      };
+      if (idx >= 0) {
+        list[idx] = mergedUser;
+      } else {
+        list.push(mergedUser);
+      }
+      localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+
+      const currentLoggedInStr = localStorage.getItem("orabit_user_profile");
+      if (currentLoggedInStr) {
+        const loggedInUser: UserProfile = JSON.parse(currentLoggedInStr);
+        if (loggedInUser.email && loggedInUser.email.toLowerCase().trim() === cleanEmail) {
+          localStorage.setItem("orabit_user_profile", JSON.stringify({ ...loggedInUser, ...mergedUser }));
+        }
+      }
+    } catch (e) {
+      console.warn("Notice updating localStorage registered users cache:", e);
     }
 
     // 2. Also update Supabase Auth User Metadata for instant cross-device fallback
