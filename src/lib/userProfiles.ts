@@ -59,8 +59,35 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
       supabase.from("user_roles").select("*"),
     ]);
 
+    let feedsData: any[] = [];
+    try {
+      const { data: fData } = await supabase.from("user_feed_numbers").select("user_email, status, raw_message");
+      if (Array.isArray(fData)) feedsData = fData;
+    } catch (e) {}
+
     const data = profilesRes.data || [];
     const rolesData = rolesRes.data || [];
+
+    // Build feed earnings map from Supabase user_feed_numbers
+    const feedEarningsMap: Record<string, { count: number; earningsBDT: number }> = {};
+    if (Array.isArray(feedsData)) {
+      feedsData.forEach((f: any) => {
+        const emailClean = (f.user_email || "").toLowerCase().trim();
+        if (!emailClean) return;
+        const statusStr = (f.status || "").toUpperCase();
+        const rawMsg = (f.raw_message || "").toLowerCase();
+        const isFail = rawMsg.includes("no sms received") || rawMsg.includes("timed out") || rawMsg.includes("failed");
+        const isSuccess = (statusStr === "SUCCESS" || statusStr === "MULTI SUCCESS") && !isFail;
+
+        if (isSuccess) {
+          if (!feedEarningsMap[emailClean]) {
+            feedEarningsMap[emailClean] = { count: 0, earningsBDT: 0 };
+          }
+          feedEarningsMap[emailClean].count += 1;
+          feedEarningsMap[emailClean].earningsBDT += 0.60;
+        }
+      });
+    }
 
     // Build role lookup map from user_roles
     const roleMap: Record<string, string> = {};
@@ -90,14 +117,52 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
 
       const userRate = row.custom_otp_rate !== undefined && row.custom_otp_rate !== null ? Number(row.custom_otp_rate) : (row.rate !== undefined && row.rate !== null ? Number(row.rate) : 0.006);
 
+      const dbBal = Number(row.balance || 0);
+      const feedCalc = feedEarningsMap[emailClean]?.earningsBDT || 0;
+
+      // Also check local feed numbers for this specific user
+      let localFeedCalc = 0;
+      try {
+        const userKey = `orabit_feed_numbers_${emailClean}`;
+        const localFeedStr = localStorage.getItem(userKey);
+        if (localFeedStr) {
+          const parsed = JSON.parse(localFeedStr);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((f: any) => {
+              const st = (f.status || "").toUpperCase();
+              const isSuccess = st === "SUCCESS" || st === "MULTI SUCCESS";
+              if (isSuccess) {
+                const msgs = f.messages ? f.messages.filter((m: any) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+                const count = msgs.length > 0 ? msgs.length : 1;
+                localFeedCalc += count * 0.60;
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      const effectiveBal = Math.max(dbBal, feedCalc, localFeedCalc);
+      const effectiveSuccess = Math.max(Number(row.total_success || 0), feedEarningsMap[emailClean]?.count || 0);
+
+      // Auto-sync computed balance to Supabase if DB balance was 0 or outdated
+      if (effectiveBal > dbBal && emailClean) {
+        supabase.from(USER_PROFILES_TABLE).update({
+          balance: effectiveBal,
+          total_success: effectiveSuccess,
+          updated_at: new Date().toISOString()
+        }).eq("email", emailClean).then(() => {
+          // auto-synced
+        });
+      }
+
       return {
         email: emailClean,
         fullName: row.full_name || row.fullName || emailClean.split("@")[0] || "User",
         firstName: row.first_name || row.full_name?.split(" ")[0] || "",
         lastName: row.last_name || row.full_name?.split(" ").slice(1).join(" ") || "",
         mobileNumber: row.mobile_number || row.mobileNumber || "",
-        balance: Number(row.balance || 0),
-        totalSuccess: Number(row.total_success || 0),
+        balance: Number(effectiveBal),
+        totalSuccess: Number(effectiveSuccess),
         role: effectiveRole,
         telegram: row.telegram || "",
         country: row.country || "Bangladesh",
@@ -381,7 +446,7 @@ export async function incrementUserSuccessAndBalanceInSupabase(
     const currBalance = current?.balance !== undefined ? current.balance : 0;
     const currSuccess = current?.totalSuccess !== undefined ? current.totalSuccess : 0;
 
-    const newBalance = Number((currBalance + earnedRate).toFixed(2));
+    const newBalance = Number((currBalance + earnedRate).toFixed(4));
     const newTotalSuccess = currSuccess + 1;
 
     const payload = {
@@ -395,6 +460,19 @@ export async function incrementUserSuccessAndBalanceInSupabase(
     if (error) {
       console.warn("Supabase increment user_profiles notice:", error.message);
     }
+
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      if (stored) {
+        let list: UserProfile[] = JSON.parse(stored);
+        const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+        if (idx >= 0) {
+          list[idx].balance = newBalance;
+          list[idx].totalSuccess = newTotalSuccess;
+          localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+        }
+      }
+    } catch (e) {}
 
     return { newBalance, newTotalSuccess };
   } catch (e) {

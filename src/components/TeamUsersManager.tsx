@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
-import { formatUSD } from "../lib/storageUtils";
+import { formatUSD, formatCurrencyDisplay } from "../lib/storageUtils";
 import { saveUserProfileToSupabase, getCleanUid } from "../lib/userProfiles";
 import {
   Users,
@@ -207,7 +207,12 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
 
     const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0.006);
     setEditRate(userRate.toString());
-    setEditBalance((user.balance !== undefined ? user.balance : 0).toString());
+
+    // Convert BDT balance to USD for editing input field
+    const userBalBDT = user.balance !== undefined ? user.balance : 0;
+    const userBalUSD = (userBalBDT / (usdExchangeRate || 100)).toFixed(4);
+    setEditBalance(userBalUSD);
+
     setEditStatus(user.accountStatus || "Active");
     setEditApiEnabled(!!user.apiEnabled);
     setRateWarning(null);
@@ -220,8 +225,9 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     let numRate = parseFloat(editRate);
     if (isNaN(numRate)) numRate = 0.006;
 
-    let numBal = parseFloat(editBalance);
-    if (isNaN(numBal) || numBal < 0) numBal = editingUser.balance || 0;
+    let numBalUSD = parseFloat(editBalance);
+    if (isNaN(numBalUSD) || numBalUSD < 0) numBalUSD = (editingUser.balance || 0) / (usdExchangeRate || 100);
+    const numBalBDT = Number((numBalUSD * (usdExchangeRate || 100)).toFixed(4));
 
     // Enforce Capping Rule: Agent cannot assign a rate higher than agentOwnRate
     if (isAgent && !isOwner && numRate > agentOwnRate) {
@@ -241,7 +247,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       mobileNumber: editPhone.trim(),
       country: editCountry.trim(),
       city: editCity.trim(),
-      balance: numBal,
+      balance: numBalBDT,
       customOtpRate: numRate,
       rate: numRate,
       accountStatus: editStatus as any,
@@ -498,6 +504,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
             // Calculate live earned balance from feeds if user profile balance is 0
             let liveFeedEarnings = 0;
             try {
+              // Check global feed storage
               const storedFeeds = localStorage.getItem("orabit_feed_numbers");
               if (storedFeeds) {
                 const feeds = JSON.parse(storedFeeds);
@@ -509,15 +516,35 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                       if (isSuccess) {
                         const msgs = f.messages ? f.messages.filter((m: any) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
                         const count = msgs.length > 0 ? msgs.length : 1;
-                        liveFeedEarnings += count * userRate;
+                        liveFeedEarnings += count * 0.60;
                       }
+                    }
+                  });
+                }
+              }
+
+              // Check user-specific storage key
+              const userKey = `orabit_feed_numbers_${userEmail.toLowerCase().trim()}`;
+              const storedUserFeed = localStorage.getItem(userKey);
+              if (storedUserFeed) {
+                const feeds = JSON.parse(storedUserFeed);
+                if (Array.isArray(feeds)) {
+                  feeds.forEach((f: any) => {
+                    const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success";
+                    if (isSuccess) {
+                      const msgs = f.messages ? f.messages.filter((m: any) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+                      const count = msgs.length > 0 ? msgs.length : 1;
+                      liveFeedEarnings += count * 0.60;
                     }
                   });
                 }
               }
             } catch (e) {}
 
-            const userBalance = user.balance !== undefined && user.balance > 0 ? user.balance : (liveFeedEarnings > 0 ? liveFeedEarnings : (user.balance || 0));
+            const userBalanceBDT = Math.max(
+              typeof user.balance === "number" ? user.balance : 0,
+              liveFeedEarnings
+            );
             const userUid = user.uid || getCleanUid(userEmail);
             const initials = fullName
               .split(" ")
@@ -594,7 +621,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                       BALANCE
                     </span>
                     <span className="text-emerald-400 font-mono font-black text-sm">
-                      {formatUSD(userBalance)}
+                      {formatCurrencyDisplay(userBalanceBDT, currency, usdExchangeRate)}
                     </span>
                   </div>
 
