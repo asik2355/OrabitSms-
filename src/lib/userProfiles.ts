@@ -173,13 +173,30 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
       }
 
       // Determine robust Full Name:
-      // Prefer DB row.full_name if custom; if missing or default email prefix, fallback to cachedProfile.fullName
-      const emailPrefix = emailClean.split("@")[0];
-      let resolvedName = (row.full_name || row.fullName || "").trim();
-      if (!resolvedName || (resolvedName.toLowerCase() === emailPrefix && cachedProfile?.fullName && cachedProfile.fullName.toLowerCase() !== emailPrefix)) {
-        resolvedName = cachedProfile?.fullName || resolvedName || emailPrefix;
+      const emailPrefix = emailClean.split("@")[0].toLowerCase();
+      const defaultNamePatterns = [
+        emailPrefix,
+        emailClean,
+        `agent (${emailPrefix})`,
+        `agent (${emailClean})`,
+        `user (${emailPrefix})`,
+        "user",
+        "agent",
+        "official"
+      ];
+
+      let dbFullName = (row.full_name || row.fullName || "").trim();
+      let resolvedName = dbFullName;
+
+      const isDbDefault = !dbFullName || defaultNamePatterns.includes(dbFullName.toLowerCase());
+      const cachedName = cachedProfile?.fullName?.trim();
+
+      if (isDbDefault && cachedName && !defaultNamePatterns.includes(cachedName.toLowerCase())) {
+        resolvedName = cachedName;
       }
-      if (!resolvedName) resolvedName = emailPrefix;
+      if (!resolvedName) {
+        resolvedName = cachedName || emailPrefix;
+      }
 
       return {
         email: emailClean,
@@ -418,7 +435,14 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       last_login: profile.lastLogin || new Date().toISOString(),
     };
 
-    // 1. Update Supabase user_profiles table with multi-tier fallback
+    // 1. Update Supabase user_profiles table with direct update & fallback
+    if (profile.fullName) {
+      await supabase.from(USER_PROFILES_TABLE).update({
+        full_name: profile.fullName,
+        updated_at: new Date().toISOString()
+      }).ilike("email", cleanEmail);
+    }
+
     const { error: fullErr } = await supabase.from(USER_PROFILES_TABLE).upsert(fullPayload, { onConflict: "email" });
     if (fullErr) {
       console.warn("Full payload upsert notice, attempting core payload:", fullErr.message);
