@@ -88,7 +88,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         else if (r === "client") effectiveRole = "Client";
       }
 
-      const userRate = row.custom_otp_rate !== undefined && row.custom_otp_rate !== null ? Number(row.custom_otp_rate) : (row.rate !== undefined && row.rate !== null ? Number(row.rate) : 0.0070);
+      const userRate = row.custom_otp_rate !== undefined && row.custom_otp_rate !== null ? Number(row.custom_otp_rate) : (row.rate !== undefined && row.rate !== null ? Number(row.rate) : 0.006);
 
       return {
         email: emailClean,
@@ -148,8 +148,8 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
             assignedAgent: officialEmail,
             isOfficial: eClean === "official@orabitsms.xyz",
             accountStatus: "Active",
-            customOtpRate: 0.0070,
-            rate: 0.0070,
+            customOtpRate: 0.006,
+            rate: 0.006,
             apiEnabled: true,
           });
         }
@@ -201,7 +201,7 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
     if (!error && data) {
       const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
       const assigned = (data.assigned_agent || data.referral_email || data.referred_by || officialEmail).toLowerCase().trim();
-      const userRate = data.custom_otp_rate !== undefined && data.custom_otp_rate !== null ? Number(data.custom_otp_rate) : (data.rate !== undefined && data.rate !== null ? Number(data.rate) : 0.0070);
+      const userRate = data.custom_otp_rate !== undefined && data.custom_otp_rate !== null ? Number(data.custom_otp_rate) : (data.rate !== undefined && data.rate !== null ? Number(data.rate) : 0.006);
 
       return {
         email: data.email,
@@ -236,7 +236,7 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
       const meta = authData.user.user_metadata || {};
       const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
       const assigned = (meta.assignedAgent || meta.referralEmail || meta.referredBy || officialEmail).toLowerCase().trim();
-      const userRate = meta.customOtpRate !== undefined ? Number(meta.customOtpRate) : (meta.rate !== undefined ? Number(meta.rate) : 0.0070);
+      const userRate = meta.customOtpRate !== undefined ? Number(meta.customOtpRate) : (meta.rate !== undefined ? Number(meta.rate) : 0.006);
 
       return {
         email: cleanEmail,
@@ -285,7 +285,7 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
     officialEmail
   ).toLowerCase().trim();
 
-  const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.0070);
+  const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.006);
 
   try {
     const payload = {

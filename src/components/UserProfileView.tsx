@@ -88,164 +88,114 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     let isMounted = true;
     const loadAssignedAgent = async () => {
       setIsLoadingAgent(true);
-      const refEmail = (
+
+      const userEmail = (userProfile.email || "").toLowerCase().trim();
+      const officialEmail = (
+        localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com"
+      ).toLowerCase().trim();
+
+      // Step 1: Fetch live assigned_agent for this specific client from Supabase user_profiles
+      let clientAssignedAgentEmail = (
+        userProfile.assignedAgent ||
         userProfile.referralEmail ||
         userProfile.referredBy ||
-        (userProfile as any).referredByAgentEmail ||
         ""
       ).toLowerCase().trim();
 
-      const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "").toLowerCase().trim();
-
-      // Read local registered users list for name cross-matching
-      let localList: UserProfile[] = [];
-      try {
-        const stored = localStorage.getItem("orabit_registered_users");
-        if (stored) localList = JSON.parse(stored);
-      } catch (e) {}
-
-      // Helper to determine the best full name
-      const getBestAgentName = (
-        sbName?: string | null,
-        locName?: string | null,
-        emailAddr?: string
-      ): string => {
-        const cleanSb = (sbName || "").trim();
-        const cleanLoc = (locName || "").trim();
-        const emailLower = (emailAddr || "").toLowerCase().trim();
-        const emailPrefix = emailAddr ? emailAddr.split("@")[0].toLowerCase() : "";
-
-        const isOfficial =
-          emailLower === "official@orabitsms.xyz" ||
-          emailLower === "orabitsms@gmail.com" ||
-          emailLower.includes("official") ||
-          cleanLoc.toLowerCase() === "orabitsms" ||
-          cleanSb.toLowerCase() === "orabitsms";
-
-        if (isOfficial) {
-          if (
-            cleanLoc &&
-            cleanLoc.toLowerCase() !== "orabitsms" &&
-            cleanLoc.toLowerCase() !== emailPrefix &&
-            !cleanLoc.startsWith("@") &&
-            !cleanLoc.includes("@")
-          ) {
-            return cleanLoc;
-          }
-          if (
-            cleanSb &&
-            cleanSb.toLowerCase() !== "orabitsms" &&
-            cleanSb.toLowerCase() !== emailPrefix &&
-            !cleanSb.startsWith("@") &&
-            !cleanSb.includes("@")
-          ) {
-            return cleanSb;
-          }
-          return "ORABIT OFFICIAL";
-        }
-
-        if (
-          cleanLoc &&
-          cleanLoc.toLowerCase() !== emailPrefix &&
-          !cleanLoc.startsWith("@") &&
-          !cleanLoc.includes("@")
-        ) {
-          return cleanLoc;
-        }
-        if (
-          cleanSb &&
-          cleanSb.toLowerCase() !== emailPrefix &&
-          !cleanSb.startsWith("@") &&
-          !cleanSb.includes("@")
-        ) {
-          return cleanSb;
-        }
-        if (emailAddr) {
-          const prefix = emailAddr.split("@")[0];
-          return prefix.charAt(0).toUpperCase() + prefix.slice(1) + " Agent";
-        }
-        return "ORABIT OFFICIAL";
-      };
-
-      // 1. Find agent match in local registered users
-      let localAgentMatch = localList.find(
-        (u) =>
-          (u.role?.toLowerCase() === "agent" || u.role?.toLowerCase() === "owner") &&
-          (u.email.toLowerCase().trim() === refEmail ||
-            u.referralEmail?.toLowerCase().trim() === refEmail)
-      );
-
-      if (!localAgentMatch && officialEmail) {
-        localAgentMatch = localList.find(
-          (u) => u.email.toLowerCase().trim() === officialEmail
-        );
-      }
-
-      if (!localAgentMatch) {
-        localAgentMatch =
-          localList.find((u) => u.isOfficial && u.role?.toLowerCase() === "agent") ||
-          localList.find((u) => u.role?.toLowerCase() === "agent");
-      }
-
-      const targetEmail = localAgentMatch?.email.toLowerCase().trim() || refEmail;
-      let matchedAgent: { fullName: string; telegramUsername: string; email: string } | null = null;
-
-      // 2. Fetch latest user_profiles from Supabase for target email
-      if (targetEmail) {
+      if (userEmail) {
         try {
-          const { data } = await supabase
+          const { data: myData } = await supabase
             .from("user_profiles")
-            .select("full_name, telegram, email, role")
-            .ilike("email", targetEmail)
+            .select("assigned_agent, referral_email, referred_by")
+            .ilike("email", userEmail)
             .maybeSingle();
 
-          if (data && data.email) {
-            matchedAgent = {
-              fullName: getBestAgentName(data.full_name, localAgentMatch?.fullName, data.email),
-              telegramUsername: data.telegram || localAgentMatch?.telegram || "",
-              email: data.email,
-            };
-          }
-        } catch (err) {
-          console.warn("Supabase agent fetch notice:", err);
-        }
-      }
-
-      // 3. Fallback to local match if Supabase didn't return a record
-      if (!matchedAgent && localAgentMatch) {
-        matchedAgent = {
-          fullName: getBestAgentName(null, localAgentMatch.fullName, localAgentMatch.email),
-          telegramUsername: localAgentMatch.telegram || "",
-          email: localAgentMatch.email,
-        };
-      }
-
-      // 4. Guaranteed Fallback to Official Agent if matchedAgent is still missing
-      if (!matchedAgent) {
-        try {
-          const { data } = await supabase
-            .from("user_profiles")
-            .select("full_name, telegram, email")
-            .or(`is_official.eq.true,role.ilike.agent,email.ilike.${officialEmail || "orabitsms@gmail.com"}`)
-            .limit(1)
-            .maybeSingle();
-
-          if (data && data.email) {
-            matchedAgent = {
-              fullName: getBestAgentName(data.full_name, null, data.email),
-              telegramUsername: data.telegram || "@OrabitSupport",
-              email: data.email,
-            };
+          if (myData) {
+            const liveRef = (
+              myData.assigned_agent ||
+              myData.referral_email ||
+              myData.referred_by ||
+              ""
+            ).toLowerCase().trim();
+            if (liveRef) {
+              clientAssignedAgentEmail = liveRef;
+            }
           }
         } catch (e) {
-          console.warn("Fallback agent query notice:", e);
+          console.warn("Notice checking client assigned agent in Supabase:", e);
         }
       }
 
-      // 5. Ultimate Fallback Object
+      // If client has no assigned agent, default to official agent email
+      const targetAgentEmail = clientAssignedAgentEmail || officialEmail || "orabitsms@gmail.com";
+
+      let matchedAgent: { fullName: string; telegramUsername: string; email: string } | null = null;
+
+      // Step 2: Fetch the assigned agent's live profile from Supabase user_profiles
+      try {
+        const { data: agentData } = await supabase
+          .from("user_profiles")
+          .select("full_name, telegram, email, role, is_official")
+          .ilike("email", targetAgentEmail)
+          .maybeSingle();
+
+        if (agentData && agentData.email) {
+          const rawName = (agentData.full_name || "").trim();
+          const cleanEmail = agentData.email.toLowerCase().trim();
+          const emailPrefix = cleanEmail.split("@")[0];
+
+          let displayName = rawName;
+          if (!displayName || displayName.toLowerCase() === emailPrefix) {
+            if (agentData.is_official || cleanEmail === officialEmail || cleanEmail === "official@orabitsms.xyz") {
+              displayName = "ORABIT OFFICIAL";
+            } else {
+              displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) + " Agent";
+            }
+          }
+
+          matchedAgent = {
+            fullName: displayName,
+            telegramUsername: agentData.telegram || "@OrabitSupport",
+            email: cleanEmail,
+          };
+        }
+      } catch (err) {
+        console.warn("Notice fetching agent profile from Supabase:", err);
+      }
+
+      // Step 3: Fallback to local storage registered users if Supabase returned no record
+      if (!matchedAgent) {
+        let localList: UserProfile[] = [];
+        try {
+          const stored = localStorage.getItem("orabit_registered_users");
+          if (stored) localList = JSON.parse(stored);
+        } catch (e) {}
+
+        const localMatch = localList.find(
+          (u) => u.email.toLowerCase().trim() === targetAgentEmail
+        );
+
+        if (localMatch) {
+          const rawName = (localMatch.fullName || "").trim();
+          const cleanEmail = localMatch.email.toLowerCase().trim();
+          const emailPrefix = cleanEmail.split("@")[0];
+          let displayName = rawName;
+          if (!displayName || displayName.toLowerCase() === emailPrefix) {
+            displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) + " Agent";
+          }
+
+          matchedAgent = {
+            fullName: displayName,
+            telegramUsername: localMatch.telegram || "@OrabitSupport",
+            email: cleanEmail,
+          };
+        }
+      }
+
+      // Step 4: Ultimate Fallback to Official Agent
       if (!matchedAgent) {
         matchedAgent = {
-          fullName: "Official System Agent",
+          fullName: "ORABIT OFFICIAL",
           telegramUsername: "@OrabitSupport",
           email: officialEmail || "orabitsms@gmail.com",
         };
@@ -262,7 +212,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [userProfile, isOwnerOrAgent]);
+  }, [userProfile.email, userProfile.assignedAgent, userProfile.referralEmail, isOwnerOrAgent]);
+
   const [showWithdrawPinSetup, setShowWithdrawPinSetup] = useState(false);
   const [pinMode, setPinMode] = useState<"set" | "change" | "disable">("set");
   const [currentWithdrawPin, setCurrentWithdrawPin] = useState("");

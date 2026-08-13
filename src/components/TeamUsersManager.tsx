@@ -89,7 +89,9 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   const [editPhone, setEditPhone] = useState("");
   const [editCountry, setEditCountry] = useState("");
   const [editCity, setEditCity] = useState("");
-  const [editRate, setEditRate] = useState<string>("0");
+  const [editRate, setEditRate] = useState<string>("0.006");
+  const [editBalance, setEditBalance] = useState<string>("0");
+  const [editAssignedAgent, setEditAssignedAgent] = useState<string>("");
   const [editStatus, setEditStatus] = useState<string>("Pending");
   const [editApiEnabled, setEditApiEnabled] = useState<boolean>(false);
   const [rateWarning, setRateWarning] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   const [inviteCity, setInviteCity] = useState("Pirojpur");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
-  const [inviteRate, setInviteRate] = useState<string>("0.0070");
+  const [inviteRate, setInviteRate] = useState<string>("0.006");
   const [inviteSuccessMsg, setInviteSuccessMsg] = useState<string | null>(null);
 
   // Filter list of users for this agent / owner
@@ -200,8 +202,12 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     setEditCountry(user.country || "");
     setEditCity(user.city || "");
 
-    const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0.0070);
+    const currAgent = user.assignedAgent || user.referralEmail || user.referredBy || agentEmail;
+    setEditAssignedAgent(currAgent);
+
+    const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0.006);
     setEditRate(userRate.toString());
+    setEditBalance((user.balance !== undefined ? user.balance : 0).toString());
     setEditStatus(user.accountStatus || "Active");
     setEditApiEnabled(!!user.apiEnabled);
     setRateWarning(null);
@@ -212,7 +218,10 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     if (!editingUser) return;
 
     let numRate = parseFloat(editRate);
-    if (isNaN(numRate)) numRate = 0.0070;
+    if (isNaN(numRate)) numRate = 0.006;
+
+    let numBal = parseFloat(editBalance);
+    if (isNaN(numBal) || numBal < 0) numBal = editingUser.balance || 0;
 
     // Enforce Capping Rule: Agent cannot assign a rate higher than agentOwnRate
     if (isAgent && !isOwner && numRate > agentOwnRate) {
@@ -222,6 +231,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     }
 
     const fullN = `${editFirstName.trim()} ${editLastName.trim()}`.trim() || editingUser.fullName;
+    const cleanAgentEmail = editAssignedAgent.trim().toLowerCase() || editingUser.assignedAgent || agentEmail;
 
     const updated: UserProfile = {
       ...editingUser,
@@ -231,10 +241,14 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       mobileNumber: editPhone.trim(),
       country: editCountry.trim(),
       city: editCity.trim(),
+      balance: numBal,
       customOtpRate: numRate,
       rate: numRate,
       accountStatus: editStatus as any,
       apiEnabled: editApiEnabled,
+      assignedAgent: cleanAgentEmail,
+      referralEmail: cleanAgentEmail,
+      referredBy: cleanAgentEmail,
     };
 
     onUpdateUser(updated);
@@ -266,7 +280,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     const first = inviteFirstName.trim() || inviteEmail.split("@")[0];
     const last = inviteLastName.trim() || "User";
     let numRate = parseFloat(inviteRate);
-    if (isNaN(numRate)) numRate = 0.0070;
+    if (isNaN(numRate)) numRate = 0.006;
 
     const newUser: UserProfile = {
       firstName: first,
@@ -479,8 +493,31 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
             const userPhone = user.mobileNumber && user.mobileNumber.trim() ? user.mobileNumber.trim() : "";
             const userCountry = user.country || "Bangladesh";
             const userCity = user.city || "Dhaka";
-            const userRate = user.customOtpRate !== undefined && user.customOtpRate > 0 ? user.customOtpRate : (user.rate !== undefined && user.rate > 0 ? user.rate : 0.0070);
-            const userBalance = user.balance !== undefined ? user.balance : 0;
+            const userRate = user.customOtpRate !== undefined && user.customOtpRate > 0 ? user.customOtpRate : (user.rate !== undefined && user.rate > 0 ? user.rate : 0.006);
+
+            // Calculate live earned balance from feeds if user profile balance is 0
+            let liveFeedEarnings = 0;
+            try {
+              const storedFeeds = localStorage.getItem("orabit_feed_numbers");
+              if (storedFeeds) {
+                const feeds = JSON.parse(storedFeeds);
+                if (Array.isArray(feeds)) {
+                  feeds.forEach((f: any) => {
+                    const fEmail = (f.userEmail || f.email || "").toLowerCase().trim();
+                    if (fEmail === userEmail.toLowerCase().trim()) {
+                      const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || f.status === "success";
+                      if (isSuccess) {
+                        const msgs = f.messages ? f.messages.filter((m: any) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+                        const count = msgs.length > 0 ? msgs.length : 1;
+                        liveFeedEarnings += count * userRate;
+                      }
+                    }
+                  });
+                }
+              }
+            } catch (e) {}
+
+            const userBalance = user.balance !== undefined && user.balance > 0 ? user.balance : (liveFeedEarnings > 0 ? liveFeedEarnings : (user.balance || 0));
             const userUid = user.uid || getCleanUid(userEmail);
             const initials = fullName
               .split(" ")
@@ -692,6 +729,26 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                 />
               </div>
 
+              {/* ASSIGNED AGENT EMAIL */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <span>ASSIGNED AGENT EMAIL</span>
+                  {isOwner && <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest">● Owner Editable</span>}
+                </label>
+                <input
+                  type="email"
+                  value={editAssignedAgent}
+                  onChange={(e) => setEditAssignedAgent(e.target.value)}
+                  disabled={!isOwner}
+                  placeholder="e.g. agent@orabitsms.com"
+                  className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none ${
+                    isOwner
+                      ? "bg-[#0a0d14] border-[#232838] focus:border-amber-400 text-amber-300"
+                      : "bg-[#07090e] border-[#1a1f2c] text-slate-400 cursor-not-allowed"
+                  }`}
+                />
+              </div>
+
               {/* PHONE NUMBER */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -731,16 +788,19 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                 />
               </div>
 
-              {/* BALANCE (READ-ONLY) */}
+              {/* BALANCE (EDITABLE) */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  BALANCE (READ-ONLY)
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <span>BALANCE ($ USD)</span>
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">● Editable</span>
                 </label>
                 <input
-                  type="text"
-                  value={`$${(editingUser.balance || 0).toFixed(2)}`}
-                  disabled
-                  className="w-full bg-[#07090e] border border-[#1a1f2c] rounded-xl px-3.5 py-2.5 text-xs text-emerald-400 font-mono font-bold cursor-not-allowed"
+                  type="number"
+                  step="0.0001"
+                  value={editBalance}
+                  onChange={(e) => setEditBalance(e.target.value)}
+                  className="w-full bg-[#0a0d14] border border-[#232838] focus:border-emerald-400 rounded-xl px-3.5 py-2.5 text-xs text-emerald-400 font-mono font-bold focus:outline-none"
+                  placeholder="0.00"
                 />
               </div>
 
