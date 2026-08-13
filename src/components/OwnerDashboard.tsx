@@ -6,6 +6,7 @@ import { createAgentInSupabase, deleteAgentFromSupabase } from "../lib/userRoles
 import { TeamUsersManager } from "./TeamUsersManager";
 import { AgentManagement } from "./AgentManagement";
 import { fetchDailyStatsFromSupabase, getBDDateString } from "../lib/supabaseDailyStats";
+import { fetchAllProfilesFromSupabase, saveUserProfileToSupabase } from "../lib/userProfiles";
 import { supabase } from "../lib/supabase";
 import { ServiceLogo } from "./ServiceLogo";
 import {
@@ -306,20 +307,31 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     return agentPerformance.slice(0, 10);
   }, [registeredUsers, feedNumbers]);
 
-  // Load all registered users from storage
-  const loadRegisteredUsers = () => {
+  // Load all registered users directly from Supabase (Source of Truth) + local cache fallback
+  const loadRegisteredUsers = async () => {
+    // 1. Instant local state hydration from localStorage if available
     try {
       const stored = localStorage.getItem("orabit_registered_users");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setRegisteredUsers(parsed);
         }
       } else if (userProfile) {
         setRegisteredUsers([userProfile]);
       }
     } catch (e) {
-      console.error("Failed to load registered users", e);
+      console.error("Failed to load registered users from cache", e);
+    }
+
+    // 2. Direct Source of Truth fetch from Supabase user_profiles
+    try {
+      const freshProfiles = await fetchAllProfilesFromSupabase();
+      if (freshProfiles && freshProfiles.length > 0) {
+        setRegisteredUsers(freshProfiles);
+      }
+    } catch (e) {
+      console.error("Failed to fetch profiles from Supabase:", e);
     }
   };
 

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from "../lib/supabase";
 import { UserProfile } from "../components/OrabitAuthScreen";
 import { getUserRoleFromSupabase } from "../lib/userRoles";
-import { fetchUserProfileFromSupabase } from "../lib/userProfiles";
+import { fetchUserProfileFromSupabase, fetchAllProfilesFromSupabase } from "../lib/userProfiles";
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -42,6 +42,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 1. Synchronously wipe local storage and state
       localStorage.removeItem("orabit_user_profile");
       localStorage.removeItem("orabit_saved_accounts");
+      localStorage.removeItem("orabit_registered_users");
+      localStorage.removeItem("orabit_official_agent_email");
+      localStorage.removeItem("orabit_last_target_range");
       setUserProfile(null);
       setLoading(false);
       setIsValidating(false);
@@ -146,6 +149,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               withdrawHistory: dbProfile?.withdrawHistory || baseProfile.withdrawHistory,
             };
           });
+          // Background hydrate all system profiles from Supabase to update local cache
+          fetchAllProfilesFromSupabase().catch((e) => console.warn("Background profiles fetch warning:", e));
         } catch (e) {
           console.error("Error fetching user role or profile:", e);
         }

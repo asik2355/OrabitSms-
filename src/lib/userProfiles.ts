@@ -31,6 +31,78 @@ WITH CHECK (true);
 `;
 
 /**
+ * Fetches ALL user/agent profiles directly from Supabase user_profiles table as the Source of Truth.
+ */
+export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
+  try {
+    const { data, error } = await supabase.from(USER_PROFILES_TABLE).select("*");
+    if (!error && data && Array.isArray(data)) {
+      const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+      const mapped: UserProfile[] = data.map((row: any) => {
+        const assigned = (row.assigned_agent || row.referral_email || row.referred_by || officialEmail).toLowerCase().trim();
+        const userRole = row.role || "Client";
+        return {
+          email: (row.email || "").toLowerCase().trim(),
+          fullName: row.full_name || row.fullName || row.email?.split("@")[0] || "User",
+          firstName: row.first_name || row.full_name?.split(" ")[0] || "",
+          lastName: row.last_name || row.full_name?.split(" ").slice(1).join(" ") || "",
+          mobileNumber: row.mobile_number || row.mobileNumber || "",
+          balance: Number(row.balance || 0),
+          totalSuccess: Number(row.total_success || 0),
+          role: userRole,
+          telegram: row.telegram || "",
+          country: row.country || "Bangladesh",
+          city: row.city || "Dhaka",
+          bio: row.bio || "",
+          withdrawPin: row.withdraw_pin || "",
+          accountStatus: row.account_status || "Active",
+          apiKey: row.api_key || "",
+          uid: row.uid || "",
+          paymentMethods: row.payment_methods || null,
+          withdrawHistory: row.withdraw_history || null,
+          referralEmail: assigned,
+          referredBy: assigned,
+          assignedAgent: assigned,
+          isOfficial: !!row.is_official,
+          password: row.password || "",
+          customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : row.rate !== undefined ? Number(row.rate) : 0.0070,
+          rate: row.rate !== undefined ? Number(row.rate) : 0.0070,
+          apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : true,
+          lastLogin: row.last_login || row.updated_at || row.created_at,
+          createdAt: row.created_at || row.createdAt,
+        };
+      });
+
+      if (mapped.length > 0) {
+        try {
+          localStorage.setItem("orabit_registered_users", JSON.stringify(mapped));
+          // If official agent exists, sync official agent email
+          const official = mapped.find((u) => u.isOfficial && u.role?.toLowerCase() === "agent");
+          if (official && official.email) {
+            localStorage.setItem("orabit_official_agent_email", official.email.toLowerCase().trim());
+          }
+        } catch (e) {
+          console.warn("Error caching registered users in localStorage:", e);
+        }
+      }
+      return mapped;
+    }
+  } catch (e) {
+    console.error("Failed to fetch all profiles from Supabase:", e);
+  }
+
+  // Fallback to localStorage if offline or DB error
+  try {
+    const stored = localStorage.getItem("orabit_registered_users");
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {}
+
+  return [];
+}
+
+/**
  * Fetches user profile directly from Supabase user_profiles table.
  */
 export async function fetchUserProfileFromSupabase(email: string): Promise<Partial<UserProfile> | null> {

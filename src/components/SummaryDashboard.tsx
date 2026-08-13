@@ -29,6 +29,7 @@ import {
 } from "recharts";
 
 import { FeedNumber } from "../types";
+import { fetchAllProfilesFromSupabase } from "../lib/userProfiles";
 
 interface SummaryDashboardProps {
   currency: "USD" | "BDT";
@@ -72,6 +73,11 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
         setDbDailyStats(stats || []);
       } catch (e) {
         console.error("Failed loading permanent daily stats from Supabase:", e);
+      }
+      try {
+        await fetchAllProfilesFromSupabase();
+      } catch (e) {
+        console.warn("Notice fetching profiles in SummaryDashboard:", e);
       }
     }
     loadStats();

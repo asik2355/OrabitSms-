@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { formatUSD } from "../lib/storageUtils";
 import { FeedNumber } from "../types";
+import { fetchAllProfilesFromSupabase, saveUserProfileToSupabase } from "../lib/userProfiles";
 import { TeamUsersManager } from "./TeamUsersManager";
 import {
   Users,
@@ -26,7 +27,6 @@ import {
   Network,
   Clock,
   Check,
-  BarChart2,
   Trophy,
   Smartphone,
   MessageSquare,
@@ -89,18 +89,29 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Load registered users from local storage
-  const loadUsers = () => {
+  // Load registered users directly from Supabase (Source of Truth) + local cache fallback
+  const loadUsers = async () => {
+    // 1. Fast local cache hydration for immediate UI rendering
     try {
       const stored = localStorage.getItem("orabit_registered_users");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setAllUsers(parsed);
         }
       }
     } catch (e) {
-      console.error("Failed to load registered users in Agent Dashboard:", e);
+      console.error("Failed to load registered users from cache in Agent Dashboard:", e);
+    }
+
+    // 2. Direct Source of Truth fetch from Supabase user_profiles
+    try {
+      const freshProfiles = await fetchAllProfilesFromSupabase();
+      if (freshProfiles && freshProfiles.length > 0) {
+        setAllUsers(freshProfiles);
+      }
+    } catch (e) {
+      console.error("Failed to fetch profiles from Supabase in Agent Dashboard:", e);
     }
   };
 
@@ -395,6 +406,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
 
         localStorage.setItem("orabit_registered_users", JSON.stringify(list));
         setAllUsers(list);
+        saveUserProfileToSupabase(list[idx]).catch((err) => console.warn("Supabase profile save notice:", err));
 
         showToast(
           `Client account (${clientEmail}) is now ${newStatus === "ACTIVE" ? "ENABLED (ON)" : "DISABLED (OFF)"}`,
@@ -423,6 +435,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
         list[idx].customOtpRate = newRate;
         localStorage.setItem("orabit_registered_users", JSON.stringify(list));
         setAllUsers(list);
+        saveUserProfileToSupabase(list[idx]).catch((err) => console.warn("Supabase rate save notice:", err));
         setEditingOtpUser(null);
         showToast(`Updated custom OTP rate ($${newRate.toFixed(2)}/OTP) for ${clientEmail}`);
       }
@@ -448,6 +461,7 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
         list[idx].balance = (list[idx].balance || 0) + amt;
         localStorage.setItem("orabit_registered_users", JSON.stringify(list));
         setAllUsers(list);
+        saveUserProfileToSupabase(list[idx]).catch((err) => console.warn("Supabase topup save notice:", err));
         setTopupUserEmail(null);
         showToast(`Credited $${amt.toFixed(2)} to ${clientEmail}`);
       }
@@ -500,31 +514,6 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Quick Sub-Navigation Pills for Agent */}
-          <div className="flex items-center gap-2 bg-[#171a23] p-1.5 rounded-xl border border-[#262a37]">
-            <button
-              onClick={() => onNavigateTab("agent_dashboard")}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-md transition-all cursor-pointer"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Agent Dashboard</span>
-            </button>
-            <button
-              onClick={() => onNavigateTab("owner_user_mgmt")}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>User Management</span>
-            </button>
-            <button
-              onClick={() => onNavigateTab("agent_summary")}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer"
-            >
-              <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Agent Summary</span>
-            </button>
-          </div>
-
           <div className="hidden sm:flex items-center gap-2 bg-[#171a23] border border-[#262a37] px-3 py-2 rounded-xl text-xs font-mono text-slate-300">
             <Clock className="w-4 h-4 text-amber-400" />
             <span>{currentTime || "12:42:37 UTC+0"}</span>

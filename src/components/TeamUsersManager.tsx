@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { formatUSD } from "../lib/storageUtils";
+import { saveUserProfileToSupabase } from "../lib/userProfiles";
 import {
   Users,
   CheckCircle2,
@@ -278,6 +279,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     };
 
     onUpdateUser(updated);
+    saveUserProfileToSupabase(updated).catch((e) => console.warn("Supabase user update notice:", e));
 
     // Save to local storage
     try {
@@ -328,6 +330,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     };
 
     onUpdateUser(newUser);
+    saveUserProfileToSupabase(newUser).catch((e) => console.warn("Supabase user create notice:", e));
 
     // Save to localStorage
     try {

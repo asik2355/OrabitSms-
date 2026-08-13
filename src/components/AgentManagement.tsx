@@ -32,7 +32,7 @@ import {
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { supabase } from "../lib/supabase";
 import { createAgentInSupabase, deleteAgentFromSupabase, setUserRoleInSupabase } from "../lib/userRoles";
-import { saveUserProfileToSupabase } from "../lib/userProfiles";
+import { saveUserProfileToSupabase, fetchAllProfilesFromSupabase } from "../lib/userProfiles";
 import { UserProfile } from "./OrabitAuthScreen";
 import { FeedNumber } from "../types";
 import { fetchDailyStatsFromSupabase } from "../lib/supabaseDailyStats";
@@ -114,6 +114,21 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       localStorage.setItem("orabit_official_agent_email", officialAgent.email.toLowerCase().trim());
     }
   }, [officialAgent]);
+
+  // Direct Source of Truth hydration on mount
+  useEffect(() => {
+    let isMounted = true;
+    fetchAllProfilesFromSupabase()
+      .then((fresh) => {
+        if (isMounted && fresh && fresh.length > 0) {
+          setRegisteredUsers(fresh);
+        }
+      })
+      .catch((err) => console.warn("Failed to fetch fresh profiles in AgentManagement:", err));
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Designated Official Agent Handler
   const handleSetOfficialAgent = async (targetEmail: string) => {
@@ -221,6 +236,10 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
         localStorage.setItem("orabit_registered_users", JSON.stringify(list));
         setRegisteredUsers(list);
+
+        // Persist to Supabase Source of Truth
+        const createdTarget = existingIdx >= 0 ? list[existingIdx] : newAgentObj;
+        saveUserProfileToSupabase(createdTarget).catch((err) => console.warn("Supabase agent profile save notice:", err));
       } catch (err) {
         console.error("Local storage error on agent creation:", err);
       }
