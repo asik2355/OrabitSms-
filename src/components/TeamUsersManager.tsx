@@ -23,6 +23,10 @@ import {
   UserPlus,
   Send,
   Menu,
+  Key,
+  Info,
+  TrendingUp,
+  User,
 } from "lucide-react";
 
 interface TeamUsersManagerProps {
@@ -58,8 +62,8 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     return 0.0075;
   }, [currentUser]);
 
-  // Clock state for UTC time header display
-  const [currentTimeStr, setCurrentTimeStr] = useState("17:03:12");
+  // Clock state for UTC time display
+  const [currentTimeStr, setCurrentTimeStr] = useState("00:00:00");
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -89,16 +93,19 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   const [editApiEnabled, setEditApiEnabled] = useState<boolean>(false);
   const [rateWarning, setRateWarning] = useState<string | null>(null);
 
-  // Invite modal state
+  // Info modal state
+  const [infoUser, setInfoUser] = useState<UserProfile | null>(null);
+
+  // Invite / Add New User modal state
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitePhone, setInvitePhone] = useState("");
-  const [inviteCountry, setInviteCountry] = useState("United Kingdom");
+  const [inviteCountry, setInviteCountry] = useState("Bangladesh");
+  const [inviteCity, setInviteCity] = useState("Pirojpur");
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
+  const [inviteRate, setInviteRate] = useState<string>("0.0070");
   const [inviteSuccessMsg, setInviteSuccessMsg] = useState<string | null>(null);
-
-  // Topup state
-  const [topupEmail, setTopupEmail] = useState<string | null>(null);
-  const [topupAmount, setTopupAmount] = useState<string>("5");
 
   // Filter list of users for this agent / owner
   const myReferredUsers = useMemo(() => {
@@ -113,61 +120,87 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       });
     }
 
-    // Default sample user if list is empty so the screenshot profile (Rafiul Hasan) is always available
+    // Default sample users if list is empty
     if (list.length === 0) {
-      const demoUser: UserProfile = {
-        firstName: "Rafiul",
-        lastName: "Hasan",
-        fullName: "Rafiul Hasan",
-        email: "rafiul62725@gmail.com",
-        mobileNumber: "01890423974",
-        telegram: "@rafiul_hasan",
-        withdrawPin: "1234",
-        country: "United Kingdom",
-        city: "Hafodunos",
-        uid: "M3J6XAB2Y2D",
-        balance: 0.0,
-        customOtpRate: 0.0,
-        rate: 0.0,
-        accountStatus: "Pending",
-        referralEmail: agentEmail || "agent@orabitsms.com",
-        role: "Client",
-      };
-      return [demoUser];
+      const demoUsers: UserProfile[] = [
+        {
+          firstName: "Crypto",
+          lastName: "Comrade",
+          fullName: "Crypto Comrade",
+          email: "cryptocomrade1522@gmail.com",
+          mobileNumber: "+8801703333600",
+          telegram: "@cryptocomrade",
+          withdrawPin: "1234",
+          country: "Bangladesh",
+          city: "Pirojpur",
+          uid: "CC89201XA",
+          balance: 0.0,
+          customOtpRate: 0.0070,
+          rate: 0.0070,
+          accountStatus: "Active",
+          referralEmail: agentEmail || "agent@orabitsms.com",
+          role: "Client",
+          lastLogin: new Date(Date.now() - 21 * 60 * 1000).toISOString(),
+        },
+        {
+          firstName: "Rafiul",
+          lastName: "Hasan",
+          fullName: "Rafiul Hasan",
+          email: "rafiul62725@gmail.com",
+          mobileNumber: "+8801890423974",
+          telegram: "@rafiul_hasan",
+          withdrawPin: "5678",
+          country: "United Kingdom",
+          city: "Hafodunos",
+          uid: "M3J6XAB2Y2D",
+          balance: 12.5,
+          customOtpRate: 0.0075,
+          rate: 0.0075,
+          accountStatus: "Active",
+          referralEmail: agentEmail || "agent@orabitsms.com",
+          role: "Client",
+          lastLogin: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+        },
+      ];
+      return demoUsers;
     }
     return list;
   }, [users, isOwner, agentEmail, agentCode]);
 
-  // Metrics
-  const totalCount = Math.max(169, myReferredUsers.length);
-  const activeCount = Math.max(167, myReferredUsers.filter(
-    (u) => u.accountStatus === "Active" || u.accountStatus === "ACTIVE"
-  ).length);
-  const pendingCount = Math.max(1, myReferredUsers.filter(
+  // Dynamic Metrics
+  const totalCount = myReferredUsers.length;
+  const activeCount = myReferredUsers.filter(
+    (u) => (u.accountStatus || "Pending").toLowerCase() === "active"
+  ).length;
+  const pendingCount = myReferredUsers.filter(
     (u) =>
-      u.accountStatus === "Pending" ||
-      u.accountStatus === "PENDING" ||
+      (u.accountStatus || "Pending").toLowerCase() === "pending" ||
       !u.accountStatus
-  ).length);
-  const loggedIn24hCount = Math.max(43, myReferredUsers.filter((u) => u.lastLogin).length);
-  const softDeletedCount = Math.max(1, myReferredUsers.filter(
+  ).length;
+  const loggedIn24hCount = myReferredUsers.filter((u) => {
+    if (!u.lastLogin) return true; // count sample active logins
+    const loginTime = new Date(u.lastLogin).getTime();
+    return !isNaN(loginTime) && Date.now() - loginTime < 24 * 60 * 60 * 1000;
+  }).length;
+  const softDeletedCount = myReferredUsers.filter(
     (u) =>
-      u.accountStatus === "Soft-deleted" ||
-      u.accountStatus === "SOFT_DELETED" ||
-      u.accountStatus === "Inactive" ||
-      u.accountStatus === "DISABLED"
-  ).length);
+      (u.accountStatus || "").toLowerCase() === "soft-deleted" ||
+      (u.accountStatus || "").toLowerCase() === "soft_deleted" ||
+      (u.accountStatus || "").toLowerCase() === "disabled" ||
+      (u.accountStatus || "").toLowerCase() === "inactive"
+  ).length;
 
-  // Filtered Users for display table/cards
+  // Filtered Users for display cards
   const filteredUsers = useMemo(() => {
     return myReferredUsers.filter((u) => {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
-        u.fullName.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.mobileNumber.includes(q) ||
+        (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.mobileNumber && u.mobileNumber.toLowerCase().includes(q)) ||
         (u.country && u.country.toLowerCase().includes(q)) ||
+        (u.city && u.city.toLowerCase().includes(q)) ||
         (u.uid && u.uid.toLowerCase().includes(q));
 
       const st = (u.accountStatus || "Pending").toLowerCase();
@@ -182,6 +215,21 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     });
   }, [myReferredUsers, searchQuery, statusFilter]);
 
+  // Relative Time Formatter
+  const formatRelativeTime = (lastLogin?: string) => {
+    if (!lastLogin) return "21 min ago";
+    const ts = new Date(lastLogin).getTime();
+    if (isNaN(ts)) return "21 min ago";
+    const diffSec = Math.floor((Date.now() - ts) / 1000);
+    if (diffSec < 60) return "Just now";
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour} hr ago`;
+    const diffDay = Math.floor(diffHour / 24);
+    return `${diffDay} d ago`;
+  };
+
   // Open Edit Modal
   const handleOpenEditModal = (user: UserProfile) => {
     setEditingUser(user);
@@ -192,9 +240,9 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     setEditCountry(user.country || "");
     setEditCity(user.city || "");
 
-    const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0);
+    const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0.0070);
     setEditRate(userRate.toString());
-    setEditStatus(user.accountStatus || "Pending");
+    setEditStatus(user.accountStatus || "Active");
     setEditApiEnabled(!!user.apiEnabled);
     setRateWarning(null);
   };
@@ -204,9 +252,9 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     if (!editingUser) return;
 
     let numRate = parseFloat(editRate);
-    if (isNaN(numRate)) numRate = 0;
+    if (isNaN(numRate)) numRate = 0.0070;
 
-    // Enforce Capping Rule: Agent cannot assign a rate higher than agentOwnRate!
+    // Enforce Capping Rule: Agent cannot assign a rate higher than agentOwnRate
     if (isAgent && !isOwner && numRate > agentOwnRate) {
       setRateWarning(`Rate cannot exceed your assigned agent rate (${agentOwnRate}). Automatically capped to ${agentOwnRate}.`);
       numRate = agentOwnRate;
@@ -249,38 +297,55 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     setEditingUser(null);
   };
 
-  // Send Invitation
-  const handleSendInvite = (e: React.FormEvent) => {
+  // Add New User / Invitation Submit
+  const handleAddNewUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
 
-    const newInvitedUser: UserProfile = {
-      firstName: inviteEmail.split("@")[0],
-      lastName: "User",
-      fullName: inviteEmail.split("@")[0],
+    const first = inviteFirstName.trim() || inviteEmail.split("@")[0];
+    const last = inviteLastName.trim() || "User";
+    let numRate = parseFloat(inviteRate);
+    if (isNaN(numRate)) numRate = 0.0070;
+
+    const newUser: UserProfile = {
+      firstName: first,
+      lastName: last,
+      fullName: `${first} ${last}`.trim(),
       email: inviteEmail.trim().toLowerCase(),
-      mobileNumber: invitePhone.trim() || "01890000000",
-      telegram: "@" + inviteEmail.split("@")[0],
-      withdrawPin: "",
-      country: inviteCountry,
-      city: "Hafodunos",
-      uid: Math.random().toString(36).substring(2, 11).toUpperCase(),
+      mobileNumber: invitePhone.trim() || "+8801700000000",
+      telegram: "@" + first.toLowerCase(),
+      withdrawPin: "1234",
+      country: inviteCountry.trim() || "Bangladesh",
+      city: inviteCity.trim() || "Pirojpur",
+      uid: Math.random().toString(36).substring(2, 10).toUpperCase(),
       balance: 0.0,
-      customOtpRate: 0.0,
-      rate: 0.0,
-      accountStatus: "Pending",
+      customOtpRate: numRate,
+      rate: numRate,
+      accountStatus: "Active",
       referralEmail: agentEmail,
       role: "Client",
+      lastLogin: new Date().toISOString(),
     };
 
-    onUpdateUser(newInvitedUser);
-    setInviteSuccessMsg(`Invitation successfully sent to ${inviteEmail}!`);
+    onUpdateUser(newUser);
+
+    // Save to localStorage
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+      list.push(newUser);
+      localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+    } catch (e) {}
+
+    setInviteSuccessMsg(`New user ${newUser.fullName} successfully added!`);
     setTimeout(() => {
       setInviteSuccessMsg(null);
       setShowInviteModal(false);
       setInviteEmail("");
       setInvitePhone("");
-    }, 1500);
+      setInviteFirstName("");
+      setInviteLastName("");
+    }, 1200);
   };
 
   // Format currency
@@ -293,117 +358,121 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6 font-sans">
-      {/* ================= HEADER (MATCHES EXACT SCREENSHOT HEADER) ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#171a23] border border-[#262a37] rounded-2xl p-4 sm:p-5 shadow-xl">
+    <div className="space-y-6 font-sans text-slate-100">
+      {/* ================= HEADER ================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#121620] border border-[#232838] rounded-2xl p-4 sm:p-5 shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <button className="w-9 h-9 rounded-xl bg-[#202534] hover:bg-[#282f42] text-slate-300 border border-slate-700/60 flex items-center justify-center transition-all cursor-pointer">
-              <Menu className="w-4 h-4" />
-            </button>
-            <button className="w-9 h-9 rounded-xl bg-[#202534] hover:bg-[#282f42] text-slate-300 border border-slate-700/60 flex items-center justify-center transition-all cursor-pointer">
-              <Search className="w-4 h-4" />
-            </button>
+          <div className="w-10 h-10 rounded-xl bg-[#1c2230] border border-slate-700/60 flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
+            <Users className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">
-              Team Users
+            <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+              Team Users & Clients
             </h1>
             <p className="text-xs text-slate-400">
-              Invite new dialers, edit profiles, and manage status.
+              Manage client accounts, custom per-SMS rates, balances, and status.
             </p>
           </div>
         </div>
 
         {/* Live Clock Display */}
-        <div className="flex items-center gap-2 bg-[#0d1017] border border-[#262a37] px-3 py-1.5 rounded-xl">
+        <div className="flex items-center gap-2 bg-[#0a0d14] border border-[#232838] px-3.5 py-1.5 rounded-xl">
           <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
           <span className="font-mono text-amber-300 font-bold text-xs">
-            {currentTimeStr} <span className="text-slate-500 font-sans text-[11px]">UTC+0</span>
+            {currentTimeStr} <span className="text-slate-500 font-sans text-[11px]">UTC</span>
           </span>
         </div>
       </div>
 
-      {/* ================= 5 METRIC CARDS (MATCHES EXACT SCREENSHOT 5 CARDS) ================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* ================= 1. TOP STATISTICS CARDS (GRID LAYOUT) ================= */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Card 1: TOTAL */}
-        <div className="bg-[#171a23] border border-[#262a37] rounded-2xl p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-xl bg-[#202534] border border-slate-700/50 flex items-center justify-center text-indigo-400 shrink-0">
+        <div className="bg-[#121620] border border-[#232838] rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-black/20 hover:border-slate-700 transition-all">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TOTAL</div>
-            <div className="text-2xl font-bold text-white font-mono">{totalCount}</div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              👥 TOTAL
+            </div>
+            <div className="text-2xl font-black text-white font-mono tracking-tight">{totalCount}</div>
           </div>
         </div>
 
         {/* Card 2: ACTIVE */}
-        <div className="bg-[#171a23] border border-[#262a37] rounded-2xl p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-xl bg-[#1e2d1d] border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+        <div className="bg-[#121620] border border-[#232838] rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-black/20 hover:border-slate-700 transition-all">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ACTIVE</div>
-            <div className="text-2xl font-bold text-white font-mono">{activeCount}</div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              🟢 ACTIVE
+            </div>
+            <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight">{activeCount}</div>
           </div>
         </div>
 
         {/* Card 3: PENDING */}
-        <div className="bg-[#171a23] border border-[#262a37] rounded-2xl p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-xl bg-[#2d2918] border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+        <div className="bg-[#121620] border border-[#232838] rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-black/20 hover:border-slate-700 transition-all">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PENDING</div>
-            <div className="text-2xl font-bold text-white font-mono">{pendingCount}</div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              🕒 PENDING
+            </div>
+            <div className="text-2xl font-black text-amber-400 font-mono tracking-tight">{pendingCount}</div>
           </div>
         </div>
 
         {/* Card 4: LOGGED IN 24H */}
-        <div className="bg-[#171a23] border border-[#262a37] rounded-2xl p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-xl bg-[#281d33] border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
-            <Activity className="w-5 h-5" />
+        <div className="bg-[#121620] border border-[#232838] rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-black/20 hover:border-slate-700 transition-all">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+            <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">LOGGED IN 24H</div>
-            <div className="text-2xl font-bold text-white font-mono">{loggedIn24hCount}</div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              📈 LOGGED IN 24H
+            </div>
+            <div className="text-2xl font-black text-purple-300 font-mono tracking-tight">{loggedIn24hCount}</div>
           </div>
         </div>
 
         {/* Card 5: SOFT-DELETED */}
-        <div className="bg-[#171a23] border border-[#262a37] rounded-2xl p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-xl bg-[#2a1d20] border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+        <div className="bg-[#121620] border border-[#232838] rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-black/20 hover:border-slate-700 transition-all col-span-2 sm:col-span-1">
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
             <Trash2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SOFT-DELETED</div>
-            <div className="text-2xl font-bold text-white font-mono">{softDeletedCount}</div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              🗑️ SOFT-DELETED
+            </div>
+            <div className="text-2xl font-black text-rose-400 font-mono tracking-tight">{softDeletedCount}</div>
           </div>
         </div>
       </div>
 
-      {/* ================= FILTER, SEARCH & INVITE CARD ================= */}
-      <div className="bg-[#171a23] border border-[#262a37] rounded-2xl p-4 space-y-4 shadow-xl">
-        {/* Search Bar */}
-        <div className="relative w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, email, UID..."
-            className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-400 transition-all"
-          />
-        </div>
+      {/* ================= 2. SEARCH & ACTION TOOLBAR ================= */}
+      <div className="bg-[#121620] border border-[#232838] rounded-2xl p-4 shadow-xl space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          {/* Search Input Field */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by Name, Email, or UID..."
+              className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-all font-sans"
+            />
+          </div>
 
-        {/* Status Dropdown + Quota + Invitation Button */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
-          {/* Status Dropdown */}
-          <div className="w-full sm:w-64">
+          {/* Status Filter Dropdown */}
+          <div className="w-full sm:w-52">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-[#0d1017] border border-yellow-500/80 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium focus:outline-none transition-all cursor-pointer"
+              className="w-full bg-[#0a0d14] border border-amber-500/60 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-xs text-white font-semibold focus:outline-none transition-all cursor-pointer"
             >
               <option value="all">All statuses</option>
               <option value="active">Active</option>
@@ -413,154 +482,181 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
             </select>
           </div>
 
-          {/* Quota Indicator */}
-          <div className="flex items-center gap-2 bg-[#0d1017] border border-[#262a37] px-3.5 py-2 rounded-xl text-xs font-mono text-slate-300">
-            <span className="font-bold text-white">1 / 400</span>
-            <span className="bg-[#d9f99d] text-slate-950 font-bold px-2 py-0.5 rounded-full text-[10px]">
-              399 left
-            </span>
-            <span className="text-slate-400 text-[11px] hidden md:inline">resets in 6h 56m 33s</span>
-          </div>
-
-          {/* Send Invitation Button */}
+          {/* Bright Yellow/Green Add New User Button */}
           <button
             onClick={() => setShowInviteModal(true)}
-            className="bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-yellow-500/10 shrink-0 cursor-pointer"
+            className="bg-[#d9f99d] hover:bg-[#bef264] text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-lime-500/20 cursor-pointer shrink-0"
           >
-            <UserPlus className="w-4 h-4" /> Send Invitation
+            <UserPlus className="w-4 h-4" /> Add New User
           </button>
         </div>
       </div>
 
-      {/* ================= USER CARDS LIST (MATCHES SCREENSHOT 1 & 2) ================= */}
-      <div className="space-y-4">
+      {/* ================= 3. USER LIST (CARD DESIGN) ================= */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredUsers.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 space-y-2 border border-[#262a37] rounded-2xl bg-[#171a23]">
-            <Users className="w-8 h-8 text-slate-600 mx-auto" />
-            <p className="text-sm font-medium text-slate-400">No dialers found in this category.</p>
+          <div className="col-span-full p-12 text-center text-slate-500 space-y-2 border border-[#232838] rounded-2xl bg-[#121620]">
+            <Users className="w-10 h-10 text-slate-600 mx-auto" />
+            <p className="text-sm font-semibold text-slate-400">No users match your criteria.</p>
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setStatusFilter("all");
+              }}
+              className="text-xs text-amber-400 hover:underline font-bold"
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           filteredUsers.map((user) => {
-            const st = user.accountStatus || "Pending";
-            const fullName = user.fullName || `${user.firstName || "Rafiul"} ${user.lastName || "Hasan"}`;
-            const userEmail = user.email || "rafiul62725@gmail.com";
-            const userPhone = user.mobileNumber || "01890423974";
-            const userCountry = user.country || "United Kingdom";
-            const userCity = user.city || "Hafodunos";
-            const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0);
+            const st = user.accountStatus || "Active";
+            const isUserActive = st.toLowerCase() === "active";
+            const fullName = user.fullName || `${user.firstName || "Crypto"} ${user.lastName || "Comrade"}`;
+            const userEmail = user.email || "cryptocomrade1522@gmail.com";
+            const userPhone = user.mobileNumber || "+8801703333600";
+            const userCountry = user.country || "Bangladesh";
+            const userCity = user.city || "Pirojpur";
+            const userRate = user.customOtpRate !== undefined ? user.customOtpRate : (user.rate || 0.0070);
             const userBalance = user.balance || 0;
             const initials = fullName
               .split(" ")
+              .filter(Boolean)
               .map((n) => n[0])
               .join("")
               .substring(0, 2)
-              .toUpperCase();
+              .toUpperCase() || "CC";
 
             return (
               <div
                 key={userEmail}
-                className="bg-[#171a23] border border-[#262a37] hover:border-slate-700 rounded-2xl p-5 shadow-xl space-y-4 transition-all"
+                className="bg-[#121620] border border-[#232838] hover:border-slate-600 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4 transition-all duration-200 group"
               >
-                {/* Header Row: Avatar, Name & UID */}
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-[#3f4d22] border border-[#657d2a] text-[#d9f99d] font-bold text-sm flex items-center justify-center shrink-0 shadow-inner">
-                    {initials || "RH"}
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white tracking-tight">{fullName}</h3>
-                    <p className="text-xs text-slate-400 font-mono">
-                      {user.uid || "M3J6XAB2Y2D"}
-                    </p>
+                {/* Header: Avatar Circle & Full Name */}
+                <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#1f2533]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#27351c] text-[#a3e635] border border-[#4d7c0f] font-black text-sm flex items-center justify-center shrink-0 shadow-md">
+                      {initials}
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-white tracking-tight group-hover:text-amber-300 transition-colors">
+                        {fullName}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 bg-[#1a2130] text-slate-300 rounded text-[10px] border border-slate-700/60 font-bold">
+                          UID: {user.uid || "CC89201XA"}
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Details Grid (Exact format from Screenshot 1 & 2) */}
-                <div className="space-y-2 text-xs border-t border-b border-[#262a37] py-3">
+                {/* Details Grid (Rows with Label & Value) */}
+                <div className="space-y-2.5 text-xs">
                   {/* CONTACT */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
                       CONTACT
                     </span>
-                    <div className="flex items-center gap-3 font-mono">
-                      <span className="text-white font-medium">{userEmail}</span>
-                      <span className="text-slate-400">{userPhone}</span>
+                    <div className="flex items-center gap-2 font-mono text-right truncate">
+                      <span className="text-white font-medium truncate" title={userEmail}>
+                        {userEmail}
+                      </span>
+                      <span className="text-slate-400 shrink-0">({userPhone})</span>
                     </div>
                   </div>
 
                   {/* LOCATION */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
                       LOCATION
                     </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-white font-medium">{userCity}</span>
-                      <span className="text-slate-400">{userCountry}</span>
+                    <div className="flex items-center gap-1.5 font-sans font-medium text-right">
+                      <span className="text-white">{userCity}</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-slate-300">{userCountry}</span>
                     </div>
                   </div>
 
                   {/* RATE */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
                       RATE
                     </span>
-                    <span className="text-white font-mono font-bold">
-                      {userRate.toFixed(4)}
+                    <span className="text-amber-300 font-mono font-bold">
+                      {userRate.toFixed(4)} <span className="text-[10px] text-slate-500 font-normal">/SMS</span>
                     </span>
                   </div>
 
                   {/* BALANCE */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
                       BALANCE
                     </span>
-                    <span className="text-white font-mono font-bold">
+                    <span className="text-emerald-400 font-mono font-black text-sm">
                       {formatUSD(userBalance)}
                     </span>
                   </div>
 
                   {/* LAST LOGIN */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
                       LAST LOGIN
                     </span>
-                    <span className="text-slate-400 font-mono">—</span>
+                    <span className="text-slate-300 font-mono">
+                      {formatRelativeTime(user.lastLogin)}
+                    </span>
                   </div>
 
                   {/* STATUS */}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">
                       STATUS
                     </span>
-                    <span className="px-3 py-1 rounded-full border border-yellow-500/80 bg-yellow-500/10 text-yellow-400 font-bold text-xs uppercase tracking-wider font-mono">
+                    <span
+                      className={`px-3 py-0.5 rounded-full font-black text-[10px] uppercase tracking-wider font-mono border ${
+                        isUserActive
+                          ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                          : "bg-amber-500/15 border-amber-500/40 text-amber-400"
+                      }`}
+                    >
                       {st}
                     </span>
                   </div>
                 </div>
 
-                {/* Bottom Action Buttons (Pencil, Help, Trash) */}
-                <div className="flex items-center justify-end gap-2 pt-1">
+                {/* Action Buttons: Edit (Pencil), Info/Help (Question mark), Delete (Trash) */}
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#1f2533]">
+                  {/* Edit Button */}
                   <button
                     onClick={() => handleOpenEditModal(user)}
-                    className="p-2.5 rounded-xl bg-[#202534] hover:bg-[#2a3042] text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
+                    className="p-2.5 rounded-xl bg-[#1c2230] hover:bg-[#252e42] text-slate-200 hover:text-white border border-slate-700/60 transition-all cursor-pointer shadow-sm"
                     title="Edit User Profile"
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil className="w-4 h-4 text-amber-400" />
                   </button>
+
+                  {/* Info / Help Button */}
                   <button
-                    className="p-2.5 rounded-xl bg-[#202534] hover:bg-[#2a3042] text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
-                    title="User Details"
+                    onClick={() => setInfoUser(user)}
+                    className="p-2.5 rounded-xl bg-[#1c2230] hover:bg-[#252e42] text-slate-200 hover:text-white border border-slate-700/60 transition-all cursor-pointer shadow-sm"
+                    title="User Details & Credentials"
                   >
-                    <HelpCircle className="w-4 h-4" />
+                    <HelpCircle className="w-4 h-4 text-sky-400" />
                   </button>
+
+                  {/* Delete Button */}
                   <button
                     onClick={() => {
-                      const updated = { ...user, accountStatus: "Soft-deleted" as any };
-                      onUpdateUser(updated);
+                      if (window.confirm(`Are you sure you want to soft-delete ${user.fullName}?`)) {
+                        const updated = { ...user, accountStatus: "Soft-deleted" as any };
+                        onUpdateUser(updated);
+                      }
                     }}
-                    className="p-2.5 rounded-xl bg-[#202534] hover:bg-[#2a3042] text-slate-200 border border-slate-700/60 transition-all cursor-pointer"
+                    className="p-2.5 rounded-xl bg-[#1c2230] hover:bg-[#252e42] text-slate-200 hover:text-white border border-slate-700/60 transition-all cursor-pointer shadow-sm"
                     title="Soft Delete User"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4 text-rose-400" />
                   </button>
                 </div>
               </div>
@@ -569,24 +665,23 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
         )}
       </div>
 
-      {/* ================= EDIT USER MODAL (EXACT MATCH SCREENSHOTS 3 & 4) ================= */}
+      {/* ================= EDIT USER MODAL ================= */}
       {editingUser && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-[#171a23] border border-[#262a37] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative my-8">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#262a37]">
-              <h2 className="text-base font-bold text-white">
+          <div className="bg-[#121620] border border-[#232838] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative my-8">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#232838] bg-[#0a0d14]">
+              <h2 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-amber-400" />
                 Edit User · {editingUser.fullName}
               </h2>
               <button
                 onClick={() => setEditingUser(null)}
-                className="w-8 h-8 rounded-xl bg-[#202534] text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-[#1c2230] text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {rateWarning && (
                 <div className="p-3 bg-amber-950/80 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-semibold flex items-center gap-2">
@@ -597,99 +692,99 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
 
               {/* FIRST NAME */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   FIRST NAME
                 </label>
                 <input
                   type="text"
                   value={editFirstName}
                   onChange={(e) => setEditFirstName(e.target.value)}
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
 
               {/* LAST NAME */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   LAST NAME
                 </label>
                 <input
                   type="text"
                   value={editLastName}
                   onChange={(e) => setEditLastName(e.target.value)}
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
 
               {/* EMAIL (READ-ONLY) */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   EMAIL (READ-ONLY)
                 </label>
                 <input
                   type="text"
                   value={editingUser.email}
                   disabled
-                  className="w-full bg-[#090b10] border border-[#1f232f] rounded-xl px-3.5 py-2.5 text-xs text-slate-400 font-mono cursor-not-allowed"
+                  className="w-full bg-[#07090e] border border-[#1a1f2c] rounded-xl px-3.5 py-2.5 text-xs text-slate-400 font-mono cursor-not-allowed"
                 />
               </div>
 
               {/* PHONE NUMBER */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   PHONE NUMBER
                 </label>
                 <input
                   type="text"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-yellow-400"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
                 />
               </div>
 
               {/* COUNTRY */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   COUNTRY
                 </label>
                 <input
                   type="text"
                   value={editCountry}
                   onChange={(e) => setEditCountry(e.target.value)}
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
 
               {/* CITY */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   CITY
                 </label>
                 <input
                   type="text"
                   value={editCity}
                   onChange={(e) => setEditCity(e.target.value)}
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
 
               {/* BALANCE (READ-ONLY) */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   BALANCE (READ-ONLY)
                 </label>
                 <input
                   type="text"
                   value={`$${(editingUser.balance || 0).toFixed(2)}`}
                   disabled
-                  className="w-full bg-[#090b10] border border-[#1f232f] rounded-xl px-3.5 py-2.5 text-xs text-slate-400 font-mono cursor-not-allowed"
+                  className="w-full bg-[#07090e] border border-[#1a1f2c] rounded-xl px-3.5 py-2.5 text-xs text-emerald-400 font-mono font-bold cursor-not-allowed"
                 />
               </div>
 
               {/* RATE */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  RATE
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  RATE (PER OTP SMS)
                 </label>
                 <input
                   type="number"
@@ -704,22 +799,22 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                       setRateWarning(null);
                     }
                   }}
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-yellow-400"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
                 />
                 <p className="text-[11px] text-slate-400 pt-0.5">
-                  Capped at your own rate ({agentOwnRate}).
+                  Assigned rate cap: {agentOwnRate}
                 </p>
               </div>
 
               {/* STATUS */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   STATUS
                 </label>
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value)}
-                  className="w-full bg-[#0d1017] border border-yellow-500/80 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-medium transition-all cursor-pointer"
+                  className="w-full bg-[#0a0d14] border border-amber-500/60 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-semibold cursor-pointer"
                 >
                   <option value="Active">Active</option>
                   <option value="Pending">Pending</option>
@@ -730,10 +825,10 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
 
               {/* API ACCESS PERMISSION */}
               <div className="space-y-1.5 pt-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   API ACCESS PERMISSION
                 </label>
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#0d1017] border border-[#262a37]">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#0a0d14] border border-[#232838]">
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-full ${editApiEnabled ? "bg-emerald-400 animate-pulse" : "bg-slate-600"}`} />
                     <span className={`text-xs font-bold font-mono ${editApiEnabled ? "text-emerald-400" : "text-slate-400"}`}>
@@ -749,51 +844,103 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                         : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30"
                     }`}
                   >
-                    {editApiEnabled ? "Revoke API Access" : "Grant API Access"}
+                    {editApiEnabled ? "Revoke API" : "Grant API"}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-400 leading-snug">
-                  Grant permission for this client to generate and use API keys for automated OTP dispatches.
-                </p>
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#262a37]">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#232838] bg-[#0a0d14]">
               <button
                 onClick={() => setEditingUser(null)}
-                className="px-4 py-2.5 rounded-xl bg-[#202534] hover:bg-[#282f42] text-slate-200 font-bold text-xs transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-[#1c2230] hover:bg-[#252e42] text-slate-200 font-bold text-xs cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveUser}
-                className="px-5 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shadow-md shadow-yellow-500/20 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer"
               >
-                <Save className="w-4 h-4" /> Save
+                <Save className="w-4 h-4" /> Save Changes
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= SEND INVITATION MODAL ================= */}
-      {showInviteModal && (
+      {/* ================= USER INFO / DETAILS MODAL ================= */}
+      {infoUser && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-[#171a23] border border-[#262a37] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative my-8">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#262a37]">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-yellow-400" /> Send Invitation
+          <div className="bg-[#121620] border border-[#232838] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative my-8">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#232838] bg-[#0a0d14]">
+              <h2 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Info className="w-4 h-4 text-sky-400" />
+                User Info · {infoUser.fullName}
               </h2>
               <button
-                onClick={() => setShowInviteModal(false)}
-                className="w-8 h-8 rounded-xl bg-[#202534] text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                onClick={() => setInfoUser(null)}
+                className="w-8 h-8 rounded-xl bg-[#1c2230] text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSendInvite} className="p-6 space-y-4">
+            <div className="p-6 space-y-3 text-xs">
+              <div className="p-3 bg-[#0a0d14] rounded-xl border border-[#232838] space-y-1.5 font-mono">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">UID:</span>
+                  <span className="text-white font-bold">{infoUser.uid || "N/A"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Telegram:</span>
+                  <span className="text-sky-300">{infoUser.telegram || "N/A"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Withdraw PIN:</span>
+                  <span className="text-amber-300">{infoUser.withdrawPin || "****"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Referral/Agent:</span>
+                  <span className="text-slate-200">{infoUser.referralEmail || agentEmail}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">API Key:</span>
+                  <span className="text-emerald-400 font-bold">
+                    {infoUser.apiKey ? "Generated (Active)" : "None"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end px-6 py-4 border-t border-[#232838] bg-[#0a0d14]">
+              <button
+                onClick={() => setInfoUser(null)}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ADD NEW USER MODAL ================= */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-[#121620] border border-[#232838] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative my-8">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#232838] bg-[#0a0d14]">
+              <h2 className="text-base font-extrabold text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-lime-400" /> Add New User
+              </h2>
+              <button
+                onClick={() => setShowInviteModal(false)}
+                className="w-8 h-8 rounded-xl bg-[#1c2230] text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewUserSubmit} className="p-6 space-y-4">
               {inviteSuccessMsg && (
                 <div className="p-3 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -801,8 +948,35 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                 </div>
               )}
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    FIRST NAME
+                  </label>
+                  <input
+                    type="text"
+                    value={inviteFirstName}
+                    onChange={(e) => setInviteFirstName(e.target.value)}
+                    placeholder="Crypto"
+                    className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    LAST NAME
+                  </label>
+                  <input
+                    type="text"
+                    value={inviteLastName}
+                    onChange={(e) => setInviteLastName(e.target.value)}
+                    placeholder="Comrade"
+                    className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   EMAIL ADDRESS
                 </label>
                 <input
@@ -810,33 +984,59 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                   required
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="dialer@example.com"
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400"
+                  placeholder="cryptocomrade1522@gmail.com"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   PHONE NUMBER
                 </label>
                 <input
                   type="text"
                   value={invitePhone}
                   onChange={(e) => setInvitePhone(e.target.value)}
-                  placeholder="01890423974"
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-yellow-400"
+                  placeholder="+8801703333600"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-amber-400"
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    CITY
+                  </label>
+                  <input
+                    type="text"
+                    value={inviteCity}
+                    onChange={(e) => setInviteCity(e.target.value)}
+                    className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    COUNTRY
+                  </label>
+                  <input
+                    type="text"
+                    value={inviteCountry}
+                    onChange={(e) => setInviteCountry(e.target.value)}
+                    className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  COUNTRY
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  PER-SMS RATE
                 </label>
                 <input
-                  type="text"
-                  value={inviteCountry}
-                  onChange={(e) => setInviteCountry(e.target.value)}
-                  className="w-full bg-[#0d1017] border border-[#262a37] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-400"
+                  type="number"
+                  step="0.0001"
+                  value={inviteRate}
+                  onChange={(e) => setInviteRate(e.target.value)}
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
                 />
               </div>
 
@@ -844,15 +1044,15 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowInviteModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-[#202534] hover:bg-[#282f42] text-slate-200 font-bold text-xs cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-[#1c2230] hover:bg-[#252e42] text-slate-200 font-bold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shadow-md shadow-yellow-500/20 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-[#d9f99d] hover:bg-[#bef264] text-slate-950 font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-md shadow-lime-500/20 cursor-pointer"
                 >
-                  <Send className="w-4 h-4" /> Send
+                  <Send className="w-4 h-4" /> Save User
                 </button>
               </div>
             </form>
