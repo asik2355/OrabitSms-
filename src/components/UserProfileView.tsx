@@ -112,19 +112,59 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       ): string => {
         const cleanSb = (sbName || "").trim();
         const cleanLoc = (locName || "").trim();
+        const emailLower = (emailAddr || "").toLowerCase().trim();
         const emailPrefix = emailAddr ? emailAddr.split("@")[0].toLowerCase() : "";
 
-        // Prefer non-empty full_name / fullName that isn't just the raw username prefix or telegram handle
-        if (cleanLoc && cleanLoc.toLowerCase() !== emailPrefix && !cleanLoc.startsWith("@")) {
+        const isOfficial =
+          emailLower === "official@orabitsms.xyz" ||
+          emailLower === "orabitsms@gmail.com" ||
+          emailLower.includes("official") ||
+          cleanLoc.toLowerCase() === "orabitsms" ||
+          cleanSb.toLowerCase() === "orabitsms";
+
+        if (isOfficial) {
+          if (
+            cleanLoc &&
+            cleanLoc.toLowerCase() !== "orabitsms" &&
+            cleanLoc.toLowerCase() !== emailPrefix &&
+            !cleanLoc.startsWith("@") &&
+            !cleanLoc.includes("@")
+          ) {
+            return cleanLoc;
+          }
+          if (
+            cleanSb &&
+            cleanSb.toLowerCase() !== "orabitsms" &&
+            cleanSb.toLowerCase() !== emailPrefix &&
+            !cleanSb.startsWith("@") &&
+            !cleanSb.includes("@")
+          ) {
+            return cleanSb;
+          }
+          return "ORABIT OFFICIAL";
+        }
+
+        if (
+          cleanLoc &&
+          cleanLoc.toLowerCase() !== emailPrefix &&
+          !cleanLoc.startsWith("@") &&
+          !cleanLoc.includes("@")
+        ) {
           return cleanLoc;
         }
-        if (cleanSb && cleanSb.toLowerCase() !== emailPrefix && !cleanSb.startsWith("@")) {
+        if (
+          cleanSb &&
+          cleanSb.toLowerCase() !== emailPrefix &&
+          !cleanSb.startsWith("@") &&
+          !cleanSb.includes("@")
+        ) {
           return cleanSb;
         }
-        if (cleanLoc) return cleanLoc;
-        if (cleanSb) return cleanSb;
-        if (emailAddr) return `Agent (${emailAddr.split("@")[0]})`;
-        return "Authorized Agent";
+        if (emailAddr) {
+          const prefix = emailAddr.split("@")[0];
+          return prefix.charAt(0).toUpperCase() + prefix.slice(1) + " Agent";
+        }
+        return "ORABIT OFFICIAL";
       };
 
       // 1. Find agent match in local registered users
@@ -561,7 +601,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               {/* Agent Name */}
               <div className="space-y-1 text-center">
                 <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  {assignedAgent.fullName}
+                  {assignedAgent.fullName &&
+                  assignedAgent.fullName.toLowerCase() !== "orabitsms" &&
+                  !assignedAgent.fullName.toLowerCase().includes("orabitsms@")
+                    ? assignedAgent.fullName
+                    : "ORABIT OFFICIAL"}
                 </h4>
 
                 {/* VERIFIED AGENT Badge */}

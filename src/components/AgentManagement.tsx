@@ -338,6 +338,20 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       agEmail === "orabitsms@gmail.com"
     );
 
+    const otherAgentsSet = new Set<string>();
+    agentList.forEach((ag) => {
+      const e = ag.email.toLowerCase().trim();
+      const isAgOfficial =
+        ag.isOfficial ||
+        e === "official@orabitsms.xyz" ||
+        e === "orabitsms@gmail.com" ||
+        (officialClean && e === officialClean);
+      if (!isAgOfficial) {
+        otherAgentsSet.add(e);
+        if ((ag as any).referralCode) otherAgentsSet.add((ag as any).referralCode.toLowerCase().trim());
+      }
+    });
+
     return allUsers.filter((u) => {
       const userRole = (u.role || "").toLowerCase().trim();
       if (userRole === "agent" || userRole === "owner") return false;
@@ -347,23 +361,25 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       const uReferredByAgent = (u.referredByAgentEmail || "").toLowerCase().trim();
       const uAssignedAgent = ((u as any).assignedAgent || (u as any).assigned_agent || "").toLowerCase().trim();
 
-      const matchesExplicit =
+      const assignedToThis =
         uRefEmail === agEmail ||
         uReferredBy === agEmail ||
         uReferredByAgent === agEmail ||
         uAssignedAgent === agEmail ||
-        (agent.referralCode && (uRefEmail === agent.referralCode.toLowerCase() || uReferredBy === agent.referralCode.toLowerCase()));
+        ((agent as any).referralCode &&
+          (uRefEmail === (agent as any).referralCode.toLowerCase() ||
+            uReferredBy === (agent as any).referralCode.toLowerCase()));
 
-      if (matchesExplicit) return true;
+      if (assignedToThis) return true;
 
-      // Official agent receives unreferred / default clients (where assigned_agent / referral is null, empty or undefined)
       if (isOfficialAg) {
-        const isUnreferred =
-          (!uRefEmail || uRefEmail === "orabitsms@gmail.com" || uRefEmail === "official@orabitsms.xyz") &&
-          !uReferredBy &&
-          !uReferredByAgent &&
-          (!uAssignedAgent || uAssignedAgent === "orabitsms@gmail.com" || uAssignedAgent === "official@orabitsms.xyz");
-        return isUnreferred;
+        const isAssignedToOther =
+          (uRefEmail && otherAgentsSet.has(uRefEmail)) ||
+          (uReferredBy && otherAgentsSet.has(uReferredBy)) ||
+          (uReferredByAgent && otherAgentsSet.has(uReferredByAgent)) ||
+          (uAssignedAgent && otherAgentsSet.has(uAssignedAgent));
+
+        return !isAssignedToOther;
       }
 
       return false;
@@ -456,6 +472,29 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         agEmail === "orabitsms@gmail.com"
       );
 
+      const otherAgentEmails = new Set<string>();
+      agentList.forEach((ag) => {
+        const e = ag.email.toLowerCase().trim();
+        const isAgOfficial =
+          ag.isOfficial ||
+          e === "official@orabitsms.xyz" ||
+          e === "orabitsms@gmail.com" ||
+          (officialEmailStr && e === officialEmailStr);
+        if (!isAgOfficial) {
+          otherAgentEmails.add(e);
+          if ((ag as any).referralCode) otherAgentEmails.add((ag as any).referralCode.toLowerCase().trim());
+        }
+      });
+
+      const isClientOfViewingAgent = (userEmail?: string | null) => {
+        const clean = (userEmail || "").toLowerCase().trim();
+        if (isOfficialAg) {
+          if (!clean) return true;
+          return !otherAgentEmails.has(clean);
+        }
+        return clean ? clientEmails.has(clean) : false;
+      };
+
       if (isOfficialAg) {
         try {
           const { data: dbProfiles } = await supabase
@@ -467,13 +506,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
               const uRole = (u.role || "").toLowerCase().trim();
               if (uRole !== "agent" && uRole !== "owner" && u.email) {
                 const em = u.email.toLowerCase().trim();
-                const assigned = (u.assigned_agent || u.referral_email || u.referred_by || "").toLowerCase().trim();
-                const isAssignedToOtherAgent = agentList.some((ag) => {
-                  const e = ag.email.toLowerCase().trim();
-                  return e !== agEmail && (assigned === e || (ag.referralCode && assigned === ag.referralCode.toLowerCase().trim()));
-                });
-
-                if (!isAssignedToOtherAgent) {
+                if (isClientOfViewingAgent(em)) {
                   clientEmails.add(em);
                 }
               }
@@ -513,10 +546,8 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         if (seenFeedKeys.has(fKey)) return;
         seenFeedKeys.add(fKey);
 
-        const fEmail = (f.userEmail || f.email || "").toLowerCase().trim();
-        const isMatch = fEmail ? clientEmails.has(fEmail) : false;
-
-        if (isMatch) {
+        const fEmail = f.userEmail || f.email || "";
+        if (isClientOfViewingAgent(fEmail)) {
           const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
           const isFail = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
           if (isSuccess && !isFail) {
@@ -526,97 +557,89 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         }
       });
 
-      // Query Supabase daily_stats strictly for client emails (no date filter = lifetime SUM)
+      // Query Supabase daily_stats for agent clients
       let dbOtpsCount = 0;
       let dbRevCount = 0;
       try {
-        if (clientEmails.size > 0) {
-          const emailArr = Array.from(clientEmails);
-          const { data: dbStats } = await supabase
-            .from("daily_stats")
-            .select("total_otps, total_revenue, user_email")
-            .in("user_email", emailArr);
+        const { data: dbStats } = await supabase
+          .from("daily_stats")
+          .select("total_otps, total_revenue, user_email");
 
-          if (dbStats && Array.isArray(dbStats)) {
-            dbStats.forEach((st) => {
-              const stEmail = (st.user_email || "").toLowerCase().trim();
-              if (stEmail && clientEmails.has(stEmail)) {
-                dbOtpsCount += Number(st.total_otps || 0);
-                dbRevCount += Number(st.total_revenue || 0);
-              }
-            });
-          }
+        if (dbStats && Array.isArray(dbStats)) {
+          dbStats.forEach((st) => {
+            if (isClientOfViewingAgent(st.user_email)) {
+              dbOtpsCount += Number(st.total_otps || 0);
+              dbRevCount += Number(st.total_revenue || 0);
+            }
+          });
         }
       } catch (e) {
         console.warn("Notice fetching dbStats for agent clients:", e);
       }
 
-      // Query Supabase user_feed_numbers strictly for client emails
+      // Query Supabase user_feed_numbers
       let supabaseUserFeedCount = 0;
       try {
-        if (clientEmails.size > 0) {
-          const emailArr = Array.from(clientEmails);
-          const { count } = await supabase
-            .from("user_feed_numbers")
-            .select("*", { count: "exact", head: true })
-            .in("status", ["SUCCESS", "MULTI SUCCESS", "success"])
-            .in("user_email", emailArr);
+        const { data: userFeeds } = await supabase
+          .from("user_feed_numbers")
+          .select("user_email, status")
+          .in("status", ["SUCCESS", "MULTI SUCCESS", "success"]);
 
-          if (typeof count === "number") {
-            supabaseUserFeedCount = count;
-          }
+        if (userFeeds && Array.isArray(userFeeds)) {
+          userFeeds.forEach((uf) => {
+            if (isClientOfViewingAgent(uf.user_email)) {
+              supabaseUserFeedCount++;
+            }
+          });
         }
       } catch (e) {}
 
-      // Query Supabase otp_logs strictly for client emails
+      // Query Supabase otp_logs
       let otpLogsCount = 0;
       try {
-        if (clientEmails.size > 0) {
-          const emailArr = Array.from(clientEmails);
-          const { count } = await supabase
-            .from("otp_logs")
-            .select("*", { count: "exact", head: true })
-            .ilike("status", "%success%")
-            .in("user_email", emailArr);
+        const { data: logsData } = await supabase
+          .from("otp_logs")
+          .select("user_email, status")
+          .ilike("status", "%success%");
 
-          if (typeof count === "number") {
-            otpLogsCount = count;
-          }
+        if (logsData && Array.isArray(logsData)) {
+          logsData.forEach((lg) => {
+            if (isClientOfViewingAgent(lg.user_email)) {
+              otpLogsCount++;
+            }
+          });
         }
       } catch (e) {}
 
       // Client totalSuccess sums from local state
       let sumClientTotalSuccess = 0;
-      referredClients.forEach((c) => {
+      registeredUsers.forEach((c) => {
         const uRole = (c.role || "").toLowerCase();
         if (uRole !== "agent" && uRole !== "owner") {
-          if (typeof c.totalSuccess === "number" && c.totalSuccess > 0) {
-            sumClientTotalSuccess += c.totalSuccess;
+          if (isClientOfViewingAgent(c.email)) {
+            if (typeof c.totalSuccess === "number" && c.totalSuccess > 0) {
+              sumClientTotalSuccess += c.totalSuccess;
+            }
           }
         }
       });
 
-      // Query Supabase user_profiles strictly for client emails
+      // Query Supabase user_profiles
       let dbUserProfilesSuccessSum = 0;
       try {
-        if (clientEmails.size > 0) {
-          const emailArr = Array.from(clientEmails);
-          const { data: dbUsers } = await supabase
-            .from("user_profiles")
-            .select("total_success, role, email")
-            .in("email", emailArr);
+        const { data: dbUsers } = await supabase
+          .from("user_profiles")
+          .select("total_success, role, email");
 
-          if (dbUsers && Array.isArray(dbUsers)) {
-            dbUsers.forEach((u) => {
-              const uRole = (u.role || "").toLowerCase();
-              const uEmail = (u.email || "").toLowerCase().trim();
-              if (uRole !== "agent" && uRole !== "owner") {
-                if (uEmail && clientEmails.has(uEmail)) {
-                  dbUserProfilesSuccessSum += Number(u.total_success || 0);
-                }
+        if (dbUsers && Array.isArray(dbUsers)) {
+          dbUsers.forEach((u) => {
+            const uRole = (u.role || "").toLowerCase();
+            if (uRole !== "agent" && uRole !== "owner") {
+              if (isClientOfViewingAgent(u.email)) {
+                dbUserProfilesSuccessSum += Number(u.total_success || 0);
               }
-            });
-          }
+            }
+          });
         }
       } catch (e) {}
 
