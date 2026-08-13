@@ -95,21 +95,74 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         ""
       ).toLowerCase().trim();
 
+      const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "").toLowerCase().trim();
+
+      // Read local registered users list for name cross-matching
+      let localList: UserProfile[] = [];
+      try {
+        const stored = localStorage.getItem("orabit_registered_users");
+        if (stored) localList = JSON.parse(stored);
+      } catch (e) {}
+
+      // Helper to determine the best full name
+      const getBestAgentName = (
+        sbName?: string | null,
+        locName?: string | null,
+        emailAddr?: string
+      ): string => {
+        const cleanSb = (sbName || "").trim();
+        const cleanLoc = (locName || "").trim();
+        const emailPrefix = emailAddr ? emailAddr.split("@")[0].toLowerCase() : "";
+
+        // Prefer non-empty full_name / fullName that isn't just the raw username prefix or telegram handle
+        if (cleanLoc && cleanLoc.toLowerCase() !== emailPrefix && !cleanLoc.startsWith("@")) {
+          return cleanLoc;
+        }
+        if (cleanSb && cleanSb.toLowerCase() !== emailPrefix && !cleanSb.startsWith("@")) {
+          return cleanSb;
+        }
+        if (cleanLoc) return cleanLoc;
+        if (cleanSb) return cleanSb;
+        if (emailAddr) return `Agent (${emailAddr.split("@")[0]})`;
+        return "Authorized Agent";
+      };
+
+      // 1. Find agent match in local registered users
+      let localAgentMatch = localList.find(
+        (u) =>
+          (u.role?.toLowerCase() === "agent" || u.role?.toLowerCase() === "owner") &&
+          (u.email.toLowerCase().trim() === refEmail ||
+            u.referralEmail?.toLowerCase().trim() === refEmail)
+      );
+
+      if (!localAgentMatch && officialEmail) {
+        localAgentMatch = localList.find(
+          (u) => u.email.toLowerCase().trim() === officialEmail
+        );
+      }
+
+      if (!localAgentMatch) {
+        localAgentMatch =
+          localList.find((u) => u.isOfficial && u.role?.toLowerCase() === "agent") ||
+          localList.find((u) => u.role?.toLowerCase() === "agent");
+      }
+
+      const targetEmail = localAgentMatch?.email.toLowerCase().trim() || refEmail;
       let matchedAgent: { fullName: string; telegramUsername: string; email: string } | null = null;
 
-      // 1. Try querying Supabase user_profiles table for exact refEmail
-      if (refEmail) {
+      // 2. Fetch latest user_profiles from Supabase for target email
+      if (targetEmail) {
         try {
           const { data } = await supabase
             .from("user_profiles")
             .select("full_name, telegram, email, role")
-            .ilike("email", refEmail)
+            .ilike("email", targetEmail)
             .maybeSingle();
 
           if (data && data.email) {
             matchedAgent = {
-              fullName: data.full_name || `Agent (${data.email.split("@")[0]})`,
-              telegramUsername: data.telegram || "",
+              fullName: getBestAgentName(data.full_name, localAgentMatch?.fullName, data.email),
+              telegramUsername: data.telegram || localAgentMatch?.telegram || "",
               email: data.email,
             };
           }
@@ -118,55 +171,29 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         }
       }
 
-      // 2. Search local storage registered users
-      if (!matchedAgent) {
-        try {
-          const stored = localStorage.getItem("orabit_registered_users");
-          if (stored) {
-            const list: UserProfile[] = JSON.parse(stored);
-            let agentAcc: UserProfile | undefined = undefined;
-
-            if (refEmail) {
-              agentAcc = list.find(
-                (u) =>
-                  (u.role?.toLowerCase() === "agent" || u.role?.toLowerCase() === "owner") &&
-                  (u.email.toLowerCase().trim() === refEmail ||
-                    u.referralEmail?.toLowerCase().trim() === refEmail ||
-                    u.fullName?.toLowerCase().trim() === refEmail)
-              );
-            }
-
-            // Fallback to first registered agent if no exact match
-            if (!agentAcc) {
-              agentAcc = list.find((u) => u.role?.toLowerCase() === "agent");
-            }
-
-            if (agentAcc) {
-              matchedAgent = {
-                fullName: agentAcc.fullName || `Agent (${agentAcc.email.split("@")[0]})`,
-                telegramUsername: agentAcc.telegram || "",
-                email: agentAcc.email,
-              };
-            }
-          }
-        } catch (e) {
-          console.warn("Error reading local registered users:", e);
-        }
+      // 3. Fallback to local match if Supabase didn't return a record
+      if (!matchedAgent && localAgentMatch) {
+        matchedAgent = {
+          fullName: getBestAgentName(null, localAgentMatch.fullName, localAgentMatch.email),
+          telegramUsername: localAgentMatch.telegram || "",
+          email: localAgentMatch.email,
+        };
       }
 
-      // 3. Fallback: Query Supabase for any user with role = 'agent'
+      // 4. Fallback: Query Supabase for any official or registered agent
       if (!matchedAgent) {
         try {
           const { data } = await supabase
             .from("user_profiles")
             .select("full_name, telegram, email")
             .ilike("role", "agent")
+            .order("is_official", { ascending: false })
             .limit(1)
             .maybeSingle();
 
           if (data && data.email) {
             matchedAgent = {
-              fullName: data.full_name || `Agent (${data.email.split("@")[0]})`,
+              fullName: getBestAgentName(data.full_name, null, data.email),
               telegramUsername: data.telegram || "",
               email: data.email,
             };
@@ -176,7 +203,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         }
       }
 
-      // If no agent matched, matchedAgent remains null
       if (isMounted) {
         setAssignedAgent(matchedAgent);
         setIsLoadingAgent(false);

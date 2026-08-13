@@ -323,37 +323,94 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     });
   };
 
+  // Helper function to calculate referred clients for an agent with 100% table & modal sync
+  const getReferredClientsForAgent = (
+    agent: UserProfile,
+    allUsers: UserProfile[],
+    officialEmailStr: string
+  ): UserProfile[] => {
+    const agEmail = agent.email.toLowerCase().trim();
+    const isOfficialAg = Boolean(
+      agent.isOfficial || (officialEmailStr && officialEmailStr === agEmail)
+    );
+
+    return allUsers.filter((u) => {
+      const userRole = (u.role || "").toLowerCase().trim();
+      if (userRole === "agent" || userRole === "owner") return false;
+
+      const uRefEmail = (u.referralEmail || "").toLowerCase().trim();
+      const uReferredBy = (u.referredBy || "").toLowerCase().trim();
+      const uReferredByAgent = (u.referredByAgentEmail || "").toLowerCase().trim();
+
+      const matchesExplicit =
+        uRefEmail === agEmail || uReferredBy === agEmail || uReferredByAgent === agEmail;
+
+      if (matchesExplicit) return true;
+
+      // Official agent receives unreferred / default clients
+      if (isOfficialAg) {
+        const isUnreferred = !uRefEmail && !uReferredBy && !uReferredByAgent;
+        return isUnreferred;
+      }
+
+      return false;
+    });
+  };
+
+  // Open View Modal Handler with Instant Clean State Init
+  const handleOpenViewModal = (agent: UserProfile) => {
+    const officialEmailStr = officialAgent?.email?.toLowerCase().trim() || "";
+    const referredClients = getReferredClientsForAgent(agent, registeredUsers, officialEmailStr);
+
+    setViewingAgent(agent);
+    setViewStats({
+      currentBalance: typeof agent.balance === "number" ? agent.balance : 0,
+      lifetimeTotalBalance: typeof agent.balance === "number" ? agent.balance : 0,
+      totalUsers: referredClients.length,
+      lifetimeTotalOtp: typeof agent.totalSuccess === "number" ? agent.totalSuccess : 0,
+      usersActiveApi: referredClients.filter((c) => Boolean(c.apiKey && c.apiKey.trim().length > 0)).length,
+      isLoading: true,
+    });
+  };
+
+  // Close View Modal Handler with Complete Reset
+  const handleCloseViewModal = () => {
+    setViewingAgent(null);
+    setViewStats({
+      currentBalance: 0,
+      lifetimeTotalBalance: 0,
+      totalUsers: 0,
+      lifetimeTotalOtp: 0,
+      usersActiveApi: 0,
+      isLoading: false,
+    });
+  };
+
   // Load View Modal Details and Supabase Statistics
   useEffect(() => {
     if (!viewingAgent) return;
 
     let isMounted = true;
     const loadAgentStats = async () => {
-      setViewStats((prev) => ({ ...prev, isLoading: true }));
-
       const agEmail = viewingAgent.email.toLowerCase().trim();
-      const agCode = (viewingAgent.referralEmail || viewingAgent.referralCode || "").toLowerCase().trim();
+      const officialEmailStr = officialAgent?.email?.toLowerCase().trim() || "";
 
-      // 1. Referred clients
-      const referredClients = registeredUsers.filter((u) => {
-        const refEmail = (u.referralEmail || u.referredBy || u.referredByAgentEmail || "").toLowerCase().trim();
-        return (
-          refEmail === agEmail ||
-          (agCode && (refEmail === agCode || u.referredBy?.trim().toLowerCase() === agCode))
-        );
-      });
-
+      // 1. Get referred clients strictly using unified logic
+      const referredClients = getReferredClientsForAgent(
+        viewingAgent,
+        registeredUsers,
+        officialEmailStr
+      );
       const totalUsers = referredClients.length;
 
       // 2. Users Active API count
       const usersActiveApi = referredClients.filter(
-        (c) => c.apiKey && c.apiKey.trim().length > 0
+        (c) => Boolean(c.apiKey && c.apiKey.trim().length > 0)
       ).length;
 
       // 3. Current balance from agent profile or Supabase
-      let currentBal = viewingAgent.balance || 0;
-      let totalSuccessOtps = viewingAgent.totalSuccess || 0;
-      let totalEarnedUSD = 0;
+      let currentBal = typeof viewingAgent.balance === "number" ? viewingAgent.balance : 0;
+      let agentProfileTotalSuccess = typeof viewingAgent.totalSuccess === "number" ? viewingAgent.totalSuccess : 0;
 
       try {
         const { data: dbProfile } = await supabase
@@ -364,22 +421,54 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
         if (dbProfile) {
           if (typeof dbProfile.balance === "number") currentBal = dbProfile.balance;
-          if (typeof dbProfile.total_success === "number") totalSuccessOtps = dbProfile.total_success;
+          if (typeof dbProfile.total_success === "number") agentProfileTotalSuccess = dbProfile.total_success;
         }
       } catch (e) {
         console.warn("View agent profile query notice:", e);
       }
 
-      // 4. Calculate Lifetime OTPs across all clients of this agent
+      // 4. Calculate Lifetime OTPs strictly for clients of this specific agent
       const clientEmails = new Set<string>();
       clientEmails.add(agEmail);
-      referredClients.forEach((c) => clientEmails.add(c.email.toLowerCase().trim()));
+      if (viewingAgent.referralEmail) clientEmails.add(viewingAgent.referralEmail.toLowerCase().trim());
 
-      // Calculate feeds OTPs
+      referredClients.forEach((c) => {
+        if (c.email) clientEmails.add(c.email.toLowerCase().trim());
+      });
+
+      // Collect local feeds from localStorage keys
+      const allLocalFeeds: FeedNumber[] = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith("orabit_feed_numbers") || key.includes("feed_numbers"))) {
+            const item = localStorage.getItem(key);
+            if (item) {
+              const parsed = JSON.parse(item);
+              if (Array.isArray(parsed)) {
+                allLocalFeeds.push(...parsed);
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (feedNumbers && feedNumbers.length > 0) {
+        allLocalFeeds.push(...feedNumbers);
+      }
+
       let feedOtpsCount = 0;
-      feedNumbers.forEach((f) => {
+      const seenFeedKeys = new Set<string>();
+
+      allLocalFeeds.forEach((f) => {
+        const fKey = f.id || `${f.number}_${f.requestedAt}_${f.status}`;
+        if (seenFeedKeys.has(fKey)) return;
+        seenFeedKeys.add(fKey);
+
         const fEmail = (f.userEmail || f.email || "").toLowerCase().trim();
-        if (clientEmails.has(fEmail)) {
+        const isMatch = fEmail ? clientEmails.has(fEmail) : false;
+
+        if (isMatch) {
           const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
           const isFail = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
           if (isSuccess && !isFail) {
@@ -389,42 +478,120 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
         }
       });
 
-      // Also query Supabase daily_stats for all clients
+      // Query Supabase daily_stats strictly for client emails (no date filter = lifetime SUM)
+      let dbOtpsCount = 0;
+      let dbRevCount = 0;
       try {
-        const allStats = await fetchDailyStatsFromSupabase();
-        let dbOtpsCount = 0;
-        let dbRevCount = 0;
-        allStats.forEach((st) => {
-          if (st.user_email && clientEmails.has(st.user_email.toLowerCase().trim())) {
-            dbOtpsCount += st.total_otps || 0;
-            dbRevCount += st.total_revenue || 0;
+        if (clientEmails.size > 0) {
+          const emailArr = Array.from(clientEmails);
+          const { data: dbStats } = await supabase
+            .from("daily_stats")
+            .select("total_otps, total_revenue, user_email")
+            .in("user_email", emailArr);
+
+          if (dbStats && Array.isArray(dbStats)) {
+            dbStats.forEach((st) => {
+              const stEmail = (st.user_email || "").toLowerCase().trim();
+              if (stEmail && clientEmails.has(stEmail)) {
+                dbOtpsCount += Number(st.total_otps || 0);
+                dbRevCount += Number(st.total_revenue || 0);
+              }
+            });
           }
-        });
-
-        const finalOtps = Math.max(feedOtpsCount, dbOtpsCount, totalSuccessOtps);
-        totalEarnedUSD = dbRevCount > 0 ? dbRevCount : finalOtps * 0.05; // calculate approx lifetime revenue
-
-        if (isMounted) {
-          setViewStats({
-            currentBalance: currentBal,
-            lifetimeTotalBalance: currentBal + totalEarnedUSD,
-            totalUsers: totalUsers,
-            lifetimeTotalOtp: finalOtps,
-            usersActiveApi: usersActiveApi,
-            isLoading: false,
-          });
         }
       } catch (e) {
-        if (isMounted) {
-          setViewStats({
-            currentBalance: currentBal,
-            lifetimeTotalBalance: currentBal,
-            totalUsers: totalUsers,
-            lifetimeTotalOtp: Math.max(feedOtpsCount, totalSuccessOtps),
-            usersActiveApi: usersActiveApi,
-            isLoading: false,
-          });
+        console.warn("Notice fetching dbStats for agent clients:", e);
+      }
+
+      // Query Supabase user_feed_numbers strictly for client emails
+      let supabaseUserFeedCount = 0;
+      try {
+        if (clientEmails.size > 0) {
+          const emailArr = Array.from(clientEmails);
+          const { count } = await supabase
+            .from("user_feed_numbers")
+            .select("*", { count: "exact", head: true })
+            .in("status", ["SUCCESS", "MULTI SUCCESS", "success"])
+            .in("user_email", emailArr);
+
+          if (typeof count === "number") {
+            supabaseUserFeedCount = count;
+          }
         }
+      } catch (e) {}
+
+      // Query Supabase otp_logs strictly for client emails
+      let otpLogsCount = 0;
+      try {
+        if (clientEmails.size > 0) {
+          const emailArr = Array.from(clientEmails);
+          const { count } = await supabase
+            .from("otp_logs")
+            .select("*", { count: "exact", head: true })
+            .ilike("status", "%success%")
+            .in("user_email", emailArr);
+
+          if (typeof count === "number") {
+            otpLogsCount = count;
+          }
+        }
+      } catch (e) {}
+
+      // Client totalSuccess sums from local state
+      let sumClientTotalSuccess = 0;
+      referredClients.forEach((c) => {
+        const uRole = (c.role || "").toLowerCase();
+        if (uRole !== "agent" && uRole !== "owner") {
+          if (typeof c.totalSuccess === "number" && c.totalSuccess > 0) {
+            sumClientTotalSuccess += c.totalSuccess;
+          }
+        }
+      });
+
+      // Query Supabase user_profiles strictly for client emails
+      let dbUserProfilesSuccessSum = 0;
+      try {
+        if (clientEmails.size > 0) {
+          const emailArr = Array.from(clientEmails);
+          const { data: dbUsers } = await supabase
+            .from("user_profiles")
+            .select("total_success, role, email")
+            .in("email", emailArr);
+
+          if (dbUsers && Array.isArray(dbUsers)) {
+            dbUsers.forEach((u) => {
+              const uRole = (u.role || "").toLowerCase();
+              const uEmail = (u.email || "").toLowerCase().trim();
+              if (uRole !== "agent" && uRole !== "owner") {
+                if (uEmail && clientEmails.has(uEmail)) {
+                  dbUserProfilesSuccessSum += Number(u.total_success || 0);
+                }
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      const finalOtps = Math.max(
+        feedOtpsCount,
+        dbOtpsCount,
+        supabaseUserFeedCount,
+        sumClientTotalSuccess,
+        dbUserProfilesSuccessSum,
+        otpLogsCount,
+        agentProfileTotalSuccess
+      );
+      const totalEarnedUSD = dbRevCount > 0 ? dbRevCount : finalOtps * 0.05;
+
+      if (isMounted) {
+        setViewStats({
+          currentBalance: currentBal,
+          lifetimeTotalBalance: currentBal + totalEarnedUSD,
+          totalUsers: totalUsers,
+          lifetimeTotalOtp: finalOtps,
+          usersActiveApi: usersActiveApi,
+          isLoading: false,
+        });
       }
     };
 
@@ -433,7 +600,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [viewingAgent, registeredUsers, feedNumbers]);
+  }, [viewingAgent, registeredUsers, feedNumbers, officialAgent]);
 
   // Handle Edit Agent Modal Submit
   const handleEditAgentSubmit = async (e: React.FormEvent) => {
@@ -802,9 +969,9 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
                 </tr>
               ) : (
                 agentList.map((agent) => {
-                  const referredCount = registeredUsers.filter(
-                    (cl) => cl.referralEmail?.toLowerCase().trim() === agent.email.toLowerCase().trim()
-                  ).length;
+                  const officialEmailStr = officialAgent?.email?.toLowerCase().trim() || "";
+                  const referredClients = getReferredClientsForAgent(agent, registeredUsers, officialEmailStr);
+                  const referredCount = referredClients.length;
                   const isOfficialAg = Boolean(
                     agent.isOfficial ||
                       (officialAgent && officialAgent.email.toLowerCase().trim() === agent.email.toLowerCase().trim())
@@ -851,7 +1018,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
                         <div className="flex items-center justify-center gap-1.5">
                           {/* 1. View Button */}
                           <button
-                            onClick={() => setViewingAgent(agent)}
+                            onClick={() => handleOpenViewModal(agent)}
                             className="p-1.5 px-2 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
                             title="View Agent Details"
                           >
@@ -933,7 +1100,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
                 </div>
               </div>
               <button
-                onClick={() => setViewingAgent(null)}
+                onClick={handleCloseViewModal}
                 className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
               >
                 <X className="w-4 h-4" />
@@ -1017,7 +1184,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
             <div className="flex justify-end pt-2 border-t border-slate-800/80">
               <button
-                onClick={() => setViewingAgent(null)}
+                onClick={handleCloseViewModal}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all"
               >
                 Close
