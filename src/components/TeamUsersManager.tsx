@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { formatUSD } from "../lib/storageUtils";
-import { supabase } from "../lib/supabase";
-import { saveUserProfileToSupabase } from "../lib/userProfiles";
 import {
   Users,
   CheckCircle2,
@@ -109,190 +107,21 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   const [inviteRate, setInviteRate] = useState<string>("0.0070");
   const [inviteSuccessMsg, setInviteSuccessMsg] = useState<string | null>(null);
 
-  // Live Supabase User Profiles state
-  const [supabaseUsers, setSupabaseUsers] = useState<UserProfile[]>([]);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function loadSupabaseUsers() {
-      try {
-        const { data, error } = await supabase.from("user_profiles").select("*");
-        if (!error && data && Array.isArray(data) && isMounted) {
-          const mapped: UserProfile[] = data.map((d: any) => {
-            const fullNameStr = d.full_name || d.fullName || (d.email ? d.email.split("@")[0] : "User");
-            const parts = fullNameStr.split(" ");
-            const first = parts[0] || "User";
-            const last = parts.slice(1).join(" ") || "";
-            return {
-              firstName: first,
-              lastName: last,
-              fullName: fullNameStr,
-              email: (d.email || "").toLowerCase().trim(),
-              mobileNumber: d.mobile_number || d.mobileNumber || "",
-              telegram: d.telegram || "",
-              withdrawPin: d.withdraw_pin || d.withdrawPin || "",
-              country: d.country || "Bangladesh",
-              city: d.city || "",
-              uid: d.uid || (d.email ? d.email.substring(0, 8).toUpperCase() : "UID123"),
-              balance: Number(d.balance || 0),
-              customOtpRate: Number(d.custom_otp_rate ?? d.rate ?? 0.0070),
-              rate: Number(d.rate ?? d.custom_otp_rate ?? 0.0070),
-              accountStatus: d.account_status || d.accountStatus || "Active",
-              referralEmail: (d.referral_email || d.assigned_agent || d.referred_by || "").toLowerCase().trim(),
-              assignedAgent: (d.assigned_agent || d.referral_email || "").toLowerCase().trim(),
-              role: d.role || "Client",
-              apiEnabled: !!(d.api_enabled || d.api_key),
-              apiKey: d.api_key || "",
-              lastLogin: d.updated_at || d.created_at || new Date().toISOString(),
-            };
-          });
-          setSupabaseUsers(mapped);
-        }
-      } catch (err) {
-        console.error("Error fetching user_profiles in TeamUsersManager:", err);
-      }
-    }
-    loadSupabaseUsers();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Merge passed prop users + live Supabase users + localStorage users
-  const combinedUsers = useMemo(() => {
-    const map = new Map<string, UserProfile>();
-
-    // 1. Add users from props
-    (users || []).forEach((u) => {
-      if (u && u.email) map.set(u.email.toLowerCase().trim(), u);
-    });
-
-    // 2. Add / merge Supabase users
-    supabaseUsers.forEach((u) => {
-      if (u && u.email) {
-        const clean = u.email.toLowerCase().trim();
-        if (!map.has(clean)) {
-          map.set(clean, u);
-        } else {
-          const existing = map.get(clean)!;
-          map.set(clean, {
-            ...existing,
-            ...u,
-            balance: u.balance !== undefined ? u.balance : existing.balance,
-            customOtpRate: u.customOtpRate !== undefined ? u.customOtpRate : existing.customOtpRate,
-            accountStatus: u.accountStatus || existing.accountStatus,
-          });
-        }
-      }
-    });
-
-    // 3. Add from localStorage 'orabit_registered_users'
-    try {
-      const stored = localStorage.getItem("orabit_registered_users");
-      if (stored) {
-        const localList: UserProfile[] = JSON.parse(stored);
-        if (Array.isArray(localList)) {
-          localList.forEach((u) => {
-            if (u && u.email) {
-              const clean = u.email.toLowerCase().trim();
-              if (!map.has(clean)) {
-                map.set(clean, u);
-              }
-            }
-          });
-        }
-      }
-    } catch (e) {}
-
-    return Array.from(map.values());
-  }, [users, supabaseUsers]);
-
   // Filter list of users for this agent / owner
   const myReferredUsers = useMemo(() => {
-    // OWNER: Owner management includes ALL users in the entire system!
-    if (isOwner) {
-      if (combinedUsers.length === 0) {
-        const demoUsers: UserProfile[] = [
-          {
-            firstName: "Crypto",
-            lastName: "Comrade",
-            fullName: "Crypto Comrade",
-            email: "cryptocomrade1522@gmail.com",
-            mobileNumber: "+8801703333600",
-            telegram: "@cryptocomrade",
-            withdrawPin: "1234",
-            country: "Bangladesh",
-            city: "Pirojpur",
-            uid: "CC89201XA",
-            balance: 0.0,
-            customOtpRate: 0.0070,
-            rate: 0.0070,
-            accountStatus: "Active",
-            referralEmail: "agent@orabitsms.com",
-            role: "Client",
-            lastLogin: new Date(Date.now() - 21 * 60 * 1000).toISOString(),
-          },
-          {
-            firstName: "Rafiul",
-            lastName: "Hasan",
-            fullName: "Rafiul Hasan",
-            email: "rafiul62725@gmail.com",
-            mobileNumber: "+8801890423974",
-            telegram: "@rafiul_hasan",
-            withdrawPin: "5678",
-            country: "United Kingdom",
-            city: "Hafodunos",
-            uid: "M3J6XAB2Y2D",
-            balance: 12.5,
-            customOtpRate: 0.0075,
-            rate: 0.0075,
-            accountStatus: "Active",
-            referralEmail: "agent@orabitsms.com",
-            role: "Client",
-            lastLogin: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-          },
-        ];
-        return demoUsers;
-      }
-      return combinedUsers;
+    let list = users;
+    if (!isOwner) {
+      list = users.filter((u) => {
+        const refEmail = (u.referralEmail || u.email || "").toLowerCase().trim();
+        return (
+          refEmail === agentEmail ||
+          (agentCode && refEmail === agentCode.toLowerCase().trim())
+        );
+      });
     }
 
-    // AGENT: Agent management includes ONLY users referred/assigned to this specific agent!
-    const cleanAgentEmail = agentEmail.toLowerCase().trim();
-    const cleanAgentCode = agentCode ? agentCode.toLowerCase().trim() : "";
-    const officialAgentEmail = (localStorage.getItem("orabit_official_agent_email") || "agent@orabitsms.com").toLowerCase().trim();
-    const isOfficialAg = cleanAgentEmail === officialAgentEmail || cleanAgentEmail === "agent@orabitsms.com" || cleanAgentEmail === "officialagent@orabitsms.com";
-
-    const filtered = combinedUsers.filter((u) => {
-      const uEmail = (u.email || "").toLowerCase().trim();
-
-      // Don't show owner account in agent client list
-      if (u.role?.toLowerCase() === "owner") return false;
-
-      // Don't show other agents in agent client list unless it's this agent
-      if (u.role?.toLowerCase() === "agent" && uEmail !== cleanAgentEmail) return false;
-
-      const refEmail = (u.referralEmail || "").toLowerCase().trim();
-      const assignedAg = (u as any).assignedAgent || (u as any).assigned_agent ? String((u as any).assignedAgent || (u as any).assigned_agent).toLowerCase().trim() : "";
-      const referredBy = (u as any).referred_by ? String((u as any).referred_by).toLowerCase().trim() : "";
-
-      const isDirectClient =
-        (refEmail && (refEmail === cleanAgentEmail || (cleanAgentCode && refEmail === cleanAgentCode))) ||
-        (assignedAg && (assignedAg === cleanAgentEmail || (cleanAgentCode && assignedAg === cleanAgentCode))) ||
-        (referredBy && (referredBy === cleanAgentEmail || (cleanAgentCode && referredBy === cleanAgentCode)));
-
-      if (isDirectClient) return true;
-
-      // Default official agent fallback for unassigned clients
-      if (isOfficialAg) {
-        const hasOtherAgent = (refEmail && refEmail !== cleanAgentEmail) || (assignedAg && assignedAg !== cleanAgentEmail);
-        if (!hasOtherAgent) return true;
-      }
-
-      return false;
-    });
-
-    if (filtered.length === 0) {
+    // Default sample users if list is empty
+    if (list.length === 0) {
       const demoUsers: UserProfile[] = [
         {
           firstName: "Crypto",
@@ -313,12 +142,30 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
           role: "Client",
           lastLogin: new Date(Date.now() - 21 * 60 * 1000).toISOString(),
         },
+        {
+          firstName: "Rafiul",
+          lastName: "Hasan",
+          fullName: "Rafiul Hasan",
+          email: "rafiul62725@gmail.com",
+          mobileNumber: "+8801890423974",
+          telegram: "@rafiul_hasan",
+          withdrawPin: "5678",
+          country: "United Kingdom",
+          city: "Hafodunos",
+          uid: "M3J6XAB2Y2D",
+          balance: 12.5,
+          customOtpRate: 0.0075,
+          rate: 0.0075,
+          accountStatus: "Active",
+          referralEmail: agentEmail || "agent@orabitsms.com",
+          role: "Client",
+          lastLogin: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+        },
       ];
       return demoUsers;
     }
-
-    return filtered;
-  }, [combinedUsers, isOwner, agentEmail, agentCode]);
+    return list;
+  }, [users, isOwner, agentEmail, agentCode]);
 
   // Dynamic Metrics
   const totalCount = myReferredUsers.length;
@@ -432,11 +279,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
 
     onUpdateUser(updated);
 
-    // Save to Supabase user_profiles
-    saveUserProfileToSupabase(updated).catch((err) =>
-      console.warn("Error persisting updated profile to Supabase:", err)
-    );
-
     // Save to local storage
     try {
       const stored = localStorage.getItem("orabit_registered_users");
@@ -486,11 +328,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     };
 
     onUpdateUser(newUser);
-
-    // Save to Supabase user_profiles
-    saveUserProfileToSupabase(newUser).catch((err) =>
-      console.warn("Error persisting new user to Supabase:", err)
-    );
 
     // Save to localStorage
     try {
@@ -814,17 +651,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                       if (window.confirm(`Are you sure you want to soft-delete ${user.fullName}?`)) {
                         const updated = { ...user, accountStatus: "Soft-deleted" as any };
                         onUpdateUser(updated);
-                        saveUserProfileToSupabase(updated).catch((err) =>
-                          console.warn("Error persisting soft deletion to Supabase:", err)
-                        );
-                        try {
-                          const stored = localStorage.getItem("orabit_registered_users");
-                          let list: UserProfile[] = stored ? JSON.parse(stored) : [];
-                          const idx = list.findIndex((u) => u.email.toLowerCase() === user.email.toLowerCase());
-                          if (idx >= 0) list[idx] = updated;
-                          else list.push(updated);
-                          localStorage.setItem("orabit_registered_users", JSON.stringify(list));
-                        } catch (e) {}
                       }
                     }}
                     className="p-2.5 rounded-xl bg-[#1c2230] hover:bg-[#252e42] text-slate-200 hover:text-white border border-slate-700/60 transition-all cursor-pointer shadow-sm"
