@@ -327,7 +327,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     loadRegisteredUsers();
   }, [userProfile]);
 
-  // Global Owner Dashboard Statistics (Today & Yesterday)
+  // Global Owner Dashboard Statistics (Today, Yesterday & Lifetime)
   const [globalStats, setGlobalStats] = useState({
     todayRevenue: 0,
     todayOtps: 0,
@@ -335,6 +335,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     yesterdayOtps: 0,
     todayNewUsers: 0,
     yesterdayNewUsers: 0,
+    lifetimeTotalUsers: 0,
+    lifetimeTotalOtps: 0,
     isLoading: true,
   });
 
@@ -489,6 +491,54 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         }
       });
 
+      // 2b. LIFETIME TOTAL METRICS CALCULATION (No date filter)
+      const lifetimeTotalUsersCount = allUserProfiles.length;
+
+      const dbLifetimeOtps = statsList.reduce((sum, r) => sum + Number(r.total_otps || 0), 0);
+
+      let localFeedsLifetimeOtps = 0;
+      uniqueFeeds.forEach((f) => {
+        const isSuccess = f.status === "SUCCESS" || f.status === "MULTI SUCCESS" || (f.status as string) === "success";
+        const isFailNotice = f.rawMessage ? f.rawMessage.toLowerCase().includes("no sms received") : false;
+        if (isSuccess && !isFailNotice) {
+          const validMsgs = f.messages ? f.messages.filter((m) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+          localFeedsLifetimeOtps += validMsgs.length > 0 ? validMsgs.length : 1;
+        }
+      });
+
+      let userProfilesSuccessSum = 0;
+      allUserProfiles.forEach((u) => {
+        if (u.total_success) {
+          userProfilesSuccessSum += Number(u.total_success || 0);
+        }
+      });
+
+      let supabaseFeedsCount = 0;
+      try {
+        const { count } = await supabase
+          .from("user_feed_numbers")
+          .select("*", { count: "exact", head: true })
+          .in("status", ["SUCCESS", "MULTI SUCCESS", "success"]);
+        if (typeof count === "number") supabaseFeedsCount = count;
+      } catch (e) {}
+
+      let otpLogsCount = 0;
+      try {
+        const { count } = await supabase
+          .from("otp_logs")
+          .select("*", { count: "exact", head: true })
+          .ilike("status", "%success%");
+        if (typeof count === "number") otpLogsCount = count;
+      } catch (e) {}
+
+      const lifetimeTotalOtpsCount = Math.max(
+        dbLifetimeOtps,
+        localFeedsLifetimeOtps,
+        userProfilesSuccessSum,
+        supabaseFeedsCount,
+        otpLogsCount
+      );
+
       setGlobalStats({
         todayRevenue: finalTodayRev,
         todayOtps: finalTodayOtps,
@@ -496,6 +546,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         yesterdayOtps: finalYesterdayOtps,
         todayNewUsers: todayUsersCount,
         yesterdayNewUsers: yesterdayUsersCount,
+        lifetimeTotalUsers: lifetimeTotalUsersCount,
+        lifetimeTotalOtps: lifetimeTotalOtpsCount,
         isLoading: false,
       });
 
@@ -720,8 +772,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       {/* OVERVIEW / MAIN DASHBOARD VIEW ONLY */}
       {(!activeSection || activeSection === "overview") && (
         <>
-          {/* 6 GLOBAL OWNER KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* 8 GLOBAL OWNER KPI CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* CARD 1: TODAY TOTAL REVENUE */}
             <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-emerald-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
               <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
@@ -829,6 +881,44 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                 </div>
                 <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
                   <span>Registered Yesterday</span>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 7: LIFETIME TOTAL USERS */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-emerald-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-emerald-300 transition-colors">LIFETIME TOTAL USERS</span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-500/25 transition-all">
+                  <Globe className="w-4 h-4 text-emerald-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-white font-mono group-hover:text-emerald-300 transition-colors">
+                  {globalStats.lifetimeTotalUsers}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                  <Users className="w-3 h-3" />
+                  <span>All System Accounts</span>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 8: LIFETIME TOTAL OTP */}
+            <div className="group p-4 sm:p-5 rounded-2xl bg-[#131722]/90 border border-slate-800 hover:border-amber-500/40 space-y-3 relative overflow-hidden shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300">
+              <div className="flex justify-between items-center text-slate-400 text-[11px] font-bold tracking-wider uppercase">
+                <span className="group-hover:text-amber-300 transition-colors">LIFETIME TOTAL OTP</span>
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-500/25 transition-all">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-3xl font-black text-[#2EE59D] font-mono group-hover:text-amber-300 transition-colors">
+                  {globalStats.lifetimeTotalOtps}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Lifetime Successful OTPs</span>
                 </div>
               </div>
             </div>
