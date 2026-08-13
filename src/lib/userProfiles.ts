@@ -101,27 +101,10 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
 
     const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
 
-    // 0. Cache map from localStorage to preserve custom names / passwords edited by Owner/Agent
-    const cachedUsersStr = typeof window !== "undefined" ? localStorage.getItem("orabit_registered_users") : null;
-    const cachedMap: Record<string, UserProfile> = {};
-    if (cachedUsersStr) {
-      try {
-        const parsed = JSON.parse(cachedUsersStr);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((u: UserProfile) => {
-            if (u && u.email) {
-              cachedMap[u.email.toLowerCase().trim()] = u;
-            }
-          });
-        }
-      } catch (e) {}
-    }
-
     // Map profiles
     const mapped: UserProfile[] = (Array.isArray(data) ? data : []).map((row: any) => {
       const emailClean = (row.email || "").toLowerCase().trim();
       const assigned = (row.assigned_agent || row.referral_email || row.referred_by || officialEmail).toLowerCase().trim();
-      const cachedProfile = cachedMap[emailClean];
       
       // Determine effective role (prefer user_roles table if present)
       let effectiveRole = row.role || "Client";
@@ -172,61 +155,35 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         });
       }
 
-      // Determine robust Full Name:
-      const emailPrefix = emailClean.split("@")[0].toLowerCase();
-      const defaultNamePatterns = [
-        emailPrefix,
-        emailClean,
-        `agent (${emailPrefix})`,
-        `agent (${emailClean})`,
-        `user (${emailPrefix})`,
-        "user",
-        "agent",
-        "official"
-      ];
-
-      let dbFullName = (row.full_name || row.fullName || "").trim();
-      let resolvedName = dbFullName;
-
-      const isDbDefault = !dbFullName || defaultNamePatterns.includes(dbFullName.toLowerCase());
-      const cachedName = cachedProfile?.fullName?.trim();
-
-      if (isDbDefault && cachedName && !defaultNamePatterns.includes(cachedName.toLowerCase())) {
-        resolvedName = cachedName;
-      }
-      if (!resolvedName) {
-        resolvedName = cachedName || emailPrefix;
-      }
-
       return {
         email: emailClean,
-        fullName: resolvedName,
-        firstName: row.first_name || cachedProfile?.firstName || resolvedName.split(" ")[0] || "",
-        lastName: row.last_name || cachedProfile?.lastName || resolvedName.split(" ").slice(1).join(" ") || "",
-        mobileNumber: row.mobile_number || row.mobileNumber || cachedProfile?.mobileNumber || "",
+        fullName: row.full_name || row.fullName || emailClean.split("@")[0] || "User",
+        firstName: row.first_name || row.full_name?.split(" ")[0] || "",
+        lastName: row.last_name || row.full_name?.split(" ").slice(1).join(" ") || "",
+        mobileNumber: row.mobile_number || row.mobileNumber || "",
         balance: Number(effectiveBal),
         totalSuccess: Number(effectiveSuccess),
         role: effectiveRole,
-        telegram: row.telegram || cachedProfile?.telegram || "",
-        country: row.country || cachedProfile?.country || "Bangladesh",
-        city: row.city || cachedProfile?.city || "Dhaka",
-        bio: row.bio || cachedProfile?.bio || "",
-        withdrawPin: row.withdraw_pin || cachedProfile?.withdrawPin || "",
-        accountStatus: row.account_status || cachedProfile?.accountStatus || "Active",
-        apiKey: row.api_key || cachedProfile?.apiKey || "",
-        uid: getCleanUid(emailClean, row.uid || cachedProfile?.uid),
-        paymentMethods: row.payment_methods || cachedProfile?.paymentMethods || null,
-        withdrawHistory: row.withdraw_history || cachedProfile?.withdrawHistory || null,
+        telegram: row.telegram || "",
+        country: row.country || "Bangladesh",
+        city: row.city || "Dhaka",
+        bio: row.bio || "",
+        withdrawPin: row.withdraw_pin || "",
+        accountStatus: row.account_status || "Active",
+        apiKey: row.api_key || "",
+        uid: getCleanUid(emailClean, row.uid),
+        paymentMethods: row.payment_methods || null,
+        withdrawHistory: row.withdraw_history || null,
         referralEmail: assigned,
         referredBy: assigned,
         assignedAgent: assigned,
-        isOfficial: !!row.is_official || cachedProfile?.isOfficial || emailClean === "official@orabitsms.xyz",
-        password: row.password || cachedProfile?.password || "",
+        isOfficial: !!row.is_official || emailClean === "official@orabitsms.xyz",
+        password: row.password || "",
         customOtpRate: userRate,
         rate: userRate,
-        apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : (cachedProfile?.apiEnabled !== undefined ? cachedProfile.apiEnabled : true),
-        lastLogin: row.last_login || row.updated_at || row.created_at || cachedProfile?.lastLogin,
-        createdAt: row.created_at || row.createdAt || (cachedProfile as any)?.createdAt,
+        apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : true,
+        lastLogin: row.last_login || row.updated_at || row.created_at,
+        createdAt: row.created_at || row.createdAt,
       };
     });
 
@@ -396,11 +353,7 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
   const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.006);
 
   try {
-    const fn = profile.firstName || profile.fullName?.split(" ")[0] || "";
-    const ln = profile.lastName || profile.fullName?.split(" ").slice(1).join(" ") || "";
-
-    // Core payload with standard columns guaranteed in default user_profiles table schema
-    const corePayload = {
+    const payload = {
       email: cleanEmail,
       full_name: profile.fullName || "",
       mobile_number: profile.mobileNumber || "",
@@ -410,16 +363,9 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       telegram: profile.telegram || "",
       country: profile.country || "",
       city: profile.city || "",
+      bio: profile.bio || "",
       withdraw_pin: profile.withdrawPin || "",
       account_status: profile.accountStatus || "Active",
-      updated_at: new Date().toISOString(),
-    };
-
-    const fullPayload = {
-      ...corePayload,
-      first_name: fn,
-      last_name: ln,
-      bio: profile.bio || "",
       api_key: profile.apiKey || "",
       uid: getCleanUid(cleanEmail, profile.uid),
       payment_methods: profile.paymentMethods || null,
@@ -430,33 +376,14 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       custom_otp_rate: numRate,
       rate: numRate,
       api_enabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : true,
-      is_official: profile.isOfficial !== undefined ? !!profile.isOfficial : false,
-      password: profile.password || "",
       last_login: profile.lastLogin || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    // 1. Update Supabase user_profiles table with direct update & fallback
-    if (profile.fullName) {
-      await supabase.from(USER_PROFILES_TABLE).update({
-        full_name: profile.fullName,
-        updated_at: new Date().toISOString()
-      }).ilike("email", cleanEmail);
-    }
-
-    const { error: fullErr } = await supabase.from(USER_PROFILES_TABLE).upsert(fullPayload, { onConflict: "email" });
-    if (fullErr) {
-      console.warn("Full payload upsert notice, attempting core payload:", fullErr.message);
-      const { error: coreErr } = await supabase.from(USER_PROFILES_TABLE).upsert(corePayload, { onConflict: "email" });
-      if (coreErr) {
-        console.warn("Core payload upsert notice, attempting direct update:", coreErr.message);
-        await supabase.from(USER_PROFILES_TABLE).update({
-          full_name: profile.fullName || "",
-          mobile_number: profile.mobileNumber || "",
-          telegram: profile.telegram || "",
-          role: profile.role || "Client",
-          updated_at: new Date().toISOString(),
-        }).ilike("email", cleanEmail);
-      }
+    // 1. Update Supabase user_profiles table
+    const { error } = await supabase.from(USER_PROFILES_TABLE).upsert(payload, { onConflict: "email" });
+    if (error) {
+      console.warn("Supabase user_profiles upsert notice:", error.message);
     }
 
     // 1b. Update user_roles table as well so roles match on all devices
@@ -469,37 +396,6 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       } catch (e) {
         console.warn("Notice updating user_roles table:", e);
       }
-    }
-
-    // 1c. Instantly sync orabit_registered_users and orabit_user_profile in localStorage
-    try {
-      const stored = localStorage.getItem("orabit_registered_users");
-      let list: UserProfile[] = stored ? JSON.parse(stored) : [];
-      const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
-      const mergedUser: UserProfile = {
-        ...(list[idx] || {}),
-        ...profile,
-        email: cleanEmail,
-        fullName: profile.fullName || list[idx]?.fullName || cleanEmail.split("@")[0],
-        firstName: fn,
-        lastName: ln,
-      };
-      if (idx >= 0) {
-        list[idx] = mergedUser;
-      } else {
-        list.push(mergedUser);
-      }
-      localStorage.setItem("orabit_registered_users", JSON.stringify(list));
-
-      const currentLoggedInStr = localStorage.getItem("orabit_user_profile");
-      if (currentLoggedInStr) {
-        const loggedInUser: UserProfile = JSON.parse(currentLoggedInStr);
-        if (loggedInUser.email && loggedInUser.email.toLowerCase().trim() === cleanEmail) {
-          localStorage.setItem("orabit_user_profile", JSON.stringify({ ...loggedInUser, ...mergedUser }));
-        }
-      }
-    } catch (e) {
-      console.warn("Notice updating localStorage registered users cache:", e);
     }
 
     // 2. Also update Supabase Auth User Metadata for instant cross-device fallback

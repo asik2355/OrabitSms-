@@ -93,8 +93,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   const [editBalance, setEditBalance] = useState<string>("0");
   const [editAssignedAgent, setEditAssignedAgent] = useState<string>("");
   const [editStatus, setEditStatus] = useState<string>("Pending");
-  const [editRole, setEditRole] = useState<string>("Client");
-  const [editPassword, setEditPassword] = useState<string>("");
   const [editApiEnabled, setEditApiEnabled] = useState<boolean>(false);
   const [rateWarning, setRateWarning] = useState<string | null>(null);
 
@@ -216,8 +214,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     setEditBalance(userBalUSD);
 
     setEditStatus(user.accountStatus || "Active");
-    setEditRole(user.role || "Client");
-    setEditPassword(user.password || "");
     setEditApiEnabled(!!user.apiEnabled);
     setRateWarning(null);
   };
@@ -255,8 +251,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       customOtpRate: numRate,
       rate: numRate,
       accountStatus: editStatus as any,
-      role: editRole,
-      password: editPassword.trim() || editingUser.password || "",
       apiEnabled: editApiEnabled,
       assignedAgent: cleanAgentEmail,
       referralEmail: cleanAgentEmail,
@@ -761,39 +755,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                   className="w-full bg-[#07090e] border border-[#1a1f2c] rounded-xl px-3.5 py-2.5 text-xs text-slate-400 font-mono cursor-not-allowed"
                 />
               </div>
-
-              {/* PASSWORD */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  PASSWORD
-                </label>
-                <input
-                  type="text"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  placeholder="Password"
-                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              {/* ROLE (OWNER EDITABLE) */}
-              {isOwner && (
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                    <span>ACCOUNT ROLE</span>
-                    <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest">● Owner Editable</span>
-                  </label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value)}
-                    className="w-full bg-[#0a0d14] border border-[#232838] focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none font-semibold cursor-pointer"
-                  >
-                    <option value="Client">Client</option>
-                    <option value="Agent">Agent</option>
-                    <option value="Owner">Owner</option>
-                  </select>
-                </div>
-              )}
 
               {/* ASSIGNED AGENT EMAIL */}
               <div className="space-y-1">

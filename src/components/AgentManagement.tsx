@@ -793,20 +793,18 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     const cleanTg = rawTg ? (rawTg.startsWith("@") ? rawTg : `@${rawTg}`) : "";
 
     try {
-      const updatedAgentObj: UserProfile = {
-        ...editingAgent,
-        email: cleanE,
-        fullName: cleanName,
-        firstName: cleanName.split(" ")[0] || "",
-        lastName: cleanName.split(" ").slice(1).join(" ") || "",
-        telegram: cleanTg,
-        password: editPassword.trim() || editingAgent.password || "",
-        role: "Agent",
-        isOfficial: editIsOfficial,
-      };
-
-      // 1. Save complete profile via saveUserProfileToSupabase
-      await saveUserProfileToSupabase(updatedAgentObj);
+      // 1. Update user_profiles in Supabase
+      await supabase.from("user_profiles").upsert(
+        {
+          email: cleanE,
+          full_name: cleanName,
+          telegram: cleanTg,
+          role: "Agent",
+          is_official: editIsOfficial,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" }
+      );
 
       if (editIsOfficial) {
         const otherAgents = agentList.filter((a) => a.email.toLowerCase().trim() !== cleanE);
@@ -825,7 +823,14 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       // 3. Update local state & localStorage
       const updatedUsers = registeredUsers.map((u) => {
         if (u.email.toLowerCase().trim() === cleanE) {
-          return updatedAgentObj;
+          return {
+            ...u,
+            fullName: cleanName,
+            telegram: cleanTg,
+            password: editPassword.trim() || u.password,
+            role: "Agent",
+            isOfficial: editIsOfficial,
+          };
         }
         if (editIsOfficial && u.role?.toLowerCase() === "agent") {
           return {
@@ -986,7 +991,9 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       });
 
       const totalSuccessOtps = calcSuccessOtps(agentFeeds);
-      const displayName = agent.fullName || agEmail.split("@")[0];
+      const displayName = agent.fullName && agent.fullName !== `Agent (${agEmail.split("@")[0]})`
+        ? agent.fullName
+        : agEmail.split("@")[0];
 
       return {
         agentEmail: agEmail,

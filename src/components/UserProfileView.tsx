@@ -145,7 +145,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           const emailPrefix = cleanEmail.split("@")[0];
 
           let displayName = rawName;
-          if (!displayName) {
+          if (!displayName || displayName.toLowerCase() === emailPrefix) {
             if (agentData.is_official || cleanEmail === officialEmail || cleanEmail === "official@orabitsms.xyz") {
               displayName = "ORABIT OFFICIAL";
             } else {
@@ -180,7 +180,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           const cleanEmail = localMatch.email.toLowerCase().trim();
           const emailPrefix = cleanEmail.split("@")[0];
           let displayName = rawName;
-          if (!displayName) {
+          if (!displayName || displayName.toLowerCase() === emailPrefix) {
             displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) + " Agent";
           }
 
