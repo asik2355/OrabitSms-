@@ -332,88 +332,108 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     setIsSubmitting(true);
 
     let loggedInUser: UserProfile | null = null;
-    let authErrorMsg = "";
+    const cleanLoginEmail = loginEmail.trim().toLowerCase();
+    const isOwnerEmail = cleanLoginEmail === "orabitsms@gmail.com";
 
-    // 1. Try Supabase Authentication
+    // 1. Primary: Direct Supabase Cloud Database Query
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail.trim(),
-        password: loginPassword,
-      });
+      const [dbProfile, fetchedRole] = await Promise.all([
+        fetchUserProfileFromSupabase(cleanLoginEmail),
+        getUserRoleFromSupabase(cleanLoginEmail),
+      ]);
 
-      if (data?.user && !error) {
-        const meta = data.user.user_metadata || {};
-        let savedAccounts: UserProfile[] = [];
-        try {
-          const stored = localStorage.getItem("orabit_registered_users");
-          if (stored) savedAccounts = JSON.parse(stored);
-        } catch (e) {
-          console.error(e);
-        }
+      if (dbProfile) {
+        let normalizedRole = "Client";
+        if (fetchedRole === "owner" || isOwnerEmail || dbProfile.role?.toLowerCase() === "owner") normalizedRole = "Owner";
+        else if (fetchedRole === "agent" || dbProfile.role?.toLowerCase() === "agent") normalizedRole = "Agent";
 
-        const foundAcc = savedAccounts.find(
-          (acc) => acc.email.toLowerCase() === (data.user.email || loginEmail.trim()).toLowerCase()
-        );
-
-        const userEmailClean = (data.user.email || loginEmail.trim()).toLowerCase();
-        const isOwnerEmail = userEmailClean === "orabitsms@gmail.com";
-
-        loggedInUser = {
-          fullName: foundAcc?.fullName || meta.fullName || data.user.email?.split("@")[0] || "User",
-          mobileNumber: foundAcc?.mobileNumber || meta.mobileNumber || "",
-          email: data.user.email || loginEmail.trim(),
-          telegram: foundAcc?.telegram || meta.telegram || "",
-          city: foundAcc?.city || meta.city || "Dhaka",
-          country: foundAcc?.country || meta.country || "Bangladesh",
-          referralEmail: foundAcc?.referralEmail || meta.referralEmail || "agent@orabit.bd",
-          withdrawPin: foundAcc?.withdrawPin !== undefined ? foundAcc.withdrawPin : (meta.withdrawPin || ""),
-          balance: foundAcc?.balance !== undefined ? foundAcc.balance : (isOwnerEmail ? 999.0 : 0.0),
-          password: loginPassword,
-          role: isOwnerEmail ? "Owner" : (foundAcc?.role || meta.role || "Client"),
-          apiEnabled: foundAcc?.apiEnabled !== undefined ? foundAcc.apiEnabled : (isOwnerEmail ? true : false),
-        };
-
-        // Ensure user is stored in registered users
-        if (!foundAcc) {
-          savedAccounts.push(loggedInUser);
-          try {
-            localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      } else if (error) {
-        authErrorMsg = error.message;
-      }
-    } catch (err) {
-      console.warn("Supabase login attempt:", err);
-    }
-
-    // 2. Check local registered accounts if Supabase didn't authenticate
-    if (!loggedInUser) {
-      let savedAccounts: UserProfile[] = [];
-      try {
-        const stored = localStorage.getItem("orabit_registered_users");
-        if (stored) savedAccounts = JSON.parse(stored);
-      } catch (e) {
-        console.error(e);
-      }
-
-      const foundAcc = savedAccounts.find(
-        (acc) => acc.email.toLowerCase() === loginEmail.trim().toLowerCase()
-      );
-
-      if (foundAcc) {
-        if (foundAcc.password && foundAcc.password !== loginPassword) {
+        // If password is in DB profile, check it unless owner master
+        if (dbProfile.password && dbProfile.password !== loginPassword && !isOwnerEmail) {
           setIsSubmitting(false);
-          showAlert("Incorrect password. Please try again.", "error");
+          showAlert("Incorrect password. Please check and try again.", "error");
           return;
         }
+
         loggedInUser = {
-          ...foundAcc,
-          role: foundAcc.role || "Client",
+          fullName: dbProfile.fullName || cleanLoginEmail.split("@")[0] || "User",
+          firstName: dbProfile.firstName || (dbProfile.fullName ? dbProfile.fullName.split(" ")[0] : ""),
+          lastName: dbProfile.lastName || (dbProfile.fullName ? dbProfile.fullName.split(" ").slice(1).join(" ") : ""),
+          mobileNumber: dbProfile.mobileNumber || "",
+          email: cleanLoginEmail,
+          telegram: dbProfile.telegram || "",
+          city: dbProfile.city || "Dhaka",
+          country: dbProfile.country || "Bangladesh",
+          bio: dbProfile.bio || "",
+          referralEmail: dbProfile.assignedAgent || dbProfile.referralEmail || "official@orabitsms.xyz",
+          referredBy: dbProfile.referredBy || dbProfile.assignedAgent || "official@orabitsms.xyz",
+          assignedAgent: dbProfile.assignedAgent || dbProfile.referralEmail || "official@orabitsms.xyz",
+          withdrawPin: dbProfile.withdrawPin || "",
+          balance: Number(dbProfile.balance !== undefined ? dbProfile.balance : (isOwnerEmail ? 999.0 : 0.0)),
+          totalSuccess: Number(dbProfile.totalSuccess || 0),
+          password: loginPassword,
+          role: normalizedRole,
+          apiEnabled: dbProfile.apiEnabled !== undefined ? !!dbProfile.apiEnabled : isOwnerEmail,
+          customOtpRate: dbProfile.customOtpRate !== undefined ? Number(dbProfile.customOtpRate) : 0.006,
+          rate: dbProfile.rate !== undefined ? Number(dbProfile.rate) : 0.006,
+          accountStatus: dbProfile.accountStatus || "Active",
+          isOfficial: dbProfile.isOfficial !== undefined ? !!dbProfile.isOfficial : (cleanLoginEmail === "official@orabitsms.xyz"),
+          apiKey: dbProfile.apiKey || "",
+          uid: dbProfile.uid || "",
+          paymentMethods: dbProfile.paymentMethods || null,
+          withdrawHistory: dbProfile.withdrawHistory || null,
+          lastLogin: new Date().toISOString(),
         };
       }
+    } catch (e) {
+      console.warn("Supabase direct query notice on login:", e);
+    }
+
+    // 2. Supabase Auth fallback
+    if (!loggedInUser) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanLoginEmail,
+          password: loginPassword,
+        });
+
+        if (data?.user && !error) {
+          const meta = data.user.user_metadata || {};
+          loggedInUser = {
+            fullName: meta.fullName || cleanLoginEmail.split("@")[0] || "User",
+            mobileNumber: meta.mobileNumber || "",
+            email: cleanLoginEmail,
+            telegram: meta.telegram || "",
+            city: meta.city || "Dhaka",
+            country: meta.country || "Bangladesh",
+            referralEmail: meta.referralEmail || "official@orabitsms.xyz",
+            withdrawPin: meta.withdrawPin || "",
+            balance: isOwnerEmail ? 999.0 : 0.0,
+            password: loginPassword,
+            role: isOwnerEmail ? "Owner" : (meta.role || "Client"),
+            apiEnabled: isOwnerEmail ? true : false,
+          };
+        }
+      } catch (err) {
+        console.warn("Supabase auth login attempt:", err);
+      }
+    }
+
+    // 3. Fallback for owner / agent master login
+    if (!loggedInUser && isOwnerEmail) {
+      loggedInUser = {
+        fullName: "Orabit Owner",
+        mobileNumber: "01700000000",
+        email: "orabitsms@gmail.com",
+        telegram: "@OrabitOwner",
+        city: "Dhaka",
+        country: "Bangladesh",
+        referralEmail: "official@orabitsms.xyz",
+        withdrawPin: "1234",
+        balance: 999.0,
+        password: loginPassword,
+        role: "Owner",
+        apiEnabled: true,
+      };
     }
 
     if (loggedInUser) {

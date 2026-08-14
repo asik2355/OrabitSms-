@@ -231,11 +231,15 @@ async function startServer() {
             } else {
               // Create user entry from user_roles
               const defName = e.split("@")[0] || "User";
+              const formattedName = e === "official@orabitsms.xyz"
+                ? "Official Agent"
+                : (defName.charAt(0).toUpperCase() + defName.slice(1));
+
               combined[e] = {
                 email: e,
-                fullName: normalizedRole === "Agent" ? `Agent (${defName})` : defName,
-                firstName: defName.split(" ")[0] || "",
-                lastName: defName.split(" ").slice(1).join(" ") || "",
+                fullName: formattedName,
+                firstName: formattedName.split(" ")[0] || "",
+                lastName: formattedName.split(" ").slice(1).join(" ") || "",
                 role: normalizedRole,
                 mobileNumber: "",
                 country: "Bangladesh",

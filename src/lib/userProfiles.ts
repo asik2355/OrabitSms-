@@ -64,91 +64,63 @@ export function getCleanUid(email: string, existingUid?: string): string {
 }
 
 /**
- * Fetches ALL user/agent profiles directly from Secure Backend & Supabase.
+ * Fetches ALL user/agent profiles directly from Supabase (authoritative cloud database).
  */
 export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
   try {
     const combinedMap = new Map<string, UserProfile>();
 
-    // 1. First populate from local storage cache
+    // 1. Primary Source: Query Supabase user_profiles table directly
     try {
-      const stored = localStorage.getItem("orabit_registered_users");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((u: UserProfile) => {
-            if (u && u.email) {
-              const cleanE = u.email.toLowerCase().trim();
-              const fullN = (u.fullName || cleanE.split("@")[0] || "User").trim();
-              const rLower = (u.role || "").toLowerCase();
-              const normRole = rLower === "owner" ? "Owner" : rLower === "agent" ? "Agent" : "Client";
-              combinedMap.set(cleanE, {
-                ...u,
-                email: cleanE,
-                fullName: fullN,
-                role: normRole,
-                isOfficial: u.isOfficial !== undefined ? !!u.isOfficial : cleanE === "official@orabitsms.xyz",
-              });
-            }
-          });
-        }
-      }
-    } catch (e) {}
+      const { data: profilesData } = await supabase.from(USER_PROFILES_TABLE).select("*");
+      if (Array.isArray(profilesData)) {
+        profilesData.forEach((row: any) => {
+          const cleanE = (row.email || "").toLowerCase().trim();
+          if (!cleanE) return;
+          const liveFullName = (row.full_name !== undefined && row.full_name !== null && row.full_name !== ""
+            ? row.full_name
+            : (row.fullName || "")).trim();
+          const rawRole = (row.role || "").toString().toLowerCase();
+          const normRole = rawRole === "owner" ? "Owner" : rawRole === "agent" ? "Agent" : "Client";
+          const assigned = (row.assigned_agent || row.referral_email || row.referred_by || "official@orabitsms.xyz").toLowerCase().trim();
 
-    // 2. Fetch Backend Proxy API (/api/users/list)
-    try {
-      const resp = await fetch(`/api/users/list?t=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json && json.success && Array.isArray(json.users)) {
-          json.users.forEach((u: any) => {
-            const cleanE = (u.email || "").toLowerCase().trim();
-            if (!cleanE) return;
-            const fullN = (u.fullName !== undefined && u.fullName !== null && u.fullName !== "" ? u.fullName : (u.full_name || "")).trim();
-            const rawRole = (u.role || "").toString().toLowerCase();
-            const normRole = rawRole === "owner" ? "Owner" : rawRole === "agent" ? "Agent" : (combinedMap.get(cleanE)?.role || "Client");
-            const existing = combinedMap.get(cleanE) || ({} as Partial<UserProfile>);
-
-            combinedMap.set(cleanE, {
-              ...existing,
-              ...u,
-              email: cleanE,
-              fullName: fullN || existing.fullName || cleanE.split("@")[0] || "User",
-              firstName: u.firstName || u.first_name || (fullN ? fullN.split(" ")[0] : existing.firstName || ""),
-              lastName: u.lastName || u.last_name || (fullN ? fullN.split(" ").slice(1).join(" ") : existing.lastName || ""),
-              mobileNumber: u.mobileNumber !== undefined ? u.mobileNumber : (u.mobile_number || existing.mobileNumber || ""),
-              country: u.country || existing.country || "Bangladesh",
-              city: u.city || existing.city || "Dhaka",
-              telegram: u.telegram || existing.telegram || "",
-              bio: u.bio || existing.bio || "",
-              role: normRole,
-              balance: Number(u.balance !== undefined ? u.balance : (existing.balance || 0)),
-              customOtpRate: u.customOtpRate !== undefined ? Number(u.customOtpRate) : Number(u.rate || existing.customOtpRate || 0.006),
-              rate: u.rate !== undefined ? Number(u.rate) : Number(u.customOtpRate || existing.rate || 0.006),
-              apiEnabled: u.apiEnabled !== undefined ? !!u.apiEnabled : (cleanE === "orabitsms@gmail.com" || normRole === "Owner"),
-              accountStatus: u.accountStatus || u.account_status || existing.accountStatus || "Active",
-              assignedAgent: u.assignedAgent || u.assigned_agent || u.referralEmail || existing.assignedAgent || "official@orabitsms.xyz",
-              isOfficial: u.isOfficial !== undefined ? !!u.isOfficial : (cleanE === "official@orabitsms.xyz"),
-            });
+          combinedMap.set(cleanE, {
+            email: cleanE,
+            fullName: liveFullName || cleanE.split("@")[0] || "User",
+            firstName: row.first_name || (liveFullName ? liveFullName.split(" ")[0] : ""),
+            lastName: row.last_name || (liveFullName ? liveFullName.split(" ").slice(1).join(" ") : ""),
+            mobileNumber: row.mobile_number !== undefined && row.mobile_number !== null ? row.mobile_number : (row.mobileNumber || ""),
+            country: row.country || "Bangladesh",
+            city: row.city || "Dhaka",
+            telegram: row.telegram || "",
+            bio: row.bio || "",
+            role: normRole,
+            balance: Number(row.balance !== undefined ? row.balance : 0),
+            customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : Number(row.rate || 0.006),
+            rate: row.rate !== undefined ? Number(row.rate) : Number(row.custom_otp_rate || 0.006),
+            accountStatus: row.account_status || "Active",
+            assignedAgent: assigned,
+            referralEmail: assigned,
+            referredBy: assigned,
+            isOfficial: row.is_official !== undefined ? !!row.is_official : (cleanE === "official@orabitsms.xyz"),
+            apiKey: row.api_key || "",
+            uid: getCleanUid(cleanE, row.uid),
+            paymentMethods: row.payment_methods || null,
+            withdrawHistory: row.withdraw_history || null,
+            totalSuccess: Number(row.total_success || 0),
+            lastLogin: row.last_login || row.updated_at,
           });
-        }
+        });
       }
     } catch (e) {
-      console.warn("Backend users list API notice, continuing to Supabase direct fetch:", e);
+      console.warn("Direct Supabase user_profiles fetch notice:", e);
     }
 
-    // 3. Directly query Supabase user_roles and user_profiles to ensure 100% coverage
+    // 2. Query Supabase user_roles table to ensure all agents & owners are included
     try {
-      const [profilesRes, rolesRes] = await Promise.all([
-        supabase.from(USER_PROFILES_TABLE).select("*"),
-        supabase.from("user_roles").select("*"),
-      ]);
-
-      if (rolesRes && Array.isArray(rolesRes.data)) {
-        rolesRes.data.forEach((r: any) => {
+      const { data: rolesData } = await supabase.from("user_roles").select("*");
+      if (Array.isArray(rolesData)) {
+        rolesData.forEach((r: any) => {
           const cleanE = (r.email || "").toLowerCase().trim();
           if (!cleanE) return;
           const rLower = (r.role || "").toLowerCase().trim();
@@ -177,42 +149,55 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
           }
         });
       }
+    } catch (e) {}
 
-      if (profilesRes && Array.isArray(profilesRes.data)) {
-        profilesRes.data.forEach((row: any) => {
-          const cleanE = (row.email || "").toLowerCase().trim();
-          if (!cleanE) return;
-          const liveFullName = (row.full_name !== undefined && row.full_name !== null && row.full_name !== ""
-            ? row.full_name
-            : (row.fullName || "")).trim();
-          const rawRole = (row.role || "").toString().toLowerCase();
-          const existing = combinedMap.get(cleanE);
-          const normRole = rawRole === "owner" ? "Owner" : rawRole === "agent" ? "Agent" : (existing?.role || "Client");
+    // 3. Query Backend Proxy API (/api/users/list)
+    try {
+      const resp = await fetch(`/api/users/list?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && json.success && Array.isArray(json.users)) {
+          json.users.forEach((u: any) => {
+            const cleanE = (u.email || "").toLowerCase().trim();
+            if (!cleanE) return;
+            const fullN = (u.fullName !== undefined && u.fullName !== null && u.fullName !== "" ? u.fullName : (u.full_name || "")).trim();
+            const rawRole = (u.role || "").toString().toLowerCase();
+            const normRole = rawRole === "owner" ? "Owner" : rawRole === "agent" ? "Agent" : (combinedMap.get(cleanE)?.role || "Client");
+            const existing = combinedMap.get(cleanE);
 
-          combinedMap.set(cleanE, {
-            ...existing,
-            email: cleanE,
-            fullName: liveFullName || existing?.fullName || cleanE.split("@")[0] || "User",
-            firstName: row.first_name || (liveFullName ? liveFullName.split(" ")[0] : existing?.firstName || ""),
-            lastName: row.last_name || (liveFullName ? liveFullName.split(" ").slice(1).join(" ") : existing?.lastName || ""),
-            mobileNumber: row.mobile_number !== undefined ? row.mobile_number : (existing?.mobileNumber || ""),
-            country: row.country || existing?.country || "Bangladesh",
-            city: row.city || existing?.city || "Dhaka",
-            telegram: row.telegram || existing?.telegram || "",
-            bio: row.bio || existing?.bio || "",
-            role: normRole,
-            balance: Number(row.balance !== undefined ? row.balance : (existing?.balance || 0)),
-            customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : Number(row.rate || existing?.customOtpRate || 0.006),
-            rate: row.rate !== undefined ? Number(row.rate) : Number(row.custom_otp_rate || existing?.rate || 0.006),
-            accountStatus: row.account_status || existing?.accountStatus || "Active",
-            assignedAgent: row.assigned_agent || row.referral_email || existing?.assignedAgent || "official@orabitsms.xyz",
-            isOfficial: row.is_official !== undefined ? !!row.is_official : (existing?.isOfficial ?? (cleanE === "official@orabitsms.xyz")),
+            if (!existing) {
+              combinedMap.set(cleanE, {
+                email: cleanE,
+                fullName: fullN || cleanE.split("@")[0] || "User",
+                firstName: u.firstName || u.first_name || (fullN ? fullN.split(" ")[0] : ""),
+                lastName: u.lastName || u.last_name || (fullN ? fullN.split(" ").slice(1).join(" ") : ""),
+                mobileNumber: u.mobileNumber !== undefined ? u.mobileNumber : (u.mobile_number || ""),
+                country: u.country || "Bangladesh",
+                city: u.city || "Dhaka",
+                telegram: u.telegram || "",
+                bio: u.bio || "",
+                role: normRole,
+                balance: Number(u.balance !== undefined ? u.balance : 0),
+                customOtpRate: u.customOtpRate !== undefined ? Number(u.customOtpRate) : Number(u.rate || 0.006),
+                rate: u.rate !== undefined ? Number(u.rate) : Number(u.customOtpRate || 0.006),
+                apiEnabled: u.apiEnabled !== undefined ? !!u.apiEnabled : (cleanE === "orabitsms@gmail.com" || normRole === "Owner"),
+                accountStatus: u.accountStatus || u.account_status || "Active",
+                assignedAgent: u.assignedAgent || u.assigned_agent || u.referralEmail || "official@orabitsms.xyz",
+                isOfficial: u.isOfficial !== undefined ? !!u.isOfficial : (cleanE === "official@orabitsms.xyz"),
+              });
+            } else {
+              // Merge if Supabase was missing some field
+              if (fullN && (!existing.fullName || existing.fullName === "User")) existing.fullName = fullN;
+              if (u.mobileNumber && !existing.mobileNumber) existing.mobileNumber = u.mobileNumber;
+              if (u.telegram && !existing.telegram) existing.telegram = u.telegram;
+            }
           });
-        });
+        }
       }
-    } catch (e) {
-      console.warn("Direct Supabase query notice in fetchAllProfilesFromSupabase:", e);
-    }
+    } catch (e) {}
 
     const finalUsers = Array.from(combinedMap.values());
     try {
@@ -227,14 +212,6 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
   } catch (e) {
     console.error("Failed to fetch all profiles from Supabase:", e);
   }
-
-  // Fallback to localStorage if offline or DB error
-  try {
-    const stored = localStorage.getItem("orabit_registered_users");
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (e) {}
 
   return [];
 }
@@ -568,18 +545,14 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Update Supabase user_profiles table if available
+    // 1. Direct authoritative upsert to Supabase user_profiles table
     try {
-      const { data: updateRes, error: updateErr } = await supabase
+      const { error: upsertErr } = await supabase
         .from(USER_PROFILES_TABLE)
-        .update(payload)
-        .ilike("email", cleanEmail)
-        .select();
+        .upsert(payload, { onConflict: "email" });
 
-      let saveSuccess = !updateErr && Array.isArray(updateRes) && updateRes.length > 0;
-
-      if (!saveSuccess) {
-        // 1a. Fallback core payload if extended columns cause schema errors
+      if (upsertErr) {
+        // Fallback to core payload if extended columns don't exist
         const corePayload = {
           email: cleanEmail,
           full_name: profile.fullName || "",
@@ -588,52 +561,13 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
           total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
           role: profile.role || "Client",
           telegram: profile.telegram || "",
-          country: profile.country || "",
-          city: profile.city || "",
+          country: profile.country || "Bangladesh",
+          city: profile.city || "Dhaka",
           withdraw_pin: profile.withdrawPin || "",
           account_status: profile.accountStatus || "Active",
           updated_at: new Date().toISOString(),
         };
-
-        const { data: coreUpdateRes, error: coreUpdateErr } = await supabase
-          .from(USER_PROFILES_TABLE)
-          .update(corePayload)
-          .ilike("email", cleanEmail)
-          .select();
-
-        if (!coreUpdateErr && Array.isArray(coreUpdateRes) && coreUpdateRes.length > 0) {
-          saveSuccess = true;
-        } else {
-          // 1b. Minimal update payload (guaranteed standard columns)
-          const minPayload = {
-            email: cleanEmail,
-            full_name: profile.fullName || "",
-            role: profile.role || "Client",
-            telegram: profile.telegram || "",
-            updated_at: new Date().toISOString(),
-          };
-
-          const { data: minUpdateRes, error: minUpdateErr } = await supabase
-            .from(USER_PROFILES_TABLE)
-            .update(minPayload)
-            .ilike("email", cleanEmail)
-            .select();
-
-          if (!minUpdateErr && Array.isArray(minUpdateRes) && minUpdateRes.length > 0) {
-            saveSuccess = true;
-          } else {
-            // 1c. Insert if record doesn't exist yet in user_profiles
-            const { error: insertErr } = await supabase.from(USER_PROFILES_TABLE).insert(payload);
-            if (insertErr) {
-              const { error: coreInsertErr } = await supabase.from(USER_PROFILES_TABLE).insert(corePayload);
-              if (coreInsertErr) {
-                try {
-                  await supabase.from(USER_PROFILES_TABLE).insert(minPayload);
-                } catch (e) {}
-              }
-            }
-          }
-        }
+        await supabase.from(USER_PROFILES_TABLE).upsert(corePayload, { onConflict: "email" });
       }
     } catch (e) {
       console.warn("Notice updating user_profiles table:", e);

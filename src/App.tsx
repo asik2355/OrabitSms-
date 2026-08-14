@@ -672,27 +672,16 @@ export default function App() {
   // UTC Clock
   const [utcTime, setUtcTime] = useState("");
 
-  // Save profile state and sync with registered users database in localStorage
+  // Sync active session profile
   useEffect(() => {
     try {
       if (userProfile && userProfile.email) {
         localStorage.setItem("orabit_user_profile", JSON.stringify(userProfile));
-        const stored = localStorage.getItem("orabit_registered_users");
-        const savedAccounts: UserProfile[] = stored ? JSON.parse(stored) : [];
-        const idx = savedAccounts.findIndex(
-          (acc) => acc.email.toLowerCase() === userProfile.email.toLowerCase()
-        );
-        if (idx >= 0) {
-          savedAccounts[idx] = { ...savedAccounts[idx], ...userProfile };
-        } else {
-          savedAccounts.push(userProfile);
-        }
-        localStorage.setItem("orabit_registered_users", JSON.stringify(savedAccounts));
       } else {
         localStorage.removeItem("orabit_user_profile");
       }
     } catch (e) {
-      console.error("Failed to save user profile to storage", e);
+      console.error("Failed to save active session profile", e);
     }
   }, [userProfile]);
 

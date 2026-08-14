@@ -68,15 +68,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   /**
-   * Silent Server-Side Validation:
-   * Runs `supabase.auth.getUser()` silently in the background.
-   * If the user was deleted from Supabase or the token is invalid/revoked,
-   * it immediately clears local session and forces redirect to login.
+   * Authoritative Cloud Validation & Sync:
+   * Queries Supabase `user_profiles` directly for the logged-in email.
+   * Updates state with live database values so all devices see the exact same data.
    */
   const validateServerSession = useCallback(async (): Promise<boolean> => {
-    const saved = localStorage.getItem("orabit_user_profile");
-    if (!saved) {
-      localStorage.removeItem("orabit_user_profile");
+    let emailToSync = "";
+    try {
+      const saved = localStorage.getItem("orabit_user_profile");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.email) emailToSync = parsed.email.toLowerCase().trim();
+      }
+    } catch (e) {}
+
+    // Check if Supabase Auth has an active session user
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user?.email) {
+        emailToSync = userData.user.email.toLowerCase().trim();
+      }
+    } catch (e) {}
+
+    if (!emailToSync) {
       setUserProfile(null);
       setLoading(false);
       setIsValidating(false);
@@ -86,96 +100,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsValidating(true);
 
     try {
-      const getUserWithTimeout = Promise.race([
-        supabase.auth.getUser(),
-        new Promise<{ data: { user: null }; error: any }>((_, reject) =>
-          setTimeout(() => reject(new Error("Supabase auth validation timeout")), 5000)
-        ),
+      const [fetchedRole, dbProfile] = await Promise.all([
+        getUserRoleFromSupabase(emailToSync),
+        fetchUserProfileFromSupabase(emailToSync),
       ]);
 
-      const { data: userData, error: userError } = await getUserWithTimeout;
+      let normalizedRole = "Client";
+      if (fetchedRole === "owner" || emailToSync === "orabitsms@gmail.com") normalizedRole = "Owner";
+      else if (fetchedRole === "agent") normalizedRole = "Agent";
 
-      if (userError || !userData?.user) {
-        console.warn("Ghost session detected on Supabase server. Immediately forcing logout & login redirect...");
-        await signOut();
-        return false;
-      }
+      setUserProfile((prev) => {
+        const baseProfile: UserProfile = prev || {
+          fullName: emailToSync.split("@")[0],
+          mobileNumber: "",
+          email: emailToSync,
+          telegram: "",
+          city: "Dhaka",
+          country: "Bangladesh",
+          referralEmail: "official@orabitsms.xyz",
+          withdrawPin: "",
+          balance: emailToSync === "orabitsms@gmail.com" ? 999.0 : 0.0,
+          password: "",
+          role: normalizedRole,
+        };
 
-      const validUser = userData.user;
-      const validEmail = validUser.email?.toLowerCase().trim();
+        const updatedProfile: UserProfile = {
+          ...baseProfile,
+          email: emailToSync,
+          role: (dbProfile?.role as any) || normalizedRole,
+          uid: dbProfile?.uid || baseProfile.uid || "",
+          fullName: dbProfile?.fullName !== undefined && dbProfile.fullName !== "" ? dbProfile.fullName : baseProfile.fullName,
+          firstName: dbProfile?.firstName || (dbProfile?.fullName ? dbProfile.fullName.split(" ")[0] : baseProfile.firstName),
+          lastName: dbProfile?.lastName || (dbProfile?.fullName ? dbProfile.fullName.split(" ").slice(1).join(" ") : baseProfile.lastName),
+          mobileNumber: dbProfile?.mobileNumber !== undefined ? dbProfile.mobileNumber : baseProfile.mobileNumber,
+          telegram: dbProfile?.telegram !== undefined ? dbProfile.telegram : baseProfile.telegram,
+          country: dbProfile?.country !== undefined ? dbProfile.country : baseProfile.country,
+          city: dbProfile?.city !== undefined ? dbProfile.city : baseProfile.city,
+          bio: dbProfile?.bio !== undefined ? dbProfile.bio : baseProfile.bio,
+          withdrawPin: dbProfile?.withdrawPin !== undefined ? dbProfile.withdrawPin : baseProfile.withdrawPin,
+          balance: dbProfile?.balance !== undefined ? dbProfile.balance : baseProfile.balance,
+          totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : baseProfile.totalSuccess,
+          apiKey: dbProfile?.apiKey || baseProfile.apiKey,
+          assignedAgent: dbProfile?.assignedAgent || dbProfile?.referralEmail || baseProfile.assignedAgent,
+          referralEmail: dbProfile?.referralEmail || dbProfile?.assignedAgent || baseProfile.referralEmail,
+          referredBy: dbProfile?.referredBy || dbProfile?.assignedAgent || baseProfile.referredBy,
+          customOtpRate: dbProfile?.customOtpRate !== undefined ? dbProfile.customOtpRate : baseProfile.customOtpRate,
+          rate: dbProfile?.rate !== undefined ? dbProfile.rate : baseProfile.rate,
+          accountStatus: dbProfile?.accountStatus || baseProfile.accountStatus || "Active",
+          apiEnabled: dbProfile?.apiEnabled !== undefined ? dbProfile.apiEnabled : baseProfile.apiEnabled,
+          isOfficial: dbProfile?.isOfficial !== undefined ? dbProfile.isOfficial : baseProfile.isOfficial,
+          paymentMethods: dbProfile?.paymentMethods || baseProfile.paymentMethods,
+          withdrawHistory: dbProfile?.withdrawHistory || baseProfile.withdrawHistory,
+        };
 
-      if (validEmail) {
         try {
-          const [fetchedRole, dbProfile] = await Promise.all([
-            getUserRoleFromSupabase(validEmail),
-            fetchUserProfileFromSupabase(validEmail),
-          ]);
+          localStorage.setItem("orabit_user_profile", JSON.stringify(updatedProfile));
+        } catch (e) {}
 
-          let normalizedRole = "Client";
-          if (fetchedRole === "owner" || validEmail === "orabitsms@gmail.com") normalizedRole = "Owner";
-          else if (fetchedRole === "agent") normalizedRole = "Agent";
+        return updatedProfile;
+      });
 
-          setUserProfile((prev) => {
-            const baseProfile: UserProfile = prev || {
-              fullName: validEmail.split("@")[0],
-              mobileNumber: "",
-              email: validEmail,
-              telegram: "",
-              city: "Dhaka",
-              country: "Bangladesh",
-              referralEmail: "agent@orabit.bd",
-              withdrawPin: "",
-              balance: validEmail === "orabitsms@gmail.com" ? 999.0 : 0.0,
-              password: "",
-              role: normalizedRole,
-            };
-
-            const updatedProfile: UserProfile = {
-              ...baseProfile,
-              email: validEmail,
-              role: (dbProfile?.role as any) || normalizedRole,
-              uid: dbProfile?.uid || validUser.id,
-              fullName: dbProfile?.fullName !== undefined && dbProfile.fullName !== "" ? dbProfile.fullName : baseProfile.fullName,
-              firstName: dbProfile?.firstName || baseProfile.firstName,
-              lastName: dbProfile?.lastName || baseProfile.lastName,
-              mobileNumber: dbProfile?.mobileNumber !== undefined ? dbProfile.mobileNumber : baseProfile.mobileNumber,
-              telegram: dbProfile?.telegram !== undefined ? dbProfile.telegram : baseProfile.telegram,
-              country: dbProfile?.country !== undefined ? dbProfile.country : baseProfile.country,
-              city: dbProfile?.city !== undefined ? dbProfile.city : baseProfile.city,
-              bio: dbProfile?.bio !== undefined ? dbProfile.bio : baseProfile.bio,
-              withdrawPin: dbProfile?.withdrawPin !== undefined ? dbProfile.withdrawPin : baseProfile.withdrawPin,
-              balance: dbProfile?.balance !== undefined ? dbProfile.balance : baseProfile.balance,
-              totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : baseProfile.totalSuccess,
-              apiKey: dbProfile?.apiKey || baseProfile.apiKey,
-              assignedAgent: dbProfile?.assignedAgent || dbProfile?.referralEmail || baseProfile.assignedAgent,
-              referralEmail: dbProfile?.referralEmail || dbProfile?.assignedAgent || baseProfile.referralEmail,
-              referredBy: dbProfile?.referredBy || dbProfile?.assignedAgent || baseProfile.referredBy,
-              customOtpRate: dbProfile?.customOtpRate !== undefined ? dbProfile.customOtpRate : baseProfile.customOtpRate,
-              rate: dbProfile?.rate !== undefined ? dbProfile.rate : baseProfile.rate,
-              accountStatus: dbProfile?.accountStatus || baseProfile.accountStatus || "Active",
-              apiEnabled: dbProfile?.apiEnabled !== undefined ? dbProfile.apiEnabled : baseProfile.apiEnabled,
-              isOfficial: dbProfile?.isOfficial !== undefined ? dbProfile.isOfficial : baseProfile.isOfficial,
-              paymentMethods: dbProfile?.paymentMethods || baseProfile.paymentMethods,
-              withdrawHistory: dbProfile?.withdrawHistory || baseProfile.withdrawHistory,
-            };
-
-            try {
-              localStorage.setItem("orabit_user_profile", JSON.stringify(updatedProfile));
-            } catch (e) {}
-
-            return updatedProfile;
-          });
-          // Background hydrate all system profiles from Supabase to update local cache
-          fetchAllProfilesFromSupabase().catch((e) => console.warn("Background profiles fetch warning:", e));
-        } catch (e) {
-          console.error("Error fetching user role or profile:", e);
-        }
-      }
+      // Background hydrate all system profiles from Supabase
+      fetchAllProfilesFromSupabase().catch((e) => console.warn("Background profiles fetch warning:", e));
 
       return true;
     } catch (err: any) {
-      console.error("Server-side auth validation exception:", err);
-      await signOut();
+      console.error("Auth validation exception:", err);
       return false;
     } finally {
       setIsValidating(false);
@@ -219,7 +209,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    // Re-validate session silently when browser tab regains focus
+    // Re-validate session silently when browser tab regains focus or every 10 seconds
     const handleFocus = () => {
       if (localStorage.getItem("orabit_user_profile")) {
         validateServerSession();
@@ -228,10 +218,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     window.addEventListener("focus", handleFocus);
 
+    // Periodic cloud poll to keep cross-device state synchronized
+    const syncInterval = setInterval(() => {
+      if (localStorage.getItem("orabit_user_profile") && document.visibilityState === "visible") {
+        validateServerSession();
+      }
+    }, 10000);
+
     return () => {
       isMounted = false;
       authListener?.subscription?.unsubscribe();
       window.removeEventListener("focus", handleFocus);
+      clearInterval(syncInterval);
     };
   }, [validateServerSession, signOut]);
 
