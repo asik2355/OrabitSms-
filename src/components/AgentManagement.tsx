@@ -32,7 +32,7 @@ import {
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { supabase } from "../lib/supabase";
 import { createAgentInSupabase, deleteAgentFromSupabase, setUserRoleInSupabase } from "../lib/userRoles";
-import { saveUserProfileToSupabase, fetchAllProfilesFromSupabase, fetchUserProfileFromSupabase } from "../lib/userProfiles";
+import { saveUserProfileToSupabase, fetchAllProfilesFromSupabase } from "../lib/userProfiles";
 import { UserProfile } from "./OrabitAuthScreen";
 import { FeedNumber } from "../types";
 import { fetchDailyStatsFromSupabase } from "../lib/supabaseDailyStats";
@@ -100,10 +100,7 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
   // Filter Active System Agents
   const agentList = useMemo(() => {
-    return registeredUsers.filter((u) => {
-      const r = (u.role || "").toLowerCase().trim();
-      return r === "agent" || (u as any).isAgent === true;
-    });
+    return registeredUsers.filter((u) => u.role?.toLowerCase() === "agent");
   }, [registeredUsers]);
 
   // Designated Permanent Official Agent
@@ -118,41 +115,13 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     }
   }, [officialAgent]);
 
-  const [isRefreshingAgents, setIsRefreshingAgents] = useState(false);
-
-  const handleSyncAgentsAndUsers = async () => {
-    setIsRefreshingAgents(true);
-    try {
-      const fresh = await fetchAllProfilesFromSupabase();
-      if (fresh && fresh.length > 0) {
-        setRegisteredUsers(fresh);
-        setAgentNotice({
-          text: `Synchronized ${fresh.length} total users/agents successfully from cloud database!`,
-          type: "success",
-        });
-      }
-    } catch (e) {
-      console.warn("Failed to refresh agents:", e);
-    } finally {
-      setIsRefreshingAgents(false);
-    }
-  };
-
   // Direct Source of Truth hydration on mount
   useEffect(() => {
     let isMounted = true;
     fetchAllProfilesFromSupabase()
       .then((fresh) => {
         if (isMounted && fresh && fresh.length > 0) {
-          setRegisteredUsers((prev) => {
-            const map = new Map<string, UserProfile>();
-            fresh.forEach((u) => map.set(u.email.toLowerCase().trim(), u));
-            prev.forEach((u) => {
-              const k = u.email.toLowerCase().trim();
-              if (!map.has(k)) map.set(k, u);
-            });
-            return Array.from(map.values());
-          });
+          setRegisteredUsers(fresh);
         }
       })
       .catch((err) => console.warn("Failed to fetch fresh profiles in AgentManagement:", err));
@@ -885,14 +854,6 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       localStorage.setItem("orabit_registered_users", JSON.stringify(updatedUsers));
       setRegisteredUsers(updatedUsers);
 
-      // Force authoritative global re-fetch from database to ensure all devices sync
-      try {
-        const freshProfiles = await fetchAllProfilesFromSupabase();
-        if (freshProfiles && freshProfiles.length > 0) {
-          setRegisteredUsers(freshProfiles);
-        }
-      } catch (e) {}
-
       setAgentNotice({ text: `Agent (${cleanName}) profile updated successfully!`, type: "success" });
       setEditingAgent(null);
     } catch (err: any) {
@@ -1169,23 +1130,9 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
       {/* ACTIVE SYSTEM AGENTS TABLE */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <span>Active System Agents ({agentList.length})</span>
-            <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30">
-              {agentList.length} Active
-            </span>
-          </h3>
-          <button
-            onClick={handleSyncAgentsAndUsers}
-            disabled={isRefreshingAgents}
-            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-            title="Refresh and sync all agents and users directly from the cloud database"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAgents ? "animate-spin text-indigo-400" : ""}`} />
-            <span>{isRefreshingAgents ? "Syncing..." : "Sync from DB"}</span>
-          </button>
-        </div>
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          Active System Agents ({agentList.length})
+        </h3>
         <div className="overflow-x-auto rounded-xl border border-slate-800">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -1278,23 +1225,13 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
                           {/* 3. Edit Button */}
                           <button
-                            onClick={async () => {
+                            onClick={() => {
                               setEditingAgent(agent);
                               setEditName(agent.fullName || "");
                               setEditEmail(agent.email);
                               setEditPassword(agent.password || "");
                               setEditTelegram(agent.telegram || "");
                               setEditIsOfficial(isOfficialAg);
-
-                              try {
-                                const fresh = await fetchUserProfileFromSupabase(agent.email);
-                                if (fresh) {
-                                  if (fresh.fullName) setEditName(fresh.fullName);
-                                  if (fresh.telegram !== undefined) setEditTelegram(fresh.telegram);
-                                  if (fresh.isOfficial !== undefined) setEditIsOfficial(!!fresh.isOfficial);
-                                  if (fresh.password) setEditPassword(fresh.password);
-                                }
-                              } catch (e) {}
                             }}
                             className="p-1.5 px-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
                             title="Edit Agent Info"

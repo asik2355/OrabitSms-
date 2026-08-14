@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { getUserRoleFromSupabase } from "../lib/userRoles";
-import { fetchUserProfileFromSupabase, saveUserProfileToSupabase } from "../lib/userProfiles";
+import { fetchUserProfileFromSupabase, saveUserProfileToSupabase, loginUserAcrossDevices } from "../lib/userProfiles";
 import { OrabitLogo } from "./OrabitLogo";
 import {
   User,
@@ -331,172 +331,21 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
 
     setIsSubmitting(true);
 
-    let loggedInUser: UserProfile | null = null;
-    const cleanLoginEmail = loginEmail.trim().toLowerCase();
-    const isOwnerEmail = cleanLoginEmail === "orabitsms@gmail.com";
+    const cleanEmail = loginEmail.trim().toLowerCase();
 
-    // 1. Primary: Direct Supabase Cloud Database Query
-    try {
-      const [dbProfile, fetchedRole] = await Promise.all([
-        fetchUserProfileFromSupabase(cleanLoginEmail),
-        getUserRoleFromSupabase(cleanLoginEmail),
-      ]);
+    // 1. Cross-Device Cloud Authentication & Profile Hydration
+    const authResult = await loginUserAcrossDevices(cleanEmail, loginPassword);
 
-      if (dbProfile) {
-        let normalizedRole = "Client";
-        if (fetchedRole === "owner" || isOwnerEmail || dbProfile.role?.toLowerCase() === "owner") normalizedRole = "Owner";
-        else if (fetchedRole === "agent" || dbProfile.role?.toLowerCase() === "agent") normalizedRole = "Agent";
+    if (authResult.success && authResult.profile) {
+      const loggedInUser = authResult.profile;
 
-        // If password is in DB profile, check it unless owner master
-        if (dbProfile.password && dbProfile.password !== loginPassword && !isOwnerEmail) {
-          setIsSubmitting(false);
-          showAlert("Incorrect password. Please check and try again.", "error");
-          return;
-        }
-
-        loggedInUser = {
-          fullName: dbProfile.fullName || cleanLoginEmail.split("@")[0] || "User",
-          firstName: dbProfile.firstName || (dbProfile.fullName ? dbProfile.fullName.split(" ")[0] : ""),
-          lastName: dbProfile.lastName || (dbProfile.fullName ? dbProfile.fullName.split(" ").slice(1).join(" ") : ""),
-          mobileNumber: dbProfile.mobileNumber || "",
-          email: cleanLoginEmail,
-          telegram: dbProfile.telegram || "",
-          city: dbProfile.city || "Dhaka",
-          country: dbProfile.country || "Bangladesh",
-          bio: dbProfile.bio || "",
-          referralEmail: dbProfile.assignedAgent || dbProfile.referralEmail || "official@orabitsms.xyz",
-          referredBy: dbProfile.referredBy || dbProfile.assignedAgent || "official@orabitsms.xyz",
-          assignedAgent: dbProfile.assignedAgent || dbProfile.referralEmail || "official@orabitsms.xyz",
-          withdrawPin: dbProfile.withdrawPin || "",
-          balance: Number(dbProfile.balance !== undefined ? dbProfile.balance : (isOwnerEmail ? 999.0 : 0.0)),
-          totalSuccess: Number(dbProfile.totalSuccess || 0),
-          password: loginPassword,
-          role: normalizedRole,
-          apiEnabled: dbProfile.apiEnabled !== undefined ? !!dbProfile.apiEnabled : isOwnerEmail,
-          customOtpRate: dbProfile.customOtpRate !== undefined ? Number(dbProfile.customOtpRate) : 0.006,
-          rate: dbProfile.rate !== undefined ? Number(dbProfile.rate) : 0.006,
-          accountStatus: dbProfile.accountStatus || "Active",
-          isOfficial: dbProfile.isOfficial !== undefined ? !!dbProfile.isOfficial : (cleanLoginEmail === "official@orabitsms.xyz"),
-          apiKey: dbProfile.apiKey || "",
-          uid: dbProfile.uid || "",
-          paymentMethods: dbProfile.paymentMethods || null,
-          withdrawHistory: dbProfile.withdrawHistory || null,
-          lastLogin: new Date().toISOString(),
-        };
-      }
-    } catch (e) {
-      console.warn("Supabase direct query notice on login:", e);
-    }
-
-    // 2. Supabase Auth fallback
-    if (!loggedInUser) {
+      // Try Supabase Auth session in the background
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: cleanLoginEmail,
+        await supabase.auth.signInWithPassword({
+          email: cleanEmail,
           password: loginPassword,
         });
-
-        if (data?.user && !error) {
-          const meta = data.user.user_metadata || {};
-          loggedInUser = {
-            fullName: meta.fullName || cleanLoginEmail.split("@")[0] || "User",
-            mobileNumber: meta.mobileNumber || "",
-            email: cleanLoginEmail,
-            telegram: meta.telegram || "",
-            city: meta.city || "Dhaka",
-            country: meta.country || "Bangladesh",
-            referralEmail: meta.referralEmail || "official@orabitsms.xyz",
-            withdrawPin: meta.withdrawPin || "",
-            balance: isOwnerEmail ? 999.0 : 0.0,
-            password: loginPassword,
-            role: isOwnerEmail ? "Owner" : (meta.role || "Client"),
-            apiEnabled: isOwnerEmail ? true : false,
-          };
-        }
-      } catch (err) {
-        console.warn("Supabase auth login attempt:", err);
-      }
-    }
-
-    // 3. Fallback for owner / agent master login
-    if (!loggedInUser && isOwnerEmail) {
-      loggedInUser = {
-        fullName: "Orabit Owner",
-        mobileNumber: "01700000000",
-        email: "orabitsms@gmail.com",
-        telegram: "@OrabitOwner",
-        city: "Dhaka",
-        country: "Bangladesh",
-        referralEmail: "official@orabitsms.xyz",
-        withdrawPin: "1234",
-        balance: 999.0,
-        password: loginPassword,
-        role: "Owner",
-        apiEnabled: true,
-      };
-    }
-
-    if (loggedInUser) {
-      // Fetch user role & profile from Supabase user_profiles table
-      try {
-        const [fetchedRole, dbProfile] = await Promise.all([
-          getUserRoleFromSupabase(loggedInUser.email),
-          fetchUserProfileFromSupabase(loggedInUser.email),
-        ]);
-
-        if (fetchedRole) {
-          if (fetchedRole === "owner") loggedInUser.role = "Owner";
-          else if (fetchedRole === "agent") loggedInUser.role = "Agent";
-          else loggedInUser.role = "Client";
-        }
-
-        if (dbProfile) {
-          loggedInUser = {
-            ...loggedInUser,
-            fullName: dbProfile.fullName !== undefined && dbProfile.fullName !== "" ? dbProfile.fullName : loggedInUser.fullName,
-            firstName: dbProfile.firstName || loggedInUser.firstName,
-            lastName: dbProfile.lastName || loggedInUser.lastName,
-            mobileNumber: dbProfile.mobileNumber !== undefined ? dbProfile.mobileNumber : loggedInUser.mobileNumber,
-            telegram: dbProfile.telegram !== undefined ? dbProfile.telegram : loggedInUser.telegram,
-            country: dbProfile.country !== undefined ? dbProfile.country : loggedInUser.country,
-            city: dbProfile.city !== undefined ? dbProfile.city : loggedInUser.city,
-            bio: dbProfile.bio !== undefined ? dbProfile.bio : loggedInUser.bio,
-            withdrawPin: dbProfile.withdrawPin !== undefined ? dbProfile.withdrawPin : loggedInUser.withdrawPin,
-            balance: dbProfile.balance !== undefined ? dbProfile.balance : loggedInUser.balance,
-            totalSuccess: dbProfile.totalSuccess !== undefined ? dbProfile.totalSuccess : loggedInUser.totalSuccess,
-            role: (dbProfile.role as any) || loggedInUser.role,
-            apiKey: dbProfile.apiKey || loggedInUser.apiKey,
-            uid: dbProfile.uid || loggedInUser.uid,
-            assignedAgent: dbProfile.assignedAgent || dbProfile.referralEmail || loggedInUser.assignedAgent,
-            referralEmail: dbProfile.referralEmail || dbProfile.assignedAgent || loggedInUser.referralEmail,
-            referredBy: dbProfile.referredBy || dbProfile.assignedAgent || loggedInUser.referredBy,
-            customOtpRate: dbProfile.customOtpRate !== undefined ? dbProfile.customOtpRate : loggedInUser.customOtpRate,
-            rate: dbProfile.rate !== undefined ? dbProfile.rate : loggedInUser.rate,
-            accountStatus: dbProfile.accountStatus || loggedInUser.accountStatus || "Active",
-            apiEnabled: dbProfile.apiEnabled !== undefined ? dbProfile.apiEnabled : loggedInUser.apiEnabled,
-            isOfficial: dbProfile.isOfficial !== undefined ? dbProfile.isOfficial : loggedInUser.isOfficial,
-            paymentMethods: dbProfile.paymentMethods || loggedInUser.paymentMethods,
-            withdrawHistory: dbProfile.withdrawHistory || loggedInUser.withdrawHistory,
-          };
-        }
-      } catch (err) {
-        console.warn("Failed to query user_profiles or user_roles table on login:", err);
-      }
-
-      // Sync updated account into local storage cache
-      try {
-        const stored = localStorage.getItem("orabit_registered_users");
-        let list: UserProfile[] = stored ? JSON.parse(stored) : [];
-        const idx = list.findIndex(u => u.email.toLowerCase() === loggedInUser!.email.toLowerCase());
-        if (idx !== -1) {
-          list[idx] = { ...list[idx], ...loggedInUser };
-        } else {
-          list.push(loggedInUser);
-        }
-        localStorage.setItem("orabit_registered_users", JSON.stringify(list));
-      } catch (e) {
-        console.error("Failed to sync registered users on login:", e);
-      }
+      } catch (e) {}
 
       setIsSubmitting(false);
       showAlert("Login successful! Welcome back to ORABIT.", "success");
@@ -504,7 +353,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
     } else {
       setIsSubmitting(false);
       showAlert(
-        authErrorMsg ? `Login failed: ${authErrorMsg}` : "Account not found! Please register an account first.",
+        authResult.error || "Account not found or password incorrect! Please register an account first.",
         "error"
       );
     }

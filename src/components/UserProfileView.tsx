@@ -53,20 +53,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     userProfile?.email?.toLowerCase().trim() === "orabitsms@gmail.com";
   const isUserAgent = userProfile?.role?.toLowerCase() === "agent";
   const isOwnerOrAgent = isUserOwner || isUserAgent;
-
-  // Primary Live Loading State - Eliminates all stale cache flashing
-  const [isPageLoading, setIsPageLoading] = useState(true);
-  const [isManualSyncing, setIsManualSyncing] = useState(false);
-
   // Form State
-  const [fullName, setFullName] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [bio, setBio] = useState("");
-  const [country, setCountry] = useState("Bangladesh");
-  const [city, setCity] = useState("Dhaka");
-  const [telegramUsername, setTelegramUsername] = useState("");
-  const [liveBalance, setLiveBalance] = useState<number>(userProfile?.balance || 0);
-  const [liveRole, setLiveRole] = useState<string>(userProfile?.role || "Client");
+  const [fullName, setFullName] = useState(userProfile.fullName || "");
+  const [mobileNumber, setMobileNumber] = useState(userProfile.mobileNumber || "");
+  const [bio, setBio] = useState(userProfile.bio || "");
+  const [country, setCountry] = useState(userProfile.country || "Bangladesh");
+  const [city, setCity] = useState(userProfile.city || "Dhaka");
+  const [telegramUsername, setTelegramUsername] = useState(userProfile.telegram || "");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [saveErrorMsg, setSaveErrorMsg] = useState<string | null>(null);
 
@@ -78,184 +71,130 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   } | null>(null);
   const [isLoadingAgent, setIsLoadingAgent] = useState(false);
 
-  // Function to perform 100% direct Cloud DB fetch without any cache dependency
-  const fetchDirectLiveCloudData = async () => {
-    const userEmail = (userProfile?.email || "").toLowerCase().trim();
-    if (!userEmail) {
-      setIsPageLoading(false);
-      return;
+  // Sync form inputs when userProfile prop updates
+  useEffect(() => {
+    if (userProfile) {
+      if (userProfile.fullName) setFullName(userProfile.fullName);
+      if (userProfile.mobileNumber) setMobileNumber(userProfile.mobileNumber);
+      if (userProfile.country) setCountry(userProfile.country);
+      if (userProfile.city) setCity(userProfile.city);
+      if (userProfile.telegram) setTelegramUsername(userProfile.telegram);
+      if (userProfile.bio) setBio(userProfile.bio);
+      if (userProfile.apiKey) setApiKey(userProfile.apiKey);
     }
+  }, [userProfile?.fullName, userProfile?.mobileNumber, userProfile?.country, userProfile?.city, userProfile?.telegram, userProfile?.bio, userProfile?.apiKey]);
 
-    try {
-      // 1. Direct SELECT from Supabase user_profiles table for current user
-      const { data: dbData, error: dbErr } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .ilike("email", userEmail)
-        .maybeSingle();
+  // Always fetch fresh data on mount directly from database/backend and resolve correct Assigned Agent
+  useEffect(() => {
+    let isMounted = true;
+    const loadFreshProfileAndAgent = async () => {
+      const userEmail = (userProfile?.email || "").toLowerCase().trim();
+      if (!userEmail) return;
 
-      let directRole = userProfile?.role || "Client";
+      setIsLoadingAgent(true);
+
+      let freshProfile: Partial<UserProfile> | null = null;
       try {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .ilike("email", userEmail)
-          .maybeSingle();
-        if (roleData?.role) directRole = roleData.role;
-      } catch (e) {}
+        freshProfile = await fetchUserProfileFromSupabase(userEmail);
+        if (freshProfile && isMounted) {
+          if (freshProfile.fullName) setFullName(freshProfile.fullName);
+          if (freshProfile.mobileNumber !== undefined) setMobileNumber(freshProfile.mobileNumber);
+          if (freshProfile.country) setCountry(freshProfile.country);
+          if (freshProfile.city) setCity(freshProfile.city);
+          if (freshProfile.telegram !== undefined) setTelegramUsername(freshProfile.telegram);
+          if (freshProfile.bio !== undefined) setBio(freshProfile.bio);
+          if (freshProfile.apiKey) setApiKey(freshProfile.apiKey);
 
-      let resolvedFullName = "";
-      let resolvedPhone = "";
-      let resolvedCountry = "Bangladesh";
-      let resolvedCity = "Dhaka";
-      let resolvedTelegram = "";
-      let resolvedBio = "";
-      let resolvedApiKey = "";
-      let resolvedBalance = 0;
-      let resolvedAssignedAgentEmail = "official@orabitsms.xyz";
-
-      if (dbData && !dbErr) {
-        resolvedFullName = (dbData.full_name !== undefined && dbData.full_name !== null
-          ? dbData.full_name
-          : (dbData.fullName || "")).trim();
-        resolvedPhone = dbData.mobile_number !== undefined && dbData.mobile_number !== null
-          ? dbData.mobile_number
-          : (dbData.mobileNumber || "");
-        resolvedCountry = dbData.country || "Bangladesh";
-        resolvedCity = dbData.city || "Dhaka";
-        resolvedTelegram = dbData.telegram || "";
-        resolvedBio = dbData.bio || "";
-        resolvedApiKey = dbData.api_key || dbData.apiKey || "";
-        resolvedBalance = Number(dbData.balance || 0);
-
-        const assignedRaw = (
-          dbData.assigned_agent ||
-          dbData.referral_email ||
-          dbData.referred_by ||
-          "official@orabitsms.xyz"
-        ).toLowerCase().trim();
-
-        if (assignedRaw && assignedRaw !== "orabitsms@gmail.com" && assignedRaw !== "official") {
-          resolvedAssignedAgentEmail = assignedRaw;
+          // Update app-wide profile state so all tabs reflect fresh database data
+          onUpdateProfile({
+            ...userProfile,
+            ...freshProfile,
+            email: userEmail,
+          });
         }
-      } else {
-        // Fallback to fetchUserProfileFromSupabase
-        const fresh = await fetchUserProfileFromSupabase(userEmail);
-        if (fresh) {
-          resolvedFullName = (fresh.fullName || "").trim();
-          resolvedPhone = fresh.mobileNumber || "";
-          resolvedCountry = fresh.country || "Bangladesh";
-          resolvedCity = fresh.city || "Dhaka";
-          resolvedTelegram = fresh.telegram || "";
-          resolvedBio = fresh.bio || "";
-          resolvedApiKey = fresh.apiKey || "";
-          resolvedBalance = Number(fresh.balance || 0);
-          if (fresh.assignedAgent && fresh.assignedAgent !== "orabitsms@gmail.com") {
-            resolvedAssignedAgentEmail = fresh.assignedAgent.toLowerCase().trim();
-          }
-        }
+      } catch (e) {
+        console.warn("Notice fetching fresh user profile on mount:", e);
       }
 
-      // If still blank, use email username
-      if (!resolvedFullName) {
-        resolvedFullName = userEmail.split("@")[0] || "User";
+      if (isOwnerOrAgent) {
+        if (isMounted) setIsLoadingAgent(false);
+        return;
       }
 
-      // Update Form and Live View States
-      setFullName(resolvedFullName);
-      setMobileNumber(resolvedPhone);
-      setCountry(resolvedCountry);
-      setCity(resolvedCity);
-      setTelegramUsername(resolvedTelegram);
-      setBio(resolvedBio);
-      if (resolvedApiKey) setApiKey(resolvedApiKey);
-      setLiveBalance(resolvedBalance);
-      setLiveRole(directRole);
+      // STRICT OFFICIAL AGENT RESOLUTION
+      const officialAgentEmail = "official@orabitsms.xyz";
+      let assignedEmail = (
+        freshProfile?.assignedAgent ||
+        freshProfile?.referralEmail ||
+        freshProfile?.referredBy ||
+        userProfile?.assignedAgent ||
+        userProfile?.referralEmail ||
+        userProfile?.referredBy ||
+        ""
+      ).toLowerCase().trim();
 
-      // Sync global application state
-      const authoritativeLiveProfile: UserProfile = {
-        ...userProfile,
-        email: userEmail,
-        fullName: resolvedFullName,
-        mobileNumber: resolvedPhone,
-        country: resolvedCountry,
-        city: resolvedCity,
-        telegram: resolvedTelegram,
-        bio: resolvedBio,
-        balance: resolvedBalance,
-        role: directRole as any,
-        apiKey: resolvedApiKey || userProfile.apiKey,
-        assignedAgent: resolvedAssignedAgentEmail,
-        referralEmail: resolvedAssignedAgentEmail,
-        referredBy: resolvedAssignedAgentEmail,
-      };
-      onUpdateProfile(authoritativeLiveProfile);
+      // If assigned is empty, invalid, or points to owner, strictly fallback to official agent
+      if (!assignedEmail || assignedEmail === "orabitsms@gmail.com" || assignedEmail === "official") {
+        assignedEmail = officialAgentEmail;
+      }
+
+      let matchedAgent: { fullName: string; telegramUsername: string; email: string } | null = null;
+
+      // 1. Try to fetch from backend/database
       try {
-        localStorage.setItem("orabit_user_profile", JSON.stringify(authoritativeLiveProfile));
+        const agentProf = await fetchUserProfileFromSupabase(assignedEmail);
+        if (agentProf && agentProf.email) {
+          const cleanEmail = agentProf.email.toLowerCase().trim();
+          const isOfficial = cleanEmail === officialAgentEmail || !!agentProf.isOfficial;
+          matchedAgent = {
+            fullName: isOfficial ? "ORABIT OFFICIAL" : (agentProf.fullName || `${cleanEmail.split("@")[0].toUpperCase()} Agent`),
+            telegramUsername: agentProf.telegram || "@OrabitSupport",
+            email: isOfficial ? officialAgentEmail : cleanEmail,
+          };
+        }
       } catch (e) {}
 
-      // 2. LIVE ASSIGNED AGENT FETCH DIRECTLY FROM SUPABASE
-      if (!isOwnerOrAgent) {
-        setIsLoadingAgent(true);
-        const officialAgentEmail = "official@orabitsms.xyz";
-        let agentEmailToQuery = resolvedAssignedAgentEmail;
-        if (!agentEmailToQuery || agentEmailToQuery === "orabitsms@gmail.com" || agentEmailToQuery === "official") {
-          agentEmailToQuery = officialAgentEmail;
-        }
-
-        let agentLiveName = "";
-        let agentLiveTelegram = "";
-
+      // 2. Fallback to registered users cache if needed
+      if (!matchedAgent) {
         try {
-          const { data: agentDb, error: aErr } = await supabase
-            .from("user_profiles")
-            .select("*")
-            .ilike("email", agentEmailToQuery)
-            .maybeSingle();
-
-          if (agentDb && !aErr) {
-            agentLiveName = (agentDb.full_name !== undefined && agentDb.full_name !== null
-              ? agentDb.full_name
-              : (agentDb.fullName || "")).trim();
-            agentLiveTelegram = (agentDb.telegram || "").trim();
-          }
-        } catch (e) {
-          console.warn("Direct Supabase assigned agent query notice:", e);
-        }
-
-        if (!agentLiveName) {
-          try {
-            const agentFresh = await fetchUserProfileFromSupabase(agentEmailToQuery);
-            if (agentFresh) {
-              agentLiveName = (agentFresh.fullName || "").trim();
-              agentLiveTelegram = (agentFresh.telegram || "").trim();
+          const stored = localStorage.getItem("orabit_registered_users");
+          if (stored) {
+            const list: UserProfile[] = JSON.parse(stored);
+            const found = list.find((u) => u.email.toLowerCase().trim() === assignedEmail);
+            if (found && found.email) {
+              const cleanEmail = found.email.toLowerCase().trim();
+              const isOfficial = cleanEmail === officialAgentEmail || !!found.isOfficial;
+              matchedAgent = {
+                fullName: isOfficial ? "ORABIT OFFICIAL" : (found.fullName || `${cleanEmail.split("@")[0].toUpperCase()} Agent`),
+                telegramUsername: found.telegram || "@OrabitSupport",
+                email: isOfficial ? officialAgentEmail : cleanEmail,
+              };
             }
-          } catch (e) {}
-        }
+          }
+        } catch (e) {}
+      }
 
-        const isOfficialAg = agentEmailToQuery === officialAgentEmail;
-        const finalAgentName = agentLiveName || (isOfficialAg ? "Official Agent" : `${agentEmailToQuery.split("@")[0].toUpperCase()} Agent`);
-        const finalAgentTg = agentLiveTelegram || "@OrabitSupport";
+      // 3. Absolute Fallback: Official Support Agent (Never Owner)
+      if (!matchedAgent || matchedAgent.email === "orabitsms@gmail.com") {
+        matchedAgent = {
+          fullName: "ORABIT OFFICIAL",
+          telegramUsername: "@OrabitSupport",
+          email: officialAgentEmail,
+        };
+      }
 
-        setAssignedAgent({
-          fullName: finalAgentName,
-          telegramUsername: finalAgentTg,
-          email: agentEmailToQuery,
-        });
+      if (isMounted) {
+        setAssignedAgent(matchedAgent);
         setIsLoadingAgent(false);
       }
-    } catch (err) {
-      console.error("Critical error in direct live cloud fetch:", err);
-    } finally {
-      setIsPageLoading(false);
-      setIsManualSyncing(false);
-    }
-  };
+    };
 
-  // Always fetch fresh data directly on mount
-  useEffect(() => {
-    fetchDirectLiveCloudData();
-  }, [userProfile?.email]);
+    loadFreshProfileAndAgent();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.email, isOwnerOrAgent]);
 
   const [showWithdrawPinSetup, setShowWithdrawPinSetup] = useState(false);
   const [pinMode, setPinMode] = useState<"set" | "change" | "disable">("set");
@@ -446,30 +385,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     try {
       const isSaved = await saveUserProfileToSupabase(updatedProfile);
       if (isSaved) {
-        // 2. Force authoritative re-fetch from database to guarantee cross-device sync
-        let finalProfile: UserProfile = { ...updatedProfile };
+        // 2. Database update succeeded! Now update React State & localStorage
+        onUpdateProfile(updatedProfile);
         try {
-          const fresh = await fetchUserProfileFromSupabase(userProfile.email);
-          if (fresh) {
-            finalProfile = { ...updatedProfile, ...fresh, email: userProfile.email };
-          }
-        } catch (reFetchErr) {
-          console.warn("Notice re-fetching profile after save:", reFetchErr);
-        }
-
-        // 3. Update React State & localStorage
-        onUpdateProfile(finalProfile);
-        try {
-          localStorage.setItem("orabit_user_profile", JSON.stringify(finalProfile));
+          localStorage.setItem("orabit_user_profile", JSON.stringify(updatedProfile));
         } catch (err) {}
-
-        if (finalProfile.fullName) setFullName(finalProfile.fullName);
-        if (finalProfile.mobileNumber !== undefined) setMobileNumber(finalProfile.mobileNumber);
-        if (finalProfile.country) setCountry(finalProfile.country);
-        if (finalProfile.city) setCity(finalProfile.city);
-        if (finalProfile.telegram !== undefined) setTelegramUsername(finalProfile.telegram);
-        if (finalProfile.bio !== undefined) setBio(finalProfile.bio);
-
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 4000);
       } else {
@@ -505,22 +425,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setTimeout(() => setPasswordMsg(null), 4000);
   };
 
-  if (isPageLoading) {
-    return (
-      <div className="min-h-[400px] flex flex-col items-center justify-center p-8 space-y-4 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-xl text-center animate-in fade-in duration-200">
-        <div className="relative">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
-            <RefreshCw className="w-7 h-7 animate-spin text-emerald-400" />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <h3 className="text-base font-bold text-white tracking-wide">Syncing Live Cloud Profile...</h3>
-          <p className="text-xs text-slate-400 font-mono">Fetching latest profile & assigned agent directly from database</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-12">
       {savedSuccess && (
@@ -551,22 +455,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           <div className="text-xl font-extrabold text-white tracking-tight">
             {fullName}
           </div>
-        </div>
-
-        <div className="ml-auto z-10 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setIsManualSyncing(true);
-              fetchDirectLiveCloudData();
-            }}
-            disabled={isManualSyncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 text-xs font-bold transition-all border border-slate-700 cursor-pointer disabled:opacity-50 active:scale-95 shadow-sm"
-            title="Refresh profile from database"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isManualSyncing ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">{isManualSyncing ? "Syncing..." : "Live Sync"}</span>
-          </button>
         </div>
       </div>
 
@@ -599,8 +487,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </span>
             <span>
               {currency === "BDT"
-                ? liveBalance.toFixed(2)
-                : formatUSD(liveBalance / usdExchangeRate).replace("$", "")}
+                ? userProfile.balance.toFixed(2)
+                : formatUSD(userProfile.balance / usdExchangeRate).replace("$", "")}
             </span>
             <span className="text-xs text-slate-400 font-sans font-bold ml-1">
               {currency}
@@ -655,7 +543,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               {/* Agent Name */}
               <div className="space-y-1 text-center">
                 <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  {assignedAgent.fullName || "Official Agent"}
+                  {assignedAgent.fullName &&
+                  assignedAgent.fullName.toLowerCase() !== "orabitsms" &&
+                  !assignedAgent.fullName.toLowerCase().includes("orabitsms@")
+                    ? assignedAgent.fullName
+                    : "ORABIT OFFICIAL"}
                 </h4>
 
                 {/* VERIFIED AGENT Badge */}
@@ -797,11 +689,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                fetchDirectLiveCloudData();
+                setFullName(userProfile.fullName || "");
+                setMobileNumber(userProfile.mobileNumber || "");
+                setCountry(userProfile.country || "Bangladesh");
+                setCity(userProfile.city || "Dhaka");
+                setTelegramUsername(userProfile.telegram || "");
               }}
               className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all active:scale-95 cursor-pointer"
             >
-              Reset
+              Cancel
             </button>
             <button
               type="submit"

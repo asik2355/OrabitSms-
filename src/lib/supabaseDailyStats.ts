@@ -102,14 +102,37 @@ EXECUTE FUNCTION public.update_daily_stats_trigger();
 `;
 
 /**
- * Fetch daily stats from Supabase for a specific user (or all users if empty/owner)
+ * Fetch daily stats from Supabase / Backend for a specific user (or all users if empty/owner)
  */
 export async function fetchDailyStatsFromSupabase(userEmail?: string): Promise<DailyStatItem[]> {
+  const cleanEmail = userEmail ? userEmail.toLowerCase().trim() : "";
+
+  // 1. Try Backend Proxy API
+  try {
+    const url = cleanEmail ? `/api/stats/daily?email=${encodeURIComponent(cleanEmail)}` : "/api/stats/daily";
+    const resp = await fetch(url);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.success && Array.isArray(json.stats) && json.stats.length > 0) {
+        return json.stats.map((row: any) => ({
+          id: row.id,
+          date: typeof row.date === "string" ? row.date.split("T")[0] : row.date,
+          user_email: row.user_email,
+          total_allocations: Number(row.total_allocations || 0),
+          total_otps: Number(row.total_otps || 0),
+          total_revenue: Number(row.total_revenue || 0),
+          updated_at: row.updated_at,
+        }));
+      }
+    }
+  } catch (e) {}
+
+  // 2. Direct Supabase
   try {
     let query = supabase.from(DAILY_STATS_TABLE).select("*").order("date", { ascending: false });
 
-    if (userEmail) {
-      query = query.eq("user_email", userEmail.toLowerCase().trim());
+    if (cleanEmail) {
+      query = query.eq("user_email", cleanEmail);
     }
 
     const { data, error } = await query;
@@ -136,7 +159,7 @@ export async function fetchDailyStatsFromSupabase(userEmail?: string): Promise<D
 }
 
 /**
- * Client-side helper to safely increment/record a daily stat in Supabase
+ * Client-side helper to safely increment/record a daily stat in Supabase & Backend
  */
 export async function recordDailyStatToSupabase(
   userEmail: string,
@@ -149,6 +172,21 @@ export async function recordDailyStatToSupabase(
 
   const cleanEmail = userEmail.toLowerCase().trim();
   const today = dateStr || getBDDateString(Date.now());
+
+  // Record to backend proxy
+  try {
+    fetch("/api/stats/record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userEmail: cleanEmail,
+        isAllocation,
+        isSuccess,
+        revenueAmount,
+        dateStr: today,
+      }),
+    }).catch(() => {});
+  } catch (e) {}
 
   try {
     const { data } = await supabase

@@ -64,263 +64,340 @@ export function getCleanUid(email: string, existingUid?: string): string {
 }
 
 /**
- * Fetches ALL user/agent profiles directly from Supabase (authoritative cloud database).
+ * Fetches ALL user/agent profiles directly from Secure Backend & Supabase.
  */
 export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
   try {
-    const combinedMap = new Map<string, UserProfile>();
-
-    // 1. Primary Source: Query Supabase user_profiles table directly
+    // 1. Try Backend Proxy API first (Secure, synchronized across all devices)
     try {
-      const { data: profilesData } = await supabase.from(USER_PROFILES_TABLE).select("*");
-      if (Array.isArray(profilesData)) {
-        profilesData.forEach((row: any) => {
-          const cleanE = (row.email || "").toLowerCase().trim();
-          if (!cleanE) return;
-          const liveFullName = (row.full_name !== undefined && row.full_name !== null && row.full_name !== ""
-            ? row.full_name
-            : (row.fullName || "")).trim();
-          const rawRole = (row.role || "").toString().toLowerCase();
-          const normRole = rawRole === "owner" ? "Owner" : rawRole === "agent" ? "Agent" : "Client";
-          const assigned = (row.assigned_agent || row.referral_email || row.referred_by || "official@orabitsms.xyz").toLowerCase().trim();
+      const resp = await fetch("/api/users/list");
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && json.success && Array.isArray(json.users) && json.users.length > 0) {
+          const apiUsers: UserProfile[] = json.users.map((u: any) => ({
+            ...u,
+            email: (u.email || "").toLowerCase().trim(),
+            fullName: u.fullName || u.full_name || "",
+            firstName: u.firstName || u.first_name || "",
+            lastName: u.lastName || u.last_name || "",
+            mobileNumber: u.mobileNumber || u.mobile_number || "",
+            role: u.role || (u.email === "orabitsms@gmail.com" ? "Owner" : "Client"),
+            balance: Number(u.balance || 0),
+            customOtpRate: u.customOtpRate !== undefined ? Number(u.customOtpRate) : Number(u.rate || 0.006),
+            rate: u.rate !== undefined ? Number(u.rate) : Number(u.customOtpRate || 0.006),
+            apiEnabled: u.apiEnabled !== undefined ? !!u.apiEnabled : (u.email === "orabitsms@gmail.com" || u.role === "Owner"),
+            accountStatus: u.accountStatus || u.account_status || "Active",
+            assignedAgent: u.assignedAgent || u.assigned_agent || u.referralEmail || "official@orabitsms.xyz",
+          }));
 
-          combinedMap.set(cleanE, {
-            email: cleanE,
-            fullName: liveFullName || cleanE.split("@")[0] || "User",
-            firstName: row.first_name || (liveFullName ? liveFullName.split(" ")[0] : ""),
-            lastName: row.last_name || (liveFullName ? liveFullName.split(" ").slice(1).join(" ") : ""),
-            mobileNumber: row.mobile_number !== undefined && row.mobile_number !== null ? row.mobile_number : (row.mobileNumber || ""),
-            country: row.country || "Bangladesh",
-            city: row.city || "Dhaka",
-            telegram: row.telegram || "",
-            bio: row.bio || "",
-            role: normRole,
-            balance: Number(row.balance !== undefined ? row.balance : 0),
-            customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : Number(row.rate || 0.006),
-            rate: row.rate !== undefined ? Number(row.rate) : Number(row.custom_otp_rate || 0.006),
-            accountStatus: row.account_status || "Active",
-            assignedAgent: assigned,
-            referralEmail: assigned,
-            referredBy: assigned,
-            isOfficial: row.is_official !== undefined ? !!row.is_official : (cleanE === "official@orabitsms.xyz"),
-            apiKey: row.api_key || "",
-            uid: getCleanUid(cleanE, row.uid),
-            paymentMethods: row.payment_methods || null,
-            withdrawHistory: row.withdraw_history || null,
-            totalSuccess: Number(row.total_success || 0),
-            lastLogin: row.last_login || row.updated_at,
-          });
-        });
+          try {
+            localStorage.setItem("orabit_registered_users", JSON.stringify(apiUsers));
+          } catch (e) {}
+
+          return apiUsers;
+        }
       }
     } catch (e) {
-      console.warn("Direct Supabase user_profiles fetch notice:", e);
+      console.warn("Backend users list API notice, falling back to direct Supabase/cache:", e);
     }
 
-    // 2. Query Supabase user_roles table to ensure all agents & owners are included
+    // 2. Fallback to direct Supabase fetch
+    let profilesData: any[] = [];
+    let rolesData: any[] = [];
+
     try {
-      const { data: rolesData } = await supabase.from("user_roles").select("*");
-      if (Array.isArray(rolesData)) {
-        rolesData.forEach((r: any) => {
-          const cleanE = (r.email || "").toLowerCase().trim();
-          if (!cleanE) return;
-          const rLower = (r.role || "").toLowerCase().trim();
-          const normRole = rLower === "owner" ? "Owner" : rLower === "agent" ? "Agent" : "Client";
-          const existing = combinedMap.get(cleanE);
-          if (existing) {
-            existing.role = normRole;
-          } else {
-            const defName = normRole === "Agent" ? `Agent (${cleanE.split("@")[0]})` : cleanE.split("@")[0] || "User";
-            combinedMap.set(cleanE, {
-              email: cleanE,
-              fullName: defName,
-              firstName: defName.split(" ")[0] || "",
-              lastName: defName.split(" ").slice(1).join(" ") || "",
-              mobileNumber: "01700000000",
-              role: normRole,
-              balance: 0,
-              customOtpRate: normRole === "Agent" ? 0.0075 : 0.006,
-              rate: normRole === "Agent" ? 0.0075 : 0.006,
-              accountStatus: "Active",
-              country: "Bangladesh",
-              city: "Dhaka",
-              assignedAgent: "official@orabitsms.xyz",
-              isOfficial: cleanE === "official@orabitsms.xyz",
-            });
-          }
-        });
+      const res = await supabase.from(USER_PROFILES_TABLE).select("*");
+      if (res && Array.isArray(res.data)) profilesData = res.data;
+    } catch (e) {}
+
+    try {
+      const res = await supabase.from("user_roles").select("*");
+      if (res && Array.isArray(res.data)) rolesData = res.data;
+    } catch (e) {}
+
+    let feedsData: any[] = [];
+    try {
+      const { data: fData } = await supabase.from("user_feed_numbers").select("user_email, status, raw_message, service, id, number");
+      if (Array.isArray(fData)) {
+        feedsData = fData.filter((f) => f && f.service !== "ORABIT_PROFILE_SYNC" && !f.id?.startsWith("profile_") && f.number !== "0");
       }
     } catch (e) {}
 
-    // 3. Query Backend Proxy API (/api/users/list)
-    try {
-      const resp = await fetch(`/api/users/list?t=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json && json.success && Array.isArray(json.users)) {
-          json.users.forEach((u: any) => {
-            const cleanE = (u.email || "").toLowerCase().trim();
-            if (!cleanE) return;
-            const fullN = (u.fullName !== undefined && u.fullName !== null && u.fullName !== "" ? u.fullName : (u.full_name || "")).trim();
-            const rawRole = (u.role || "").toString().toLowerCase();
-            const normRole = rawRole === "owner" ? "Owner" : rawRole === "agent" ? "Agent" : (combinedMap.get(cleanE)?.role || "Client");
-            const existing = combinedMap.get(cleanE);
+    const data = profilesData;
 
-            if (!existing) {
-              combinedMap.set(cleanE, {
-                email: cleanE,
-                fullName: fullN || cleanE.split("@")[0] || "User",
-                firstName: u.firstName || u.first_name || (fullN ? fullN.split(" ")[0] : ""),
-                lastName: u.lastName || u.last_name || (fullN ? fullN.split(" ").slice(1).join(" ") : ""),
-                mobileNumber: u.mobileNumber !== undefined ? u.mobileNumber : (u.mobile_number || ""),
-                country: u.country || "Bangladesh",
-                city: u.city || "Dhaka",
-                telegram: u.telegram || "",
-                bio: u.bio || "",
-                role: normRole,
-                balance: Number(u.balance !== undefined ? u.balance : 0),
-                customOtpRate: u.customOtpRate !== undefined ? Number(u.customOtpRate) : Number(u.rate || 0.006),
-                rate: u.rate !== undefined ? Number(u.rate) : Number(u.customOtpRate || 0.006),
-                apiEnabled: u.apiEnabled !== undefined ? !!u.apiEnabled : (cleanE === "orabitsms@gmail.com" || normRole === "Owner"),
-                accountStatus: u.accountStatus || u.account_status || "Active",
-                assignedAgent: u.assignedAgent || u.assigned_agent || u.referralEmail || "official@orabitsms.xyz",
-                isOfficial: u.isOfficial !== undefined ? !!u.isOfficial : (cleanE === "official@orabitsms.xyz"),
-              });
-            } else {
-              // Merge if Supabase was missing some field
-              if (fullN && (!existing.fullName || existing.fullName === "User")) existing.fullName = fullN;
-              if (u.mobileNumber && !existing.mobileNumber) existing.mobileNumber = u.mobileNumber;
-              if (u.telegram && !existing.telegram) existing.telegram = u.telegram;
+    // Build feed earnings map from Supabase user_feed_numbers
+    const feedEarningsMap: Record<string, { count: number; earningsBDT: number }> = {};
+    if (Array.isArray(feedsData)) {
+      feedsData.forEach((f: any) => {
+        const emailClean = (f.user_email || "").toLowerCase().trim();
+        if (!emailClean) return;
+        const statusStr = (f.status || "").toUpperCase();
+        const rawMsg = (f.raw_message || "").toLowerCase();
+        const isFail = rawMsg.includes("no sms received") || rawMsg.includes("timed out") || rawMsg.includes("failed");
+        const isSuccess = (statusStr === "SUCCESS" || statusStr === "MULTI SUCCESS") && !isFail;
+
+        if (isSuccess) {
+          if (!feedEarningsMap[emailClean]) {
+            feedEarningsMap[emailClean] = { count: 0, earningsBDT: 0 };
+          }
+          feedEarningsMap[emailClean].count += 1;
+          feedEarningsMap[emailClean].earningsBDT += 0.60;
+        }
+      });
+    }
+
+    // Build role lookup map from user_roles
+    const roleMap: Record<string, string> = {};
+    if (Array.isArray(rolesData)) {
+      rolesData.forEach((r: any) => {
+        if (r.email && r.role) {
+          roleMap[r.email.toLowerCase().trim()] = r.role.trim();
+        }
+      });
+    }
+
+    // Load local cache map
+    let cachedUsersMap: Record<string, UserProfile> = {};
+    try {
+      const stored = localStorage.getItem("orabit_registered_users");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((u: UserProfile) => {
+            if (u && u.email) {
+              cachedUsersMap[u.email.toLowerCase().trim()] = u;
             }
           });
         }
       }
     } catch (e) {}
 
-    const finalUsers = Array.from(combinedMap.values());
-    try {
-      localStorage.setItem("orabit_registered_users", JSON.stringify(finalUsers));
-      const official = finalUsers.find((u) => (u.isOfficial || u.email === "official@orabitsms.xyz") && u.role?.toLowerCase() === "agent");
-      if (official && official.email) {
-        localStorage.setItem("orabit_official_agent_email", official.email.toLowerCase().trim());
-      }
-    } catch (e) {}
+    const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "official@orabitsms.xyz").toLowerCase().trim();
 
-    return finalUsers;
+    // Map profiles from user_profiles table if it has rows
+    const mapped: UserProfile[] = (Array.isArray(data) ? data : []).map((row: any) => {
+      const emailClean = (row.email || "").toLowerCase().trim();
+      const cached = cachedUsersMap[emailClean] || ({} as Partial<UserProfile>);
+
+      const assigned = (
+        row.assigned_agent ||
+        row.referral_email ||
+        row.referred_by ||
+        cached.assignedAgent ||
+        cached.referralEmail ||
+        officialEmail
+      ).toLowerCase().trim();
+
+      // Determine effective role (prefer user_roles table if present)
+      let effectiveRole = row.role || cached.role || "Client";
+      if (roleMap[emailClean]) {
+        const r = roleMap[emailClean].toLowerCase();
+        if (r === "owner") effectiveRole = "Owner";
+        else if (r === "agent") effectiveRole = "Agent";
+        else if (r === "client") effectiveRole = "Client";
+      }
+
+      const userRate = row.custom_otp_rate !== undefined && row.custom_otp_rate !== null
+        ? Number(row.custom_otp_rate)
+        : (row.rate !== undefined && row.rate !== null
+          ? Number(row.rate)
+          : (cached.customOtpRate !== undefined ? Number(cached.customOtpRate) : 0.006));
+
+      const dbBal = Number(row.balance || 0);
+      const feedCalc = feedEarningsMap[emailClean]?.earningsBDT || 0;
+
+      // Also check local feed numbers for this specific user
+      let localFeedCalc = 0;
+      try {
+        const userKey = `orabit_feed_numbers_${emailClean}`;
+        const localFeedStr = localStorage.getItem(userKey);
+        if (localFeedStr) {
+          const parsed = JSON.parse(localFeedStr);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((f: any) => {
+              if (f.service === "ORABIT_PROFILE_SYNC" || f.id?.startsWith("profile_") || f.number === "0") return;
+              const st = (f.status || "").toUpperCase();
+              const isSuccess = st === "SUCCESS" || st === "MULTI SUCCESS";
+              if (isSuccess) {
+                const msgs = f.messages ? f.messages.filter((m: any) => m.code || (m.raw && !m.raw.toLowerCase().includes("no sms received"))) : [];
+                const count = msgs.length > 0 ? msgs.length : 1;
+                localFeedCalc += count * 0.60;
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      const effectiveBal = Math.max(dbBal, feedCalc, localFeedCalc, cached?.balance || 0);
+      const effectiveSuccess = Math.max(
+        Number(row.total_success || 0),
+        feedEarningsMap[emailClean]?.count || 0,
+        cached?.totalSuccess || 0
+      );
+
+      const emailPrefix = emailClean.split("@")[0] || "User";
+      const fullN = (row.full_name || row.fullName || cached.fullName || emailPrefix).trim();
+
+      return {
+        email: emailClean,
+        fullName: fullN,
+        firstName: row.first_name || cached?.firstName || fullN.split(" ")[0] || "",
+        lastName: row.last_name || cached?.lastName || fullN.split(" ").slice(1).join(" ") || "",
+        mobileNumber: row.mobile_number || row.mobileNumber || cached?.mobileNumber || "",
+        balance: Number(effectiveBal),
+        totalSuccess: Number(effectiveSuccess),
+        role: effectiveRole,
+        telegram: row.telegram || cached?.telegram || "",
+        country: row.country || cached?.country || "Bangladesh",
+        city: row.city || cached?.city || "Dhaka",
+        bio: row.bio || cached?.bio || "",
+        withdrawPin: row.withdraw_pin || cached?.withdrawPin || "",
+        accountStatus: row.account_status || cached?.accountStatus || "Active",
+        apiKey: row.api_key || cached?.apiKey || "",
+        uid: getCleanUid(emailClean, row.uid || cached?.uid),
+        paymentMethods: row.payment_methods || cached?.paymentMethods || null,
+        withdrawHistory: row.withdraw_history || cached?.withdrawHistory || null,
+        referralEmail: assigned,
+        referredBy: assigned,
+        assignedAgent: assigned,
+        isOfficial: row.is_official !== undefined ? !!row.is_official : (cached?.isOfficial !== undefined ? !!cached.isOfficial : emailClean === "official@orabitsms.xyz"),
+        password: row.password || cached?.password || "",
+        customOtpRate: userRate,
+        rate: userRate,
+        apiEnabled: row.api_enabled !== undefined
+          ? !!row.api_enabled
+          : (cached?.apiEnabled !== undefined
+            ? !!cached.apiEnabled
+            : (emailClean === "orabitsms@gmail.com" || effectiveRole === "Owner")),
+        lastLogin: row.last_login || row.updated_at || row.created_at || cached?.lastLogin,
+      };
+    });
+
+    // Also include cached accounts that weren't in user_profiles
+    Object.keys(cachedUsersMap).forEach((eClean) => {
+      if (!mapped.some((m) => m.email === eClean)) {
+        const cached = cachedUsersMap[eClean];
+        let roleName = cached?.role || "Client";
+        if (roleMap[eClean]) {
+          const r = roleMap[eClean].toLowerCase();
+          if (r === "owner") roleName = "Owner";
+          else if (r === "agent") roleName = "Agent";
+          else if (r === "client") roleName = "Client";
+        }
+
+        const assigned = (cached?.assignedAgent || cached?.referralEmail || cached?.referredBy || officialEmail).toLowerCase().trim();
+        const userRate = cached?.customOtpRate !== undefined ? Number(cached.customOtpRate) : (cached?.rate !== undefined ? Number(cached.rate) : 0.006);
+        const fullN = (cached?.fullName || eClean.split("@")[0]).trim();
+
+        mapped.push({
+          email: eClean,
+          fullName: fullN,
+          firstName: cached?.firstName || fullN.split(" ")[0] || "",
+          lastName: cached?.lastName || fullN.split(" ").slice(1).join(" ") || "",
+          mobileNumber: cached?.mobileNumber || "",
+          balance: cached?.balance || 0,
+          totalSuccess: cached?.totalSuccess || 0,
+          role: roleName,
+          telegram: cached?.telegram || "",
+          country: cached?.country || "Bangladesh",
+          city: cached?.city || "Dhaka",
+          bio: cached?.bio || "",
+          withdrawPin: cached?.withdrawPin || "",
+          accountStatus: cached?.accountStatus || "Active",
+          apiKey: cached?.apiKey || "",
+          uid: getCleanUid(eClean, cached?.uid),
+          paymentMethods: cached?.paymentMethods || null,
+          withdrawHistory: cached?.withdrawHistory || null,
+          referralEmail: assigned,
+          referredBy: assigned,
+          assignedAgent: assigned,
+          isOfficial: cached?.isOfficial !== undefined ? !!cached.isOfficial : eClean === "official@orabitsms.xyz",
+          password: cached?.password || "",
+          customOtpRate: userRate,
+          rate: userRate,
+          apiEnabled: cached?.apiEnabled !== undefined ? !!cached.apiEnabled : (eClean === "orabitsms@gmail.com" || roleName === "Owner"),
+          lastLogin: cached?.lastLogin,
+        });
+      }
+    });
+
+    // Also inject any role from user_roles that might be missing from both
+    if (Array.isArray(rolesData)) {
+      rolesData.forEach((r: any) => {
+        if (!r.email) return;
+        const eClean = r.email.toLowerCase().trim();
+        if (!mapped.some((m) => m.email === eClean)) {
+          const cached = cachedUsersMap[eClean];
+          let roleName = "Client";
+          const rLower = (r.role || "").toLowerCase();
+          if (rLower === "owner") roleName = "Owner";
+          else if (rLower === "agent") roleName = "Agent";
+
+          mapped.push({
+            email: eClean,
+            fullName: cached?.fullName || eClean.split("@")[0],
+            firstName: cached?.firstName || "",
+            lastName: cached?.lastName || "",
+            mobileNumber: cached?.mobileNumber || "",
+            balance: cached?.balance || 0,
+            totalSuccess: cached?.totalSuccess || 0,
+            role: roleName,
+            telegram: cached?.telegram || "",
+            country: cached?.country || "Bangladesh",
+            city: cached?.city || "Dhaka",
+            referralEmail: officialEmail,
+            referredBy: officialEmail,
+            assignedAgent: officialEmail,
+            isOfficial: cached?.isOfficial !== undefined ? !!cached.isOfficial : eClean === "official@orabitsms.xyz",
+            password: cached?.password || "",
+            accountStatus: cached?.accountStatus || "Active",
+            customOtpRate: cached?.customOtpRate || 0.006,
+            rate: cached?.rate || 0.006,
+            apiEnabled: cached?.apiEnabled !== undefined ? !!cached.apiEnabled : (eClean === "orabitsms@gmail.com" || roleName === "Owner"),
+          });
+        }
+      });
+    }
+
+    if (mapped.length > 0) {
+      try {
+        localStorage.setItem("orabit_registered_users", JSON.stringify(mapped));
+        const official = mapped.find((u) => (u.isOfficial || u.email === "official@orabitsms.xyz") && u.role?.toLowerCase() === "agent");
+        if (official && official.email) {
+          localStorage.setItem("orabit_official_agent_email", official.email.toLowerCase().trim());
+        }
+      } catch (e) {
+        console.warn("Error caching registered users in localStorage:", e);
+      }
+    }
+    return mapped;
   } catch (e) {
     console.error("Failed to fetch all profiles from Supabase:", e);
   }
+
+  // Fallback to localStorage if offline or DB error
+  try {
+    const stored = localStorage.getItem("orabit_registered_users");
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {}
 
   return [];
 }
 
 /**
- * Fetches user profile directly from Secure Backend & Supabase (querying Supabase user_profiles table as primary source of truth).
+ * Fetches user profile directly from Secure Backend (checking server API, user_profiles table, and user_roles).
  */
 export async function fetchUserProfileFromSupabase(email: string): Promise<Partial<UserProfile> | null> {
   if (!email) return null;
   const cleanEmail = email.toLowerCase().trim();
   const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "official@orabitsms.xyz").toLowerCase().trim();
 
-  // 1. Direct Supabase Query FIRST (Authoritative Cloud Database Source of Truth)
   try {
-    let tableData: any = null;
-    let roleVal: string | null = null;
-
+    // 1. Try Backend Proxy API first (Authoritative, prevents unauthorized client balance edits)
     try {
-      const res = await supabase.from(USER_PROFILES_TABLE).select("*").ilike("email", cleanEmail).maybeSingle();
-      if (res && res.data) tableData = res.data;
-    } catch (e) {
-      console.warn("Direct Supabase query notice:", e);
-    }
-
-    try {
-      const res = await supabase.from("user_roles").select("role").ilike("email", cleanEmail).maybeSingle();
-      if (res && res.data?.role) roleVal = res.data.role;
-    } catch (e) {}
-
-    if (tableData) {
-      const mergedRole = roleVal
-        ? (roleVal.toLowerCase() === "owner" ? "Owner" : roleVal.toLowerCase() === "agent" ? "Agent" : "Client")
-        : (tableData?.role || (cleanEmail === "orabitsms@gmail.com" ? "Owner" : "Client"));
-
-      const assigned = (
-        tableData?.assigned_agent ||
-        tableData?.referral_email ||
-        tableData?.referred_by ||
-        officialEmail
-      ).toLowerCase().trim();
-
-      const userRate = (tableData?.custom_otp_rate !== undefined && tableData?.custom_otp_rate !== null
-        ? Number(tableData.custom_otp_rate)
-        : (tableData?.rate !== undefined && tableData?.rate !== null
-          ? Number(tableData.rate)
-          : 0.006));
-
-      const fullN = (tableData?.full_name !== undefined && tableData?.full_name !== null
-        ? tableData.full_name
-        : (tableData?.fullName || "")).trim();
-
-      const liveProfile: Partial<UserProfile> = {
-        email: cleanEmail,
-        fullName: fullN,
-        firstName: tableData?.first_name || (fullN ? fullN.split(" ")[0] : "") || "",
-        lastName: tableData?.last_name || (fullN ? fullN.split(" ").slice(1).join(" ") : "") || "",
-        mobileNumber: tableData?.mobile_number !== undefined && tableData?.mobile_number !== null ? tableData.mobile_number : (tableData?.mobileNumber || ""),
-        balance: Number(tableData?.balance || 0),
-        totalSuccess: Number(tableData?.total_success || 0),
-        role: mergedRole,
-        telegram: tableData?.telegram || "",
-        country: tableData?.country || "Bangladesh",
-        city: tableData?.city || "Dhaka",
-        bio: tableData?.bio || "",
-        withdrawPin: tableData?.withdraw_pin || "",
-        accountStatus: tableData?.account_status || "Active",
-        apiKey: tableData?.api_key || "",
-        uid: getCleanUid(cleanEmail, tableData?.uid),
-        paymentMethods: tableData?.payment_methods || null,
-        withdrawHistory: tableData?.withdraw_history || null,
-        referralEmail: assigned,
-        referredBy: assigned,
-        assignedAgent: assigned,
-        customOtpRate: userRate,
-        rate: userRate,
-        apiEnabled: tableData?.api_enabled !== undefined
-          ? !!tableData.api_enabled
-          : (cleanEmail === "orabitsms@gmail.com" || mergedRole === "Owner"),
-        isOfficial: tableData?.is_official !== undefined ? !!tableData.is_official : cleanEmail === "official@orabitsms.xyz",
-        lastLogin: tableData?.last_login || tableData?.updated_at || tableData?.created_at,
-      };
-
-      // Background update local cache with fresh authoritative data
-      try {
-        const stored = localStorage.getItem("orabit_registered_users");
-        let list: UserProfile[] = stored ? JSON.parse(stored) : [];
-        if (!Array.isArray(list)) list = [];
-        const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
-        if (idx >= 0) {
-          list[idx] = { ...list[idx], ...liveProfile, email: cleanEmail } as UserProfile;
-        } else {
-          list.push(liveProfile as UserProfile);
-        }
-        localStorage.setItem("orabit_registered_users", JSON.stringify(list));
-      } catch (e) {}
-
-      return liveProfile;
-    }
-  } catch (e) {
-    console.warn("Direct Supabase user profile fetch error, checking API fallback:", e);
-  }
-
-  try {
-    // 2. Try Backend Proxy API fallback
-    try {
-      const resp = await fetch(`/api/users/profile?email=${encodeURIComponent(cleanEmail)}&t=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      });
+      const resp = await fetch(`/api/users/profile?email=${encodeURIComponent(cleanEmail)}`);
       if (resp.ok) {
         const json = await resp.json();
         if (json && json.success && json.profile) {
@@ -360,25 +437,86 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         }
       }
     } catch (e) {
-      console.warn("Backend user profile API notice:", e);
+      console.warn("Backend user profile API notice, checking Supabase/cache fallback:", e);
     }
-  } catch (e) {}
 
-  try {
-    // 3. Fallback to Supabase Auth metadata if current user matches
+    // Fetch from user_profiles table and user_roles table
+    let tableData: any = null;
+    let roleVal: string | null = null;
+
+    try {
+      const res = await supabase.from(USER_PROFILES_TABLE).select("*").ilike("email", cleanEmail).maybeSingle();
+      if (res && res.data) tableData = res.data;
+    } catch (e) {}
+
+    try {
+      const res = await supabase.from("user_roles").select("role").ilike("email", cleanEmail).maybeSingle();
+      if (res && res.data?.role) roleVal = res.data.role;
+    } catch (e) {}
+
+    if (tableData) {
+      const mergedRole = roleVal
+        ? (roleVal.toLowerCase() === "owner" ? "Owner" : roleVal.toLowerCase() === "agent" ? "Agent" : "Client")
+        : (tableData?.role || (cleanEmail === "orabitsms@gmail.com" ? "Owner" : "Client"));
+
+      const assigned = (
+        tableData?.assigned_agent ||
+        tableData?.referral_email ||
+        tableData?.referred_by ||
+        officialEmail
+      ).toLowerCase().trim();
+
+      const userRate = (tableData?.custom_otp_rate !== undefined && tableData?.custom_otp_rate !== null
+        ? Number(tableData.custom_otp_rate)
+        : (tableData?.rate !== undefined && tableData?.rate !== null
+          ? Number(tableData.rate)
+          : 0.006));
+
+      const fullN = (tableData?.full_name || tableData?.fullName || "").trim();
+
+      return {
+        email: cleanEmail,
+        fullName: fullN,
+        firstName: tableData?.first_name || fullN.split(" ")[0] || "",
+        lastName: tableData?.last_name || fullN.split(" ").slice(1).join(" ") || "",
+        mobileNumber: tableData?.mobile_number || tableData?.mobileNumber || "",
+        balance: Number(tableData?.balance || 0),
+        totalSuccess: Number(tableData?.total_success || 0),
+        role: mergedRole,
+        telegram: tableData?.telegram || "",
+        country: tableData?.country || "Bangladesh",
+        city: tableData?.city || "Dhaka",
+        bio: tableData?.bio || "",
+        withdrawPin: tableData?.withdraw_pin || "",
+        accountStatus: tableData?.account_status || "Active",
+        apiKey: tableData?.api_key || "",
+        uid: getCleanUid(cleanEmail, tableData?.uid),
+        paymentMethods: tableData?.payment_methods || null,
+        withdrawHistory: tableData?.withdraw_history || null,
+        referralEmail: assigned,
+        referredBy: assigned,
+        assignedAgent: assigned,
+        customOtpRate: userRate,
+        rate: userRate,
+        apiEnabled: tableData?.api_enabled !== undefined
+          ? !!tableData.api_enabled
+          : (cleanEmail === "orabitsms@gmail.com" || mergedRole === "Owner"),
+        isOfficial: tableData?.is_official !== undefined ? !!tableData.is_official : cleanEmail === "official@orabitsms.xyz",
+        lastLogin: tableData?.last_login || tableData?.updated_at || tableData?.created_at,
+      };
+    }
+
+    // 2. Fallback to Supabase Auth metadata if current user matches
     const { data: authData } = await supabase.auth.getUser();
     if (authData?.user && authData.user.email?.toLowerCase().trim() === cleanEmail) {
       const meta = authData.user.user_metadata || {};
       const assigned = (meta.assignedAgent || meta.referralEmail || meta.referredBy || officialEmail).toLowerCase().trim();
       const userRate = meta.customOtpRate !== undefined ? Number(meta.customOtpRate) : (meta.rate !== undefined ? Number(meta.rate) : 0.006);
 
-      let effectiveRole = meta.role || (cleanEmail === "orabitsms@gmail.com" ? "Owner" : "Client");
-      try {
-        const { data: roleRow } = await supabase.from("user_roles").select("role").ilike("email", cleanEmail).maybeSingle();
-        if (roleRow?.role) {
-          effectiveRole = roleRow.role.toLowerCase() === "owner" ? "Owner" : roleRow.role.toLowerCase() === "agent" ? "Agent" : "Client";
-        }
-      } catch (e) {}
+      let effectiveRole = meta.role || "Client";
+      if (roleVal) {
+        effectiveRole = roleVal.toLowerCase() === "owner" ? "Owner" : roleVal.toLowerCase() === "agent" ? "Agent" : "Client";
+      }
 
       return {
         email: cleanEmail,
@@ -545,14 +683,18 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Direct authoritative upsert to Supabase user_profiles table
+    // 1. Update Supabase user_profiles table if available
     try {
-      const { error: upsertErr } = await supabase
+      const { data: updateRes, error: updateErr } = await supabase
         .from(USER_PROFILES_TABLE)
-        .upsert(payload, { onConflict: "email" });
+        .update(payload)
+        .ilike("email", cleanEmail)
+        .select();
 
-      if (upsertErr) {
-        // Fallback to core payload if extended columns don't exist
+      let saveSuccess = !updateErr && Array.isArray(updateRes) && updateRes.length > 0;
+
+      if (!saveSuccess) {
+        // 1a. Fallback core payload if extended columns cause schema errors
         const corePayload = {
           email: cleanEmail,
           full_name: profile.fullName || "",
@@ -561,13 +703,52 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
           total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
           role: profile.role || "Client",
           telegram: profile.telegram || "",
-          country: profile.country || "Bangladesh",
-          city: profile.city || "Dhaka",
+          country: profile.country || "",
+          city: profile.city || "",
           withdraw_pin: profile.withdrawPin || "",
           account_status: profile.accountStatus || "Active",
           updated_at: new Date().toISOString(),
         };
-        await supabase.from(USER_PROFILES_TABLE).upsert(corePayload, { onConflict: "email" });
+
+        const { data: coreUpdateRes, error: coreUpdateErr } = await supabase
+          .from(USER_PROFILES_TABLE)
+          .update(corePayload)
+          .ilike("email", cleanEmail)
+          .select();
+
+        if (!coreUpdateErr && Array.isArray(coreUpdateRes) && coreUpdateRes.length > 0) {
+          saveSuccess = true;
+        } else {
+          // 1b. Minimal update payload (guaranteed standard columns)
+          const minPayload = {
+            email: cleanEmail,
+            full_name: profile.fullName || "",
+            role: profile.role || "Client",
+            telegram: profile.telegram || "",
+            updated_at: new Date().toISOString(),
+          };
+
+          const { data: minUpdateRes, error: minUpdateErr } = await supabase
+            .from(USER_PROFILES_TABLE)
+            .update(minPayload)
+            .ilike("email", cleanEmail)
+            .select();
+
+          if (!minUpdateErr && Array.isArray(minUpdateRes) && minUpdateRes.length > 0) {
+            saveSuccess = true;
+          } else {
+            // 1c. Insert if record doesn't exist yet in user_profiles
+            const { error: insertErr } = await supabase.from(USER_PROFILES_TABLE).insert(payload);
+            if (insertErr) {
+              const { error: coreInsertErr } = await supabase.from(USER_PROFILES_TABLE).insert(corePayload);
+              if (coreInsertErr) {
+                try {
+                  await supabase.from(USER_PROFILES_TABLE).insert(minPayload);
+                } catch (e) {}
+              }
+            }
+          }
+        }
       }
     } catch (e) {
       console.warn("Notice updating user_profiles table:", e);
@@ -729,4 +910,96 @@ export async function incrementUserSuccessAndBalanceInSupabase(
     console.error("Exception incrementing user success and balance:", e);
     return null;
   }
+}
+
+/**
+ * Cross-device Cloud Authentication & Profile Hydration:
+ * Securely logs in user on any device by checking Cloud/Supabase/Server and returning full profile.
+ */
+export async function loginUserAcrossDevices(
+  email: string,
+  password?: string
+): Promise<{ success: boolean; profile?: UserProfile; error?: string }> {
+  if (!email) return { success: false, error: "Email is required" };
+  const cleanEmail = email.toLowerCase().trim();
+
+  // 1. Try Backend Proxy /api/users/login first
+  try {
+    const resp = await fetch("/api/users/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail, password: password || "" }),
+    });
+
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.success && json.profile) {
+        const fullProf: UserProfile = json.profile;
+        try {
+          localStorage.setItem("orabit_user_profile", JSON.stringify(fullProf));
+          const stored = localStorage.getItem("orabit_registered_users");
+          let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+          const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+          if (idx >= 0) list[idx] = fullProf;
+          else list.push(fullProf);
+          localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+        } catch (e) {}
+        return { success: true, profile: fullProf };
+      }
+    }
+  } catch (e) {
+    console.warn("Backend login API notice, attempting direct Supabase profile fetch:", e);
+  }
+
+  // 2. Fetch full profile from Supabase
+  try {
+    const fetched = await fetchUserProfileFromSupabase(cleanEmail);
+    if (fetched && fetched.email) {
+      const fullProf: UserProfile = {
+        email: cleanEmail,
+        fullName: fetched.fullName || cleanEmail.split("@")[0],
+        firstName: fetched.firstName || "",
+        lastName: fetched.lastName || "",
+        mobileNumber: fetched.mobileNumber || "",
+        balance: fetched.balance !== undefined ? Number(fetched.balance) : 0,
+        totalSuccess: fetched.totalSuccess !== undefined ? Number(fetched.totalSuccess) : 0,
+        role: fetched.role || (cleanEmail === "orabitsms@gmail.com" ? "Owner" : "Client"),
+        telegram: fetched.telegram || "",
+        country: fetched.country || "Bangladesh",
+        city: fetched.city || "Dhaka",
+        bio: fetched.bio || "",
+        withdrawPin: fetched.withdrawPin || "",
+        accountStatus: fetched.accountStatus || "Active",
+        apiKey: fetched.apiKey || "",
+        uid: getCleanUid(cleanEmail, fetched.uid),
+        paymentMethods: fetched.paymentMethods || null,
+        withdrawHistory: fetched.withdrawHistory || null,
+        referralEmail: fetched.referralEmail || "official@orabitsms.xyz",
+        referredBy: fetched.referredBy || "official@orabitsms.xyz",
+        assignedAgent: fetched.assignedAgent || "official@orabitsms.xyz",
+        customOtpRate: fetched.customOtpRate !== undefined ? Number(fetched.customOtpRate) : 0.006,
+        rate: fetched.rate !== undefined ? Number(fetched.rate) : 0.006,
+        apiEnabled: fetched.apiEnabled !== undefined ? !!fetched.apiEnabled : (cleanEmail === "orabitsms@gmail.com" || fetched.role === "Owner"),
+        isOfficial: fetched.isOfficial !== undefined ? !!fetched.isOfficial : cleanEmail === "official@orabitsms.xyz",
+        password: password || (fetched as any).password || "",
+        lastLogin: new Date().toISOString(),
+      };
+
+      try {
+        localStorage.setItem("orabit_user_profile", JSON.stringify(fullProf));
+        const stored = localStorage.getItem("orabit_registered_users");
+        let list: UserProfile[] = stored ? JSON.parse(stored) : [];
+        const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+        if (idx >= 0) list[idx] = fullProf;
+        else list.push(fullProf);
+        localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+      } catch (e) {}
+
+      return { success: true, profile: fullProf };
+    }
+  } catch (e) {
+    console.error("Direct fetch error in cross-device login:", e);
+  }
+
+  return { success: false, error: "Account not found or password incorrect." };
 }

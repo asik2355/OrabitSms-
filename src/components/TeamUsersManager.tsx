@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
 import { formatUSD, formatCurrencyDisplay } from "../lib/storageUtils";
-import { saveUserProfileToSupabase, getCleanUid, fetchUserProfileFromSupabase, fetchAllProfilesFromSupabase } from "../lib/userProfiles";
+import { saveUserProfileToSupabase, getCleanUid } from "../lib/userProfiles";
 import {
   Users,
   CheckCircle2,
@@ -191,7 +191,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   };
 
   // Open Edit Modal
-  const handleOpenEditModal = async (user: UserProfile) => {
+  const handleOpenEditModal = (user: UserProfile) => {
     setEditingUser(user);
     setEditFullName(user.fullName || "");
     setEditPhone(user.mobileNumber || "");
@@ -212,23 +212,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     setEditStatus(user.accountStatus || "Active");
     setEditApiEnabled(!!user.apiEnabled);
     setRateWarning(null);
-
-    // Asynchronously fetch fresh data directly from Database/Backend to prevent stale multi-device state
-    try {
-      const fresh = await fetchUserProfileFromSupabase(user.email);
-      if (fresh) {
-        if (fresh.fullName) setEditFullName(fresh.fullName);
-        if (fresh.mobileNumber !== undefined) setEditPhone(fresh.mobileNumber);
-        if (fresh.country) setEditCountry(fresh.country);
-        if (fresh.city) setEditCity(fresh.city);
-        if (fresh.assignedAgent) setEditAssignedAgent(fresh.assignedAgent);
-        if (fresh.customOtpRate !== undefined) setEditRate(fresh.customOtpRate.toString());
-        if (fresh.accountStatus) setEditStatus(fresh.accountStatus);
-        if (fresh.apiEnabled !== undefined) setEditApiEnabled(!!fresh.apiEnabled);
-      }
-    } catch (e) {
-      console.warn("Notice fetching fresh user profile in Edit User modal:", e);
-    }
   };
 
   // Save Edit User
@@ -255,8 +238,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     const updated: UserProfile = {
       ...editingUser,
       fullName: fullN,
-      firstName: fullN.split(" ")[0] || "",
-      lastName: fullN.split(" ").slice(1).join(" ") || "",
       mobileNumber: editPhone.trim(),
       country: editCountry.trim(),
       city: editCity.trim(),
@@ -270,13 +251,13 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       referredBy: cleanAgentEmail,
     };
 
-    // 1. Save directly to Supabase as primary Source of Truth
+    // Save directly to Supabase as primary Source of Truth
     await saveUserProfileToSupabase(updated);
 
-    // 2. Update parent state
+    // Update parent state
     onUpdateUser(updated);
 
-    // 3. Save to local storage
+    // Save to local storage
     try {
       const stored = localStorage.getItem("orabit_registered_users");
       let list: UserProfile[] = stored ? JSON.parse(stored) : [];
@@ -290,17 +271,6 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     } catch (e) {
       console.error("Local storage update error:", e);
     }
-
-    // 4. Trigger global re-fetch from database in the background to ensure all devices are synced
-    try {
-      const freshList = await fetchAllProfilesFromSupabase();
-      if (freshList && freshList.length > 0) {
-        const freshUpdated = freshList.find((u) => u.email.toLowerCase() === editingUser.email.toLowerCase());
-        if (freshUpdated) {
-          onUpdateUser(freshUpdated);
-        }
-      }
-    } catch (e) {}
 
     setEditingUser(null);
   };

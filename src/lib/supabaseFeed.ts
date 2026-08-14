@@ -228,8 +228,8 @@ function safeSetLocalCache(key: string, data: any): void {
 }
 
 /**
- * Fetch all feed numbers for a user from Supabase database.
- * Falls back to localStorage if DB fetch fails or table is absent.
+ * Fetch all feed numbers for a user from Supabase database & Backend proxy.
+ * Ensures numbers generated on any phone/device immediately appear everywhere.
  */
 export async function fetchUserFeedNumbersFromSupabase(userEmail: string): Promise<FeedNumber[]> {
   if (!userEmail) return [];
@@ -237,6 +237,22 @@ export async function fetchUserFeedNumbersFromSupabase(userEmail: string): Promi
   const cleanEmail = userEmail.toLowerCase().trim();
   const localKey = `orabit_feed_numbers_${cleanEmail}`;
 
+  // 1. Try Backend Proxy API first
+  try {
+    const resp = await fetch(`/api/feeds/list?email=${encodeURIComponent(cleanEmail)}`);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.success && Array.isArray(json.feeds) && json.feeds.length > 0) {
+        const mapped = json.feeds.map(mapRowToFeedNumber);
+        safeSetLocalCache(localKey, mapped);
+        return mapped;
+      }
+    }
+  } catch (e) {
+    console.warn("Backend feeds list API notice, attempting direct Supabase:", e);
+  }
+
+  // 2. Direct Supabase fetch
   try {
     const { data, error } = await supabase
       .from(USER_FEED_NUMBERS_TABLE)
@@ -263,6 +279,14 @@ export async function fetchUserFeedNumbersFromSupabase(userEmail: string): Promi
       const dbFeeds = validRows.map(mapRowToFeedNumber);
       // Cache in localStorage for offline availability
       safeSetLocalCache(localKey, dbFeeds);
+
+      // Async sync to server
+      fetch("/api/feeds/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userEmail: cleanEmail, feeds: dbFeeds }),
+      }).catch(() => {});
+
       return dbFeeds;
     }
   } catch (e) {
@@ -283,7 +307,7 @@ export async function fetchUserFeedNumbersFromSupabase(userEmail: string): Promi
 }
 
 /**
- * Save or update a single feed number item in Supabase database.
+ * Save or update a single feed number item in Backend & Supabase database.
  */
 export async function saveFeedNumberToSupabase(userEmail: string, item: FeedNumber): Promise<void> {
   if (!userEmail || !item) return;
@@ -338,7 +362,16 @@ export async function saveFeedNumberToSupabase(userEmail: string, item: FeedNumb
     console.warn("Failed to update local feed cache:", e);
   }
 
-  // 2. Upsert to Supabase DB
+  // 2. Sync to Backend API
+  try {
+    fetch("/api/feeds/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userEmail: cleanEmail, feeds: [finalItem] }),
+    }).catch(() => {});
+  } catch (e) {}
+
+  // 3. Upsert to Supabase DB
   try {
     const payload = {
       id: finalItem.id,
@@ -369,7 +402,7 @@ export async function saveFeedNumberToSupabase(userEmail: string, item: FeedNumb
 }
 
 /**
- * Bulk save/upsert updated feed numbers array to Supabase DB.
+ * Bulk save/upsert updated feed numbers array to Supabase DB & Backend proxy.
  */
 export async function bulkSyncFeedNumbersToSupabase(userEmail: string, items: FeedNumber[]): Promise<void> {
   if (!userEmail || !Array.isArray(items) || items.length === 0) return;
@@ -393,6 +426,15 @@ export async function bulkSyncFeedNumbersToSupabase(userEmail: string, items: Fe
   } catch (e) {
     console.warn("Failed local cache save:", e);
   }
+
+  // Sync to Backend Proxy
+  try {
+    fetch("/api/feeds/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userEmail: cleanEmail, feeds: lockedItems }),
+    }).catch(() => {});
+  } catch (e) {}
 
   try {
     const payloads = lockedItems.map((item) => ({
