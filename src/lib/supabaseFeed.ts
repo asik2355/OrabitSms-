@@ -242,16 +242,25 @@ export async function fetchUserFeedNumbersFromSupabase(userEmail: string): Promi
       .from(USER_FEED_NUMBERS_TABLE)
       .select("*")
       .eq("user_email", cleanEmail)
+      .neq("service", "ORABIT_PROFILE_SYNC")
+      .neq("number", "0")
       .order("requested_at", { ascending: false });
 
     if (error) {
       console.warn("Supabase feed fetch notice (falling back to local cache):", error.message);
       const saved = localStorage.getItem(localKey);
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed)
+        ? parsed.filter((item: any) => item && item.service !== "ORABIT_PROFILE_SYNC" && !item.id?.startsWith("profile_") && item.number !== "0")
+        : [];
     }
 
     if (data && Array.isArray(data)) {
-      const dbFeeds = data.map(mapRowToFeedNumber);
+      const validRows = data.filter(
+        (row: any) => row && row.service !== "ORABIT_PROFILE_SYNC" && !row.id?.startsWith("profile_") && row.number !== "0" && row.status !== "USER_PROFILE"
+      );
+      const dbFeeds = validRows.map(mapRowToFeedNumber);
       // Cache in localStorage for offline availability
       safeSetLocalCache(localKey, dbFeeds);
       return dbFeeds;
@@ -263,7 +272,11 @@ export async function fetchUserFeedNumbersFromSupabase(userEmail: string): Promi
   // Fallback to localStorage
   try {
     const saved = localStorage.getItem(localKey);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed)
+      ? parsed.filter((item: any) => item && item.service !== "ORABIT_PROFILE_SYNC" && !item.id?.startsWith("profile_") && item.number !== "0")
+      : [];
   } catch (e) {
     return [];
   }
