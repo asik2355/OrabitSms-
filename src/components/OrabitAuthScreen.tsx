@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { getUserRoleFromSupabase } from "../lib/userRoles";
-import { fetchUserProfileFromSupabase } from "../lib/userProfiles";
+import { fetchUserProfileFromSupabase, saveUserProfileToSupabase } from "../lib/userProfiles";
 import { OrabitLogo } from "./OrabitLogo";
 import {
   User,
@@ -286,6 +286,13 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
         console.warn("Supabase registration warning:", err);
       }
 
+      // Save new user profile to Supabase (cloud sync + tables)
+      try {
+        await saveUserProfileToSupabase(newUser);
+      } catch (err) {
+        console.warn("Supabase save profile warning on register:", err);
+      }
+
       try {
         const stored = localStorage.getItem("orabit_registered_users");
         const savedAccounts: UserProfile[] = stored ? JSON.parse(stored) : [];
@@ -426,18 +433,28 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
         if (dbProfile) {
           loggedInUser = {
             ...loggedInUser,
-            fullName: dbProfile.fullName || loggedInUser.fullName,
-            mobileNumber: dbProfile.mobileNumber || loggedInUser.mobileNumber,
-            telegram: dbProfile.telegram || loggedInUser.telegram,
-            country: dbProfile.country || loggedInUser.country,
-            city: dbProfile.city || loggedInUser.city,
-            bio: dbProfile.bio || loggedInUser.bio,
+            fullName: dbProfile.fullName !== undefined && dbProfile.fullName !== "" ? dbProfile.fullName : loggedInUser.fullName,
+            firstName: dbProfile.firstName || loggedInUser.firstName,
+            lastName: dbProfile.lastName || loggedInUser.lastName,
+            mobileNumber: dbProfile.mobileNumber !== undefined ? dbProfile.mobileNumber : loggedInUser.mobileNumber,
+            telegram: dbProfile.telegram !== undefined ? dbProfile.telegram : loggedInUser.telegram,
+            country: dbProfile.country !== undefined ? dbProfile.country : loggedInUser.country,
+            city: dbProfile.city !== undefined ? dbProfile.city : loggedInUser.city,
+            bio: dbProfile.bio !== undefined ? dbProfile.bio : loggedInUser.bio,
             withdrawPin: dbProfile.withdrawPin !== undefined ? dbProfile.withdrawPin : loggedInUser.withdrawPin,
             balance: dbProfile.balance !== undefined ? dbProfile.balance : loggedInUser.balance,
             totalSuccess: dbProfile.totalSuccess !== undefined ? dbProfile.totalSuccess : loggedInUser.totalSuccess,
-            role: dbProfile.role || loggedInUser.role,
+            role: (dbProfile.role as any) || loggedInUser.role,
             apiKey: dbProfile.apiKey || loggedInUser.apiKey,
             uid: dbProfile.uid || loggedInUser.uid,
+            assignedAgent: dbProfile.assignedAgent || dbProfile.referralEmail || loggedInUser.assignedAgent,
+            referralEmail: dbProfile.referralEmail || dbProfile.assignedAgent || loggedInUser.referralEmail,
+            referredBy: dbProfile.referredBy || dbProfile.assignedAgent || loggedInUser.referredBy,
+            customOtpRate: dbProfile.customOtpRate !== undefined ? dbProfile.customOtpRate : loggedInUser.customOtpRate,
+            rate: dbProfile.rate !== undefined ? dbProfile.rate : loggedInUser.rate,
+            accountStatus: dbProfile.accountStatus || loggedInUser.accountStatus || "Active",
+            apiEnabled: dbProfile.apiEnabled !== undefined ? dbProfile.apiEnabled : loggedInUser.apiEnabled,
+            isOfficial: dbProfile.isOfficial !== undefined ? dbProfile.isOfficial : loggedInUser.isOfficial,
             paymentMethods: dbProfile.paymentMethods || loggedInUser.paymentMethods,
             withdrawHistory: dbProfile.withdrawHistory || loggedInUser.withdrawHistory,
           };

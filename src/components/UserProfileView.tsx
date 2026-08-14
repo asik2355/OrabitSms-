@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UserProfile } from "./OrabitAuthScreen";
-import { saveUserProfileToSupabase } from "../lib/userProfiles";
+import { saveUserProfileToSupabase, fetchUserProfileFromSupabase, fetchAllProfilesFromSupabase } from "../lib/userProfiles";
 import { formatUSD } from "../lib/storageUtils";
 import { supabase } from "../lib/supabase";
 import {
@@ -94,7 +94,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com"
       ).toLowerCase().trim();
 
-      // Step 1: Fetch live assigned_agent for this specific client from Supabase user_profiles
+      // Step 1: Fetch live profile for this client to ensure latest assigned agent and details
       let clientAssignedAgentEmail = (
         userProfile.assignedAgent ||
         userProfile.referralEmail ||
@@ -104,49 +104,48 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       if (userEmail) {
         try {
-          const { data: myData } = await supabase
-            .from("user_profiles")
-            .select("assigned_agent, referral_email, referred_by")
-            .ilike("email", userEmail)
-            .maybeSingle();
-
-          if (myData) {
+          const freshClientProfile = await fetchUserProfileFromSupabase(userEmail);
+          if (freshClientProfile) {
             const liveRef = (
-              myData.assigned_agent ||
-              myData.referral_email ||
-              myData.referred_by ||
+              freshClientProfile.assignedAgent ||
+              freshClientProfile.referralEmail ||
+              freshClientProfile.referredBy ||
               ""
             ).toLowerCase().trim();
             if (liveRef) {
               clientAssignedAgentEmail = liveRef;
             }
+            if (isMounted) {
+              if (freshClientProfile.fullName) setFullName(freshClientProfile.fullName);
+              if (freshClientProfile.mobileNumber) setMobileNumber(freshClientProfile.mobileNumber);
+              if (freshClientProfile.country) setCountry(freshClientProfile.country);
+              if (freshClientProfile.city) setCity(freshClientProfile.city);
+              if (freshClientProfile.telegram) setTelegramUsername(freshClientProfile.telegram);
+              if (freshClientProfile.bio) setBio(freshClientProfile.bio);
+            }
           }
         } catch (e) {
-          console.warn("Notice checking client assigned agent in Supabase:", e);
+          console.warn("Notice checking client profile in Supabase:", e);
         }
       }
 
-      // If client has no assigned agent, default to official agent email
+      // If client has no assigned agent or assigned is official, default to official agent email
       const targetAgentEmail = clientAssignedAgentEmail || officialEmail || "orabitsms@gmail.com";
 
       let matchedAgent: { fullName: string; telegramUsername: string; email: string } | null = null;
 
-      // Step 2: Fetch the assigned agent's live profile from Supabase user_profiles
+      // Step 2: Fetch the assigned agent's live profile from Supabase
       try {
-        const { data: agentData } = await supabase
-          .from("user_profiles")
-          .select("full_name, telegram, email, role, is_official")
-          .ilike("email", targetAgentEmail)
-          .maybeSingle();
+        const agentProfile = await fetchUserProfileFromSupabase(targetAgentEmail);
 
-        if (agentData && agentData.email) {
-          const rawName = (agentData.full_name || "").trim();
-          const cleanEmail = agentData.email.toLowerCase().trim();
+        if (agentProfile && agentProfile.email) {
+          const rawName = (agentProfile.fullName || "").trim();
+          const cleanEmail = agentProfile.email.toLowerCase().trim();
           const emailPrefix = cleanEmail.split("@")[0];
 
           let displayName = rawName;
           if (!displayName || displayName.toLowerCase() === emailPrefix) {
-            if (agentData.is_official || cleanEmail === officialEmail || cleanEmail === "official@orabitsms.xyz") {
+            if (agentProfile.isOfficial || cleanEmail === officialEmail || cleanEmail === "official@orabitsms.xyz") {
               displayName = "ORABIT OFFICIAL";
             } else {
               displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) + " Agent";
@@ -155,7 +154,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
           matchedAgent = {
             fullName: displayName,
-            telegramUsername: agentData.telegram || "@OrabitSupport",
+            telegramUsername: agentProfile.telegram || "@OrabitSupport",
             email: cleanEmail,
           };
         }

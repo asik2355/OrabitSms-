@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           else if (fetchedRole === "agent") normalizedRole = "Agent";
 
           setUserProfile((prev) => {
-            const baseProfile = prev || {
+            const baseProfile: UserProfile = prev || {
               fullName: validEmail.split("@")[0],
               mobileNumber: "",
               email: validEmail,
@@ -130,24 +130,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: normalizedRole,
             };
 
-            return {
+            const updatedProfile: UserProfile = {
               ...baseProfile,
               email: validEmail,
-              role: normalizedRole,
-              uid: validUser.id,
-              fullName: dbProfile?.fullName || baseProfile.fullName,
-              mobileNumber: dbProfile?.mobileNumber || baseProfile.mobileNumber,
-              telegram: dbProfile?.telegram || baseProfile.telegram,
-              country: dbProfile?.country || baseProfile.country,
-              city: dbProfile?.city || baseProfile.city,
-              bio: dbProfile?.bio || baseProfile.bio,
+              role: (dbProfile?.role as any) || normalizedRole,
+              uid: dbProfile?.uid || validUser.id,
+              fullName: dbProfile?.fullName !== undefined && dbProfile.fullName !== "" ? dbProfile.fullName : baseProfile.fullName,
+              firstName: dbProfile?.firstName || baseProfile.firstName,
+              lastName: dbProfile?.lastName || baseProfile.lastName,
+              mobileNumber: dbProfile?.mobileNumber !== undefined ? dbProfile.mobileNumber : baseProfile.mobileNumber,
+              telegram: dbProfile?.telegram !== undefined ? dbProfile.telegram : baseProfile.telegram,
+              country: dbProfile?.country !== undefined ? dbProfile.country : baseProfile.country,
+              city: dbProfile?.city !== undefined ? dbProfile.city : baseProfile.city,
+              bio: dbProfile?.bio !== undefined ? dbProfile.bio : baseProfile.bio,
               withdrawPin: dbProfile?.withdrawPin !== undefined ? dbProfile.withdrawPin : baseProfile.withdrawPin,
               balance: dbProfile?.balance !== undefined ? dbProfile.balance : baseProfile.balance,
               totalSuccess: dbProfile?.totalSuccess !== undefined ? dbProfile.totalSuccess : baseProfile.totalSuccess,
               apiKey: dbProfile?.apiKey || baseProfile.apiKey,
+              assignedAgent: dbProfile?.assignedAgent || dbProfile?.referralEmail || baseProfile.assignedAgent,
+              referralEmail: dbProfile?.referralEmail || dbProfile?.assignedAgent || baseProfile.referralEmail,
+              referredBy: dbProfile?.referredBy || dbProfile?.assignedAgent || baseProfile.referredBy,
+              customOtpRate: dbProfile?.customOtpRate !== undefined ? dbProfile.customOtpRate : baseProfile.customOtpRate,
+              rate: dbProfile?.rate !== undefined ? dbProfile.rate : baseProfile.rate,
+              accountStatus: dbProfile?.accountStatus || baseProfile.accountStatus || "Active",
+              apiEnabled: dbProfile?.apiEnabled !== undefined ? dbProfile.apiEnabled : baseProfile.apiEnabled,
+              isOfficial: dbProfile?.isOfficial !== undefined ? dbProfile.isOfficial : baseProfile.isOfficial,
               paymentMethods: dbProfile?.paymentMethods || baseProfile.paymentMethods,
               withdrawHistory: dbProfile?.withdrawHistory || baseProfile.withdrawHistory,
             };
+
+            try {
+              localStorage.setItem("orabit_user_profile", JSON.stringify(updatedProfile));
+            } catch (e) {}
+
+            return updatedProfile;
           });
           // Background hydrate all system profiles from Supabase to update local cache
           fetchAllProfilesFromSupabase().catch((e) => console.warn("Background profiles fetch warning:", e));

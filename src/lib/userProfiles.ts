@@ -49,15 +49,32 @@ export function getCleanUid(email: string, existingUid?: string): string {
 }
 
 /**
- * Fetches ALL user/agent profiles directly from Supabase user_profiles table as the Source of Truth.
+ * Fetches ALL user/agent profiles directly from Supabase as the Source of Truth.
  */
 export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
   try {
-    // 1. Fetch user_profiles and user_roles in parallel
-    const [profilesRes, rolesRes] = await Promise.all([
-      supabase.from(USER_PROFILES_TABLE).select("*"),
-      supabase.from("user_roles").select("*"),
-    ]);
+    // 1. Fetch user_profiles, user_roles, and profile sync records safely
+    let profilesData: any[] = [];
+    let rolesData: any[] = [];
+    let syncRows: any[] = [];
+
+    try {
+      const res = await supabase.from(USER_PROFILES_TABLE).select("*");
+      if (res && Array.isArray(res.data)) profilesData = res.data;
+    } catch (e) {}
+
+    try {
+      const res = await supabase.from("user_roles").select("*");
+      if (res && Array.isArray(res.data)) rolesData = res.data;
+    } catch (e) {}
+
+    try {
+      const res = await supabase
+        .from("user_feed_numbers")
+        .select("id, user_email, raw_message, updated_at")
+        .eq("service", "ORABIT_PROFILE_SYNC");
+      if (res && Array.isArray(res.data)) syncRows = res.data;
+    } catch (e) {}
 
     let feedsData: any[] = [];
     try {
@@ -65,8 +82,25 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
       if (Array.isArray(fData)) feedsData = fData;
     } catch (e) {}
 
-    const data = profilesRes.data || [];
-    const rolesData = rolesRes.data || [];
+    const data = profilesData;
+
+    // Build map of cloud-synced profiles from user_feed_numbers
+    const cloudSyncMap: Record<string, Record<string, any>> = {};
+    if (Array.isArray(syncRows)) {
+      syncRows.forEach((row: any) => {
+        try {
+          if (row.raw_message) {
+            const parsed = JSON.parse(row.raw_message);
+            const eClean = (parsed.email || row.user_email || "").toLowerCase().trim();
+            if (eClean) {
+              cloudSyncMap[eClean] = parsed;
+            }
+          }
+        } catch (err) {
+          // ignore json parse error
+        }
+      });
+    }
 
     // Build feed earnings map from Supabase user_feed_numbers
     const feedEarningsMap: Record<string, { count: number; earningsBDT: number }> = {};
@@ -99,7 +133,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
       });
     }
 
-    // Load local cache map to preserve custom agent names and metadata if DB returns empty/defaults
+    // Load local cache map
     let cachedUsersMap: Record<string, UserProfile> = {};
     try {
       const stored = localStorage.getItem("orabit_registered_users");
@@ -117,14 +151,25 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
 
     const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
 
-    // Map profiles
+    // Map profiles from user_profiles table if it has rows
     const mapped: UserProfile[] = (Array.isArray(data) ? data : []).map((row: any) => {
       const emailClean = (row.email || "").toLowerCase().trim();
-      const assigned = (row.assigned_agent || row.referral_email || row.referred_by || officialEmail).toLowerCase().trim();
-      const cached = cachedUsersMap[emailClean];
-      
+      const cloudSync: Record<string, any> = cloudSyncMap[emailClean] || {};
+      const cached = cachedUsersMap[emailClean] || ({} as Partial<UserProfile>);
+
+      const assigned = (
+        cloudSync.assignedAgent ||
+        cloudSync.referralEmail ||
+        row.assigned_agent ||
+        row.referral_email ||
+        row.referred_by ||
+        cached.assignedAgent ||
+        cached.referralEmail ||
+        officialEmail
+      ).toLowerCase().trim();
+
       // Determine effective role (prefer user_roles table if present)
-      let effectiveRole = row.role || "Client";
+      let effectiveRole = row.role || cloudSync.role || cached.role || "Client";
       if (roleMap[emailClean]) {
         const r = roleMap[emailClean].toLowerCase();
         if (r === "owner") effectiveRole = "Owner";
@@ -132,9 +177,15 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         else if (r === "client") effectiveRole = "Client";
       }
 
-      const userRate = row.custom_otp_rate !== undefined && row.custom_otp_rate !== null ? Number(row.custom_otp_rate) : (row.rate !== undefined && row.rate !== null ? Number(row.rate) : 0.006);
+      const userRate = cloudSync.customOtpRate !== undefined && cloudSync.customOtpRate !== null
+        ? Number(cloudSync.customOtpRate)
+        : (row.custom_otp_rate !== undefined && row.custom_otp_rate !== null
+          ? Number(row.custom_otp_rate)
+          : (row.rate !== undefined && row.rate !== null
+            ? Number(row.rate)
+            : (cached.customOtpRate !== undefined ? Number(cached.customOtpRate) : 0.006)));
 
-      const dbBal = Number(row.balance || 0);
+      const dbBal = Number(cloudSync.balance !== undefined ? cloudSync.balance : (row.balance || 0));
       const feedCalc = feedEarningsMap[emailClean]?.earningsBDT || 0;
 
       // Also check local feed numbers for this specific user
@@ -159,64 +210,96 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
       } catch (e) {}
 
       const effectiveBal = Math.max(dbBal, feedCalc, localFeedCalc, cached?.balance || 0);
-      const effectiveSuccess = Math.max(Number(row.total_success || 0), feedEarningsMap[emailClean]?.count || 0, cached?.totalSuccess || 0);
-
-      // Auto-sync computed balance to Supabase if DB balance was 0 or outdated
-      if (effectiveBal > dbBal && emailClean) {
-        supabase.from(USER_PROFILES_TABLE).update({
-          balance: effectiveBal,
-          total_success: effectiveSuccess,
-          updated_at: new Date().toISOString()
-        }).eq("email", emailClean).then(() => {
-          // auto-synced
-        });
-      }
+      const effectiveSuccess = Math.max(
+        Number(cloudSync.totalSuccess !== undefined ? cloudSync.totalSuccess : (row.total_success || 0)),
+        feedEarningsMap[emailClean]?.count || 0,
+        cached?.totalSuccess || 0
+      );
 
       const emailPrefix = emailClean.split("@")[0] || "User";
-      const dbFullName = (row.full_name || row.fullName || "").trim();
-      let effectiveFullName = dbFullName;
-      if (!effectiveFullName || effectiveFullName.toLowerCase() === emailPrefix.toLowerCase()) {
-        if (cached && cached.fullName && cached.fullName.trim() && cached.fullName.toLowerCase() !== emailPrefix.toLowerCase()) {
-          effectiveFullName = cached.fullName.trim();
-        }
-      }
-      if (!effectiveFullName) {
-        effectiveFullName = emailPrefix;
-      }
+      const fullN = (cloudSync.fullName || row.full_name || row.fullName || cached.fullName || emailPrefix).trim();
 
       return {
         email: emailClean,
-        fullName: effectiveFullName,
-        firstName: row.first_name || cached?.firstName || effectiveFullName.split(" ")[0] || "",
-        lastName: row.last_name || cached?.lastName || effectiveFullName.split(" ").slice(1).join(" ") || "",
-        mobileNumber: row.mobile_number || row.mobileNumber || cached?.mobileNumber || "",
+        fullName: fullN,
+        firstName: cloudSync.firstName || row.first_name || cached?.firstName || fullN.split(" ")[0] || "",
+        lastName: cloudSync.lastName || row.last_name || cached?.lastName || fullN.split(" ").slice(1).join(" ") || "",
+        mobileNumber: cloudSync.mobileNumber || row.mobile_number || row.mobileNumber || cached?.mobileNumber || "",
         balance: Number(effectiveBal),
         totalSuccess: Number(effectiveSuccess),
         role: effectiveRole,
-        telegram: row.telegram || cached?.telegram || "",
-        country: row.country || cached?.country || "Bangladesh",
-        city: row.city || cached?.city || "Dhaka",
-        bio: row.bio || cached?.bio || "",
-        withdrawPin: row.withdraw_pin || cached?.withdrawPin || "",
-        accountStatus: row.account_status || cached?.accountStatus || "Active",
-        apiKey: row.api_key || cached?.apiKey || "",
-        uid: getCleanUid(emailClean, row.uid || cached?.uid),
-        paymentMethods: row.payment_methods || cached?.paymentMethods || null,
-        withdrawHistory: row.withdraw_history || cached?.withdrawHistory || null,
+        telegram: cloudSync.telegram || row.telegram || cached?.telegram || "",
+        country: cloudSync.country || row.country || cached?.country || "Bangladesh",
+        city: cloudSync.city || row.city || cached?.city || "Dhaka",
+        bio: cloudSync.bio || row.bio || cached?.bio || "",
+        withdrawPin: cloudSync.withdrawPin !== undefined ? cloudSync.withdrawPin : (row.withdraw_pin || cached?.withdrawPin || ""),
+        accountStatus: cloudSync.accountStatus || row.account_status || cached?.accountStatus || "Active",
+        apiKey: cloudSync.apiKey || row.api_key || cached?.apiKey || "",
+        uid: getCleanUid(emailClean, cloudSync.uid || row.uid || cached?.uid),
+        paymentMethods: cloudSync.paymentMethods || row.payment_methods || cached?.paymentMethods || null,
+        withdrawHistory: cloudSync.withdrawHistory || row.withdraw_history || cached?.withdrawHistory || null,
         referralEmail: assigned,
         referredBy: assigned,
         assignedAgent: assigned,
-        isOfficial: row.is_official !== undefined ? !!row.is_official : (cached?.isOfficial !== undefined ? !!cached.isOfficial : emailClean === "official@orabitsms.xyz"),
-        password: row.password || cached?.password || "",
+        isOfficial: cloudSync.isOfficial !== undefined ? !!cloudSync.isOfficial : (row.is_official !== undefined ? !!row.is_official : (cached?.isOfficial !== undefined ? !!cached.isOfficial : emailClean === "official@orabitsms.xyz")),
+        password: cloudSync.password || row.password || cached?.password || "",
         customOtpRate: userRate,
         rate: userRate,
-        apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : (cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true),
-        lastLogin: row.last_login || row.updated_at || row.created_at || cached?.lastLogin,
-        createdAt: row.created_at || row.createdAt || cached?.createdAt,
+        apiEnabled: cloudSync.apiEnabled !== undefined ? !!cloudSync.apiEnabled : (row.api_enabled !== undefined ? !!row.api_enabled : (cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true)),
+        lastLogin: cloudSync.lastLogin || row.last_login || row.updated_at || row.created_at || cached?.lastLogin,
       };
     });
 
-    // Also inject any role from user_roles that might be missing from user_profiles table entirely
+    // Also include profiles from cloudSyncMap that weren't in user_profiles
+    Object.keys(cloudSyncMap).forEach((eClean) => {
+      if (!mapped.some((m) => m.email === eClean)) {
+        const cs: Record<string, any> = cloudSyncMap[eClean] || {};
+        const cached = cachedUsersMap[eClean] || ({} as Partial<UserProfile>);
+        let roleName = cs.role || cached?.role || "Client";
+        if (roleMap[eClean]) {
+          const r = roleMap[eClean].toLowerCase();
+          if (r === "owner") roleName = "Owner";
+          else if (r === "agent") roleName = "Agent";
+          else if (r === "client") roleName = "Client";
+        }
+
+        const assigned = (cs.assignedAgent || cs.referralEmail || cs.referredBy || cached?.assignedAgent || officialEmail).toLowerCase().trim();
+        const userRate = cs.customOtpRate !== undefined ? Number(cs.customOtpRate) : (cs.rate !== undefined ? Number(cs.rate) : (cached?.customOtpRate || 0.006));
+        const fullN = (cs.fullName || cached?.fullName || eClean.split("@")[0]).trim();
+
+        mapped.push({
+          email: eClean,
+          fullName: fullN,
+          firstName: cs.firstName || cached?.firstName || fullN.split(" ")[0] || "",
+          lastName: cs.lastName || cached?.lastName || fullN.split(" ").slice(1).join(" ") || "",
+          mobileNumber: cs.mobileNumber || cached?.mobileNumber || "",
+          balance: cs.balance !== undefined ? Number(cs.balance) : (cached?.balance || 0),
+          totalSuccess: cs.totalSuccess !== undefined ? Number(cs.totalSuccess) : (cached?.totalSuccess || 0),
+          role: roleName,
+          telegram: cs.telegram || cached?.telegram || "",
+          country: cs.country || cached?.country || "Bangladesh",
+          city: cs.city || cached?.city || "Dhaka",
+          bio: cs.bio || cached?.bio || "",
+          withdrawPin: cs.withdrawPin !== undefined ? cs.withdrawPin : (cached?.withdrawPin || ""),
+          accountStatus: cs.accountStatus || cached?.accountStatus || "Active",
+          apiKey: cs.apiKey || cached?.apiKey || "",
+          uid: getCleanUid(eClean, cs.uid || cached?.uid),
+          paymentMethods: cs.paymentMethods || cached?.paymentMethods || null,
+          withdrawHistory: cs.withdrawHistory || cached?.withdrawHistory || null,
+          referralEmail: assigned,
+          referredBy: assigned,
+          assignedAgent: assigned,
+          isOfficial: cs.isOfficial !== undefined ? !!cs.isOfficial : (cached?.isOfficial !== undefined ? !!cached.isOfficial : eClean === "official@orabitsms.xyz"),
+          password: cs.password || cached?.password || "",
+          customOtpRate: userRate,
+          rate: userRate,
+          apiEnabled: cs.apiEnabled !== undefined ? !!cs.apiEnabled : (cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true),
+          lastLogin: cs.lastLogin || cached?.lastLogin,
+        });
+      }
+    });
+
+    // Also inject any role from user_roles that might be missing from both
     if (Array.isArray(rolesData)) {
       rolesData.forEach((r: any) => {
         if (!r.email) return;
@@ -282,49 +365,90 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
 }
 
 /**
- * Fetches user profile directly from Supabase user_profiles table.
+ * Fetches user profile directly from Supabase (checking user_profiles table, cloud sync record, and user_roles).
  */
 export async function fetchUserProfileFromSupabase(email: string): Promise<Partial<UserProfile> | null> {
   if (!email) return null;
   const cleanEmail = email.toLowerCase().trim();
+  const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
 
   try {
-    // 1. First try user_profiles table in Supabase
-    const { data, error } = await supabase
-      .from(USER_PROFILES_TABLE)
-      .select("*")
-      .ilike("email", cleanEmail)
-      .maybeSingle();
+    // Parallel fetch from user_profiles table, cloud sync record, and user_roles table
+    let tableData: any = null;
+    let syncData: Partial<UserProfile> | null = null;
+    let roleVal: string | null = null;
 
-    if (!error && data) {
-      const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
-      const assigned = (data.assigned_agent || data.referral_email || data.referred_by || officialEmail).toLowerCase().trim();
-      const userRate = data.custom_otp_rate !== undefined && data.custom_otp_rate !== null ? Number(data.custom_otp_rate) : (data.rate !== undefined && data.rate !== null ? Number(data.rate) : 0.006);
+    try {
+      const res = await supabase.from(USER_PROFILES_TABLE).select("*").ilike("email", cleanEmail).maybeSingle();
+      if (res && res.data) tableData = res.data;
+    } catch (e) {}
+
+    try {
+      const res = await supabase.from("user_feed_numbers").select("raw_message, updated_at").eq("id", `profile_${cleanEmail}`).maybeSingle();
+      if (res && res.data?.raw_message) {
+        try {
+          syncData = JSON.parse(res.data.raw_message);
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    try {
+      const res = await supabase.from("user_roles").select("role").ilike("email", cleanEmail).maybeSingle();
+      if (res && res.data?.role) roleVal = res.data.role;
+    } catch (e) {}
+
+    if (syncData || tableData) {
+      const mergedRole = roleVal
+        ? (roleVal.toLowerCase() === "owner" ? "Owner" : roleVal.toLowerCase() === "agent" ? "Agent" : "Client")
+        : (syncData?.role || tableData?.role || (cleanEmail === "orabitsms@gmail.com" ? "Owner" : "Client"));
+
+      const assigned = (
+        syncData?.assignedAgent ||
+        syncData?.referralEmail ||
+        syncData?.referredBy ||
+        tableData?.assigned_agent ||
+        tableData?.referral_email ||
+        tableData?.referred_by ||
+        officialEmail
+      ).toLowerCase().trim();
+
+      const userRate = syncData?.customOtpRate !== undefined
+        ? Number(syncData.customOtpRate)
+        : (tableData?.custom_otp_rate !== undefined && tableData?.custom_otp_rate !== null
+          ? Number(tableData.custom_otp_rate)
+          : (tableData?.rate !== undefined && tableData?.rate !== null
+            ? Number(tableData.rate)
+            : 0.006));
+
+      const fullN = (syncData?.fullName || tableData?.full_name || tableData?.fullName || "").trim();
 
       return {
-        email: data.email,
-        fullName: data.full_name || "",
-        mobileNumber: data.mobile_number || "",
-        balance: Number(data.balance || 0),
-        totalSuccess: Number(data.total_success || 0),
-        role: data.role || "Client",
-        telegram: data.telegram || "",
-        country: data.country || "",
-        city: data.city || "",
-        bio: data.bio || "",
-        withdrawPin: data.withdraw_pin || "",
-        accountStatus: data.account_status || "Active",
-        apiKey: data.api_key || "",
-        uid: getCleanUid(cleanEmail, data.uid),
-        paymentMethods: data.payment_methods || null,
-        withdrawHistory: data.withdraw_history || null,
+        email: cleanEmail,
+        fullName: fullN,
+        firstName: syncData?.firstName || tableData?.first_name || fullN.split(" ")[0] || "",
+        lastName: syncData?.lastName || tableData?.last_name || fullN.split(" ").slice(1).join(" ") || "",
+        mobileNumber: syncData?.mobileNumber || tableData?.mobile_number || tableData?.mobileNumber || "",
+        balance: Number(syncData?.balance !== undefined ? syncData.balance : (tableData?.balance || 0)),
+        totalSuccess: Number(syncData?.totalSuccess !== undefined ? syncData.totalSuccess : (tableData?.total_success || 0)),
+        role: mergedRole,
+        telegram: syncData?.telegram || tableData?.telegram || "",
+        country: syncData?.country || tableData?.country || "Bangladesh",
+        city: syncData?.city || tableData?.city || "Dhaka",
+        bio: syncData?.bio || tableData?.bio || "",
+        withdrawPin: syncData?.withdrawPin !== undefined ? syncData.withdrawPin : (tableData?.withdraw_pin || ""),
+        accountStatus: syncData?.accountStatus || tableData?.account_status || "Active",
+        apiKey: syncData?.apiKey || tableData?.api_key || "",
+        uid: getCleanUid(cleanEmail, syncData?.uid || tableData?.uid),
+        paymentMethods: syncData?.paymentMethods || tableData?.payment_methods || null,
+        withdrawHistory: syncData?.withdrawHistory || tableData?.withdraw_history || null,
         referralEmail: assigned,
         referredBy: assigned,
         assignedAgent: assigned,
         customOtpRate: userRate,
         rate: userRate,
-        apiEnabled: data.api_enabled !== undefined ? !!data.api_enabled : true,
-        lastLogin: data.last_login || data.updated_at || data.created_at,
+        apiEnabled: syncData?.apiEnabled !== undefined ? !!syncData.apiEnabled : (tableData?.api_enabled !== undefined ? !!tableData.api_enabled : true),
+        isOfficial: syncData?.isOfficial !== undefined ? !!syncData.isOfficial : (tableData?.is_official !== undefined ? !!tableData.is_official : cleanEmail === "official@orabitsms.xyz"),
+        lastLogin: syncData?.lastLogin || tableData?.last_login || tableData?.updated_at || tableData?.created_at,
       };
     }
 
@@ -332,21 +456,25 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
     const { data: authData } = await supabase.auth.getUser();
     if (authData?.user && authData.user.email?.toLowerCase().trim() === cleanEmail) {
       const meta = authData.user.user_metadata || {};
-      const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
       const assigned = (meta.assignedAgent || meta.referralEmail || meta.referredBy || officialEmail).toLowerCase().trim();
       const userRate = meta.customOtpRate !== undefined ? Number(meta.customOtpRate) : (meta.rate !== undefined ? Number(meta.rate) : 0.006);
+
+      let effectiveRole = meta.role || "Client";
+      if (roleVal) {
+        effectiveRole = roleVal.toLowerCase() === "owner" ? "Owner" : roleVal.toLowerCase() === "agent" ? "Agent" : "Client";
+      }
 
       return {
         email: cleanEmail,
         fullName: meta.fullName || "",
         mobileNumber: meta.mobileNumber || "",
         telegram: meta.telegram || "",
-        country: meta.country || "",
-        city: meta.city || "",
+        country: meta.country || "Bangladesh",
+        city: meta.city || "Dhaka",
         bio: meta.bio || "",
         withdrawPin: meta.withdrawPin !== undefined ? meta.withdrawPin : "",
         accountStatus: meta.accountStatus || "Active",
-        role: meta.role || "Client",
+        role: effectiveRole,
         apiKey: meta.apiKey || "",
         uid: getCleanUid(cleanEmail, meta.uid),
         paymentMethods: meta.paymentMethods || null,
@@ -433,72 +561,128 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Update Supabase user_profiles table with robust UPDATE then INSERT fallback
-    const { data: updateRes, error: updateErr } = await supabase
-      .from(USER_PROFILES_TABLE)
-      .update(payload)
-      .ilike("email", cleanEmail)
-      .select();
-
-    let saveSuccess = !updateErr && Array.isArray(updateRes) && updateRes.length > 0;
-
-    if (!saveSuccess) {
-      // 1a. Fallback core payload if extended columns cause schema errors
-      const corePayload = {
-        email: cleanEmail,
-        full_name: profile.fullName || "",
-        mobile_number: profile.mobileNumber || "",
-        balance: profile.balance !== undefined ? Number(profile.balance) : 0,
-        total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
-        role: profile.role || "Client",
-        telegram: profile.telegram || "",
-        country: profile.country || "",
-        city: profile.city || "",
-        withdraw_pin: profile.withdrawPin || "",
-        account_status: profile.accountStatus || "Active",
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data: coreUpdateRes, error: coreUpdateErr } = await supabase
+    // 1. Update Supabase user_profiles table if available
+    try {
+      const { data: updateRes, error: updateErr } = await supabase
         .from(USER_PROFILES_TABLE)
-        .update(corePayload)
+        .update(payload)
         .ilike("email", cleanEmail)
         .select();
 
-      if (!coreUpdateErr && Array.isArray(coreUpdateRes) && coreUpdateRes.length > 0) {
-        saveSuccess = true;
-      } else {
-        // 1b. Minimal update payload (guaranteed standard columns)
-        const minPayload = {
+      let saveSuccess = !updateErr && Array.isArray(updateRes) && updateRes.length > 0;
+
+      if (!saveSuccess) {
+        // 1a. Fallback core payload if extended columns cause schema errors
+        const corePayload = {
           email: cleanEmail,
           full_name: profile.fullName || "",
+          mobile_number: profile.mobileNumber || "",
+          balance: profile.balance !== undefined ? Number(profile.balance) : 0,
+          total_success: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
           role: profile.role || "Client",
           telegram: profile.telegram || "",
+          country: profile.country || "",
+          city: profile.city || "",
+          withdraw_pin: profile.withdrawPin || "",
+          account_status: profile.accountStatus || "Active",
           updated_at: new Date().toISOString(),
         };
 
-        const { data: minUpdateRes, error: minUpdateErr } = await supabase
+        const { data: coreUpdateRes, error: coreUpdateErr } = await supabase
           .from(USER_PROFILES_TABLE)
-          .update(minPayload)
+          .update(corePayload)
           .ilike("email", cleanEmail)
           .select();
 
-        if (!minUpdateErr && Array.isArray(minUpdateRes) && minUpdateRes.length > 0) {
+        if (!coreUpdateErr && Array.isArray(coreUpdateRes) && coreUpdateRes.length > 0) {
           saveSuccess = true;
         } else {
-          // 1c. Insert if record doesn't exist yet in user_profiles
-          const { error: insertErr } = await supabase.from(USER_PROFILES_TABLE).insert(payload);
-          if (insertErr) {
-            const { error: coreInsertErr } = await supabase.from(USER_PROFILES_TABLE).insert(corePayload);
-            if (coreInsertErr) {
-              await supabase.from(USER_PROFILES_TABLE).insert(minPayload);
+          // 1b. Minimal update payload (guaranteed standard columns)
+          const minPayload = {
+            email: cleanEmail,
+            full_name: profile.fullName || "",
+            role: profile.role || "Client",
+            telegram: profile.telegram || "",
+            updated_at: new Date().toISOString(),
+          };
+
+          const { data: minUpdateRes, error: minUpdateErr } = await supabase
+            .from(USER_PROFILES_TABLE)
+            .update(minPayload)
+            .ilike("email", cleanEmail)
+            .select();
+
+          if (!minUpdateErr && Array.isArray(minUpdateRes) && minUpdateRes.length > 0) {
+            saveSuccess = true;
+          } else {
+            // 1c. Insert if record doesn't exist yet in user_profiles
+            const { error: insertErr } = await supabase.from(USER_PROFILES_TABLE).insert(payload);
+            if (insertErr) {
+              const { error: coreInsertErr } = await supabase.from(USER_PROFILES_TABLE).insert(corePayload);
+              if (coreInsertErr) {
+                try {
+                  await supabase.from(USER_PROFILES_TABLE).insert(minPayload);
+                } catch (e) {}
+              }
             }
           }
         }
       }
+    } catch (e) {
+      console.warn("Notice updating user_profiles table:", e);
     }
 
-    // 1b. Update user_roles table as well so roles match on all devices
+    // 2. ALWAYS save complete Profile Payload to Cloud Sync Record in user_feed_numbers
+    try {
+      const syncId = `profile_${cleanEmail}`;
+      const syncPayload = {
+        id: syncId,
+        user_email: cleanEmail,
+        number: "0",
+        status: "USER_PROFILE",
+        country: profile.country || "Bangladesh",
+        operator: profile.city || "Dhaka",
+        service: "ORABIT_PROFILE_SYNC",
+        raw_message: JSON.stringify({
+          ...profile,
+          email: cleanEmail,
+          fullName: profile.fullName || "",
+          mobileNumber: profile.mobileNumber || "",
+          telegram: profile.telegram || "",
+          country: profile.country || "Bangladesh",
+          city: profile.city || "Dhaka",
+          bio: profile.bio || "",
+          role: profile.role || "Client",
+          assignedAgent: assignedAgentVal,
+          referralEmail: assignedAgentVal,
+          referredBy: assignedAgentVal,
+          balance: profile.balance !== undefined ? Number(profile.balance) : 0,
+          totalSuccess: profile.totalSuccess !== undefined ? Number(profile.totalSuccess) : 0,
+          customOtpRate: numRate,
+          rate: numRate,
+          accountStatus: profile.accountStatus || "Active",
+          apiEnabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : true,
+          withdrawPin: profile.withdrawPin || "",
+          isOfficial: !!profile.isOfficial,
+          apiKey: profile.apiKey || "",
+          uid: getCleanUid(cleanEmail, profile.uid),
+          updatedAt: new Date().toISOString(),
+        }),
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        await supabase
+          .from("user_feed_numbers")
+          .upsert(syncPayload, { onConflict: "id" });
+      } catch (e) {
+        console.warn("Notice upserting cloud sync profile:", e);
+      }
+    } catch (e) {
+      console.warn("Exception saving cloud sync profile:", e);
+    }
+
+    // 3. Update user_roles table as well so roles match on all devices
     if (profile.role) {
       try {
         const cleanRoleStr = profile.role.toLowerCase().trim();
@@ -509,14 +693,14 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
           .select();
 
         if (roleUpdateErr || !roleUpdateRes || roleUpdateRes.length === 0) {
-          await supabase.from("user_roles").insert({ email: cleanEmail, role: cleanRoleStr });
+          await supabase.from("user_roles").upsert({ email: cleanEmail, role: cleanRoleStr }, { onConflict: "email" });
         }
       } catch (e) {
         console.warn("Notice updating user_roles table:", e);
       }
     }
 
-    // 2. Also update Supabase Auth User Metadata for instant cross-device fallback
+    // 4. Also update Supabase Auth User Metadata for instant cross-device fallback
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user && authData.user.email?.toLowerCase().trim() === cleanEmail) {
@@ -532,6 +716,8 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
             role: profile.role || "Client",
             apiKey: profile.apiKey || "",
             uid: profile.uid || "",
+            assignedAgent: assignedAgentVal,
+            referralEmail: assignedAgentVal,
             paymentMethods: profile.paymentMethods || null,
             withdrawHistory: profile.withdrawHistory || null,
           },
@@ -541,15 +727,15 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       console.warn("Notice updating auth metadata:", e);
     }
 
-    // 3. Immediately update localStorage registered users list so local cache matches Supabase write
+    // 5. Immediately update localStorage registered users list so local cache matches Supabase write
     try {
       const stored = localStorage.getItem("orabit_registered_users");
       let list: UserProfile[] = stored ? JSON.parse(stored) : [];
       const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
       if (idx >= 0) {
-        list[idx] = { ...list[idx], ...profile };
+        list[idx] = { ...list[idx], ...profile, email: cleanEmail };
       } else {
-        list.push(profile);
+        list.push({ ...profile, email: cleanEmail });
       }
       localStorage.setItem("orabit_registered_users", JSON.stringify(list));
     } catch (e) {}
