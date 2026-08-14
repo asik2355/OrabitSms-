@@ -208,7 +208,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
 
   // Top 10 Performing Agents Data Calculation
   const topAgentsData = useMemo(() => {
-    const agents = registeredUsers.filter((u) => u.role?.toLowerCase() === "agent");
+    const agents = registeredUsers.filter((u) => {
+      const r = (u.role || "").toLowerCase().trim();
+      return r === "agent" || (u as any).isAgent === true;
+    });
     if (agents.length === 0) return [];
 
     const allFeedsMapByEmail: Record<string, FeedNumber[]> = {};

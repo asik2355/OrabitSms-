@@ -108,6 +108,9 @@ export async function createAgentInSupabase(
           full_name: cleanName,
           telegram: cleanTg,
           role: "Agent",
+          custom_otp_rate: 0.0075,
+          rate: 0.0075,
+          account_status: "Active",
           updated_at: new Date().toISOString(),
         },
         { onConflict: "email" }
@@ -115,6 +118,55 @@ export async function createAgentInSupabase(
     } catch (e) {
       console.warn("Error saving agent in user_profiles:", e);
     }
+
+    // 4. Save to Backend API for instant server memory sync
+    try {
+      await fetch("/api/users/save-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requesterEmail: "orabitsms@gmail.com",
+          profile: {
+            email: cleanEmail,
+            fullName: cleanName,
+            role: "Agent",
+            telegram: cleanTg,
+            customOtpRate: 0.0075,
+            rate: 0.0075,
+            accountStatus: "Active",
+            isOfficial: cleanEmail === "official@orabitsms.xyz",
+          },
+        }),
+      });
+    } catch (e) {
+      console.warn("Notice syncing agent to backend API:", e);
+    }
+
+    // 5. Update local storage cache
+    try {
+      const raw = localStorage.getItem("orabit_registered_users");
+      const list = raw ? JSON.parse(raw) : [];
+      const idx = list.findIndex((u: any) => (u.email || "").toLowerCase() === cleanEmail);
+      const agentEntry = {
+        email: cleanEmail,
+        fullName: cleanName,
+        firstName: cleanName.split(" ")[0] || "",
+        lastName: cleanName.split(" ").slice(1).join(" ") || "",
+        role: "Agent",
+        telegram: cleanTg,
+        customOtpRate: 0.0075,
+        rate: 0.0075,
+        balance: 0,
+        accountStatus: "Active",
+        assignedAgent: "official@orabitsms.xyz",
+        isOfficial: cleanEmail === "official@orabitsms.xyz",
+        country: "Bangladesh",
+        city: "Dhaka",
+      };
+      if (idx >= 0) list[idx] = { ...list[idx], ...agentEntry };
+      else list.push(agentEntry);
+      localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+    } catch (e) {}
 
     return {
       success: true,

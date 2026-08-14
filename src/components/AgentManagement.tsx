@@ -100,7 +100,10 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
   // Filter Active System Agents
   const agentList = useMemo(() => {
-    return registeredUsers.filter((u) => u.role?.toLowerCase() === "agent");
+    return registeredUsers.filter((u) => {
+      const r = (u.role || "").toLowerCase().trim();
+      return r === "agent" || (u as any).isAgent === true;
+    });
   }, [registeredUsers]);
 
   // Designated Permanent Official Agent
@@ -115,13 +118,41 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
     }
   }, [officialAgent]);
 
+  const [isRefreshingAgents, setIsRefreshingAgents] = useState(false);
+
+  const handleSyncAgentsAndUsers = async () => {
+    setIsRefreshingAgents(true);
+    try {
+      const fresh = await fetchAllProfilesFromSupabase();
+      if (fresh && fresh.length > 0) {
+        setRegisteredUsers(fresh);
+        setAgentNotice({
+          text: `Synchronized ${fresh.length} total users/agents successfully from cloud database!`,
+          type: "success",
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to refresh agents:", e);
+    } finally {
+      setIsRefreshingAgents(false);
+    }
+  };
+
   // Direct Source of Truth hydration on mount
   useEffect(() => {
     let isMounted = true;
     fetchAllProfilesFromSupabase()
       .then((fresh) => {
         if (isMounted && fresh && fresh.length > 0) {
-          setRegisteredUsers(fresh);
+          setRegisteredUsers((prev) => {
+            const map = new Map<string, UserProfile>();
+            fresh.forEach((u) => map.set(u.email.toLowerCase().trim(), u));
+            prev.forEach((u) => {
+              const k = u.email.toLowerCase().trim();
+              if (!map.has(k)) map.set(k, u);
+            });
+            return Array.from(map.values());
+          });
         }
       })
       .catch((err) => console.warn("Failed to fetch fresh profiles in AgentManagement:", err));
@@ -1138,9 +1169,23 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
       {/* ACTIVE SYSTEM AGENTS TABLE */}
       <div className="space-y-2">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-          Active System Agents ({agentList.length})
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <span>Active System Agents ({agentList.length})</span>
+            <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30">
+              {agentList.length} Active
+            </span>
+          </h3>
+          <button
+            onClick={handleSyncAgentsAndUsers}
+            disabled={isRefreshingAgents}
+            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+            title="Refresh and sync all agents and users directly from the cloud database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAgents ? "animate-spin text-indigo-400" : ""}`} />
+            <span>{isRefreshingAgents ? "Syncing..." : "Sync from DB"}</span>
+          </button>
+        </div>
         <div className="overflow-x-auto rounded-xl border border-slate-800">
           <table className="w-full text-left border-collapse text-xs">
             <thead>

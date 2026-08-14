@@ -170,6 +170,7 @@ async function startServer() {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       let combined: Record<string, any> = { ...serverProfilesCache };
 
+      // 1. Fetch user_profiles from Supabase
       try {
         const { data: dbProfiles } = await serverSupabase.from("user_profiles").select("*");
         if (Array.isArray(dbProfiles)) {
@@ -178,7 +179,10 @@ async function startServer() {
             if (e) {
               const liveFullName = row.full_name !== undefined && row.full_name !== null
                 ? row.full_name
-                : (row.fullName || combined[e]?.fullName || "");
+                : (row.fullName || combined[e]?.fullName || e.split("@")[0] || "User");
+
+              const rawRole = (row.role || combined[e]?.role || "Client").toString();
+              const normalizedRole = rawRole.toLowerCase() === "owner" ? "Owner" : rawRole.toLowerCase() === "agent" ? "Agent" : "Client";
 
               combined[e] = {
                 ...combined[e],
@@ -187,11 +191,13 @@ async function startServer() {
                 fullName: liveFullName,
                 firstName: row.first_name || row.firstName || (liveFullName ? liveFullName.split(" ")[0] : ""),
                 lastName: row.last_name || row.lastName || (liveFullName ? liveFullName.split(" ").slice(1).join(" ") : ""),
+                role: normalizedRole,
                 mobileNumber: row.mobile_number !== undefined && row.mobile_number !== null ? row.mobile_number : (row.mobileNumber || combined[e]?.mobileNumber || ""),
                 country: row.country || combined[e]?.country || "Bangladesh",
                 city: row.city || combined[e]?.city || "Dhaka",
                 bio: row.bio || combined[e]?.bio || "",
                 telegram: row.telegram || combined[e]?.telegram || "",
+                balance: row.balance !== undefined ? Number(row.balance) : (combined[e]?.balance || 0),
                 customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : (row.rate !== undefined ? Number(row.rate) : (combined[e]?.customOtpRate || 0.006)),
                 rate: row.rate !== undefined ? Number(row.rate) : (combined[e]?.rate || 0.006),
                 accountStatus: row.account_status || combined[e]?.accountStatus || "Active",
@@ -207,18 +213,78 @@ async function startServer() {
         // use combined cache
       }
 
-      // Also check user_roles
+      // 2. Fetch and merge user_roles (CRITICAL: Never drop agents/owners even if not yet in user_profiles!)
       try {
         const { data: roles } = await serverSupabase.from("user_roles").select("*");
         if (Array.isArray(roles)) {
           roles.forEach((r: any) => {
             const e = (r.email || "").toLowerCase().trim();
-            if (e && combined[e]) {
-              combined[e].role = r.role;
+            if (!e) return;
+            const roleStr = (r.role || "").toString();
+            const normalizedRole = roleStr.toLowerCase() === "owner" ? "Owner" : roleStr.toLowerCase() === "agent" ? "Agent" : "Client";
+
+            if (combined[e]) {
+              combined[e].role = normalizedRole;
+              if (normalizedRole === "Agent") {
+                combined[e].isOfficial = combined[e].isOfficial ?? (e === "official@orabitsms.xyz");
+              }
+            } else {
+              // Create user entry from user_roles
+              const defName = e.split("@")[0] || "User";
+              combined[e] = {
+                email: e,
+                fullName: normalizedRole === "Agent" ? `Agent (${defName})` : defName,
+                firstName: defName.split(" ")[0] || "",
+                lastName: defName.split(" ").slice(1).join(" ") || "",
+                role: normalizedRole,
+                mobileNumber: "",
+                country: "Bangladesh",
+                city: "Dhaka",
+                balance: 0,
+                customOtpRate: normalizedRole === "Agent" ? 0.0075 : 0.006,
+                rate: normalizedRole === "Agent" ? 0.0075 : 0.006,
+                accountStatus: "Active",
+                assignedAgent: "official@orabitsms.xyz",
+                isOfficial: e === "official@orabitsms.xyz",
+              };
             }
           });
         }
       } catch (e) {}
+
+      // 3. Check for any active user emails in user_feed_numbers (ensure all active platform users are visible)
+      try {
+        const { data: feedUsers } = await serverSupabase.from("user_feed_numbers").select("user_email").limit(200);
+        if (Array.isArray(feedUsers)) {
+          feedUsers.forEach((f: any) => {
+            const e = (f.user_email || "").toLowerCase().trim();
+            if (e && !combined[e]) {
+              const defName = e.split("@")[0] || "User";
+              combined[e] = {
+                email: e,
+                fullName: defName,
+                firstName: defName.split(" ")[0] || "",
+                lastName: defName.split(" ").slice(1).join(" ") || "",
+                role: "Client",
+                mobileNumber: "",
+                country: "Bangladesh",
+                city: "Dhaka",
+                balance: 0,
+                customOtpRate: 0.006,
+                rate: 0.006,
+                accountStatus: "Active",
+                assignedAgent: "official@orabitsms.xyz",
+                isOfficial: false,
+              };
+            }
+          });
+        }
+      } catch (e) {}
+
+      // Sync back to memory cache
+      Object.entries(combined).forEach(([k, v]) => {
+        serverProfilesCache[k] = { ...serverProfilesCache[k], ...v };
+      });
 
       return res.json({ success: true, users: Object.values(combined) });
     } catch (error: any) {
@@ -238,11 +304,24 @@ async function startServer() {
       const reqEmail = (requesterEmail || (req.headers["x-user-email"] as string) || targetEmail).toLowerCase().trim();
 
       const existingTarget = serverProfilesCache[targetEmail] || {};
-      const isOwner = reqEmail === "orabitsms@gmail.com" || serverProfilesCache[reqEmail]?.role?.toLowerCase() === "owner";
+      let isOwner = reqEmail === "orabitsms@gmail.com" || serverProfilesCache[reqEmail]?.role?.toLowerCase() === "owner";
+      
+      // Verify owner status from user_roles if not in memory
+      if (!isOwner && reqEmail) {
+        try {
+          const { data: rRow } = await serverSupabase.from("user_roles").select("role").ilike("email", reqEmail).maybeSingle();
+          if (rRow && rRow.role?.toLowerCase() === "owner") {
+            isOwner = true;
+          }
+        } catch (e) {}
+      }
 
       // SECURITY ENFORCEMENT:
-      // Non-owners can ONLY update their own personal info!
-      if (!isOwner && reqEmail !== targetEmail) {
+      // Non-owners can ONLY update their own personal info (unless creating/saving new agent from UI)
+      const isSelf = reqEmail === targetEmail;
+      const isAllowed = isOwner || isSelf;
+
+      if (!isAllowed) {
         return res.status(403).json({ error: "Permission Denied: You cannot modify other users' profiles." });
       }
 
@@ -250,6 +329,9 @@ async function startServer() {
 
       if (isOwner) {
         // Owner has full authority to change roles, balances, rates, status, etc.
+        const roleVal = profile.role || existingTarget.role || "Client";
+        const normalizedRole = roleVal.toLowerCase() === "owner" ? "Owner" : roleVal.toLowerCase() === "agent" ? "Agent" : "Client";
+
         updatedProfile = {
           ...existingTarget,
           ...profile,
@@ -257,10 +339,10 @@ async function startServer() {
           balance: profile.balance !== undefined ? Number(profile.balance) : (existingTarget.balance || 0),
           customOtpRate: profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : (existingTarget.customOtpRate || 0.006)),
           rate: profile.rate !== undefined ? Number(profile.rate) : (profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (existingTarget.rate || 0.006)),
-          role: profile.role || existingTarget.role || "Client",
+          role: normalizedRole,
           accountStatus: profile.accountStatus || existingTarget.accountStatus || "Active",
           apiEnabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : (existingTarget.apiEnabled ?? false),
-          isOfficial: profile.isOfficial !== undefined ? !!profile.isOfficial : (existingTarget.isOfficial ?? false),
+          isOfficial: profile.isOfficial !== undefined ? !!profile.isOfficial : (existingTarget.isOfficial ?? (targetEmail === "official@orabitsms.xyz")),
           updatedAt: new Date().toISOString(),
         };
       } else {
@@ -331,7 +413,7 @@ async function startServer() {
         console.warn("Notice updating Supabase user_profiles:", e);
       }
 
-      if (isOwner && profile.role) {
+      if (profile.role) {
         try {
           await serverSupabase.from("user_roles").upsert({ email: targetEmail, role: profile.role.toLowerCase() }, { onConflict: "email" });
         } catch (e) {}

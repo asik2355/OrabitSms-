@@ -128,8 +128,12 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({
   const myReferredClients = useMemo(() => {
     if (!agentEmail) return [];
     return allUsers.filter((u) => {
+      const uRole = (u.role || "").toLowerCase().trim();
+      if (uRole === "owner" || uRole === "agent") return false;
       const clientRef = (u.referralEmail || "").toLowerCase().trim();
-      return clientRef === agentEmail;
+      const clientReferredBy = (u.referredBy || "").toLowerCase().trim();
+      const assigned = ((u as any).assignedAgent || (u as any).assigned_agent || "").toLowerCase().trim();
+      return clientRef === agentEmail || clientReferredBy === agentEmail || assigned === agentEmail;
     });
   }, [allUsers, agentEmail]);
 
