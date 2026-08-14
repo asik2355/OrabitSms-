@@ -32,7 +32,7 @@ import {
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { supabase } from "../lib/supabase";
 import { createAgentInSupabase, deleteAgentFromSupabase, setUserRoleInSupabase } from "../lib/userRoles";
-import { saveUserProfileToSupabase, fetchAllProfilesFromSupabase } from "../lib/userProfiles";
+import { saveUserProfileToSupabase, fetchAllProfilesFromSupabase, fetchUserProfileFromSupabase } from "../lib/userProfiles";
 import { UserProfile } from "./OrabitAuthScreen";
 import { FeedNumber } from "../types";
 import { fetchDailyStatsFromSupabase } from "../lib/supabaseDailyStats";
@@ -854,6 +854,14 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
       localStorage.setItem("orabit_registered_users", JSON.stringify(updatedUsers));
       setRegisteredUsers(updatedUsers);
 
+      // Force authoritative global re-fetch from database to ensure all devices sync
+      try {
+        const freshProfiles = await fetchAllProfilesFromSupabase();
+        if (freshProfiles && freshProfiles.length > 0) {
+          setRegisteredUsers(freshProfiles);
+        }
+      } catch (e) {}
+
       setAgentNotice({ text: `Agent (${cleanName}) profile updated successfully!`, type: "success" });
       setEditingAgent(null);
     } catch (err: any) {
@@ -1225,13 +1233,23 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({
 
                           {/* 3. Edit Button */}
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               setEditingAgent(agent);
                               setEditName(agent.fullName || "");
                               setEditEmail(agent.email);
                               setEditPassword(agent.password || "");
                               setEditTelegram(agent.telegram || "");
                               setEditIsOfficial(isOfficialAg);
+
+                              try {
+                                const fresh = await fetchUserProfileFromSupabase(agent.email);
+                                if (fresh) {
+                                  if (fresh.fullName) setEditName(fresh.fullName);
+                                  if (fresh.telegram !== undefined) setEditTelegram(fresh.telegram);
+                                  if (fresh.isOfficial !== undefined) setEditIsOfficial(!!fresh.isOfficial);
+                                  if (fresh.password) setEditPassword(fresh.password);
+                                }
+                              } catch (e) {}
                             }}
                             className="p-1.5 px-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-all cursor-pointer inline-flex items-center gap-1 font-sans text-xs font-bold"
                             title="Edit Agent Info"

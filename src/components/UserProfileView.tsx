@@ -140,16 +140,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       let matchedAgent: { fullName: string; telegramUsername: string; email: string } | null = null;
 
-      // 1. Try to fetch from backend/database
+      // 1. Try to fetch from backend/database directly
       try {
         const agentProf = await fetchUserProfileFromSupabase(assignedEmail);
         if (agentProf && agentProf.email) {
           const cleanEmail = agentProf.email.toLowerCase().trim();
-          const isOfficial = cleanEmail === officialAgentEmail || !!agentProf.isOfficial;
+          const liveName = (agentProf.fullName || (agentProf as any)?.full_name || "").trim();
           matchedAgent = {
-            fullName: isOfficial ? "ORABIT OFFICIAL" : (agentProf.fullName || `${cleanEmail.split("@")[0].toUpperCase()} Agent`),
-            telegramUsername: agentProf.telegram || "@OrabitSupport",
-            email: isOfficial ? officialAgentEmail : cleanEmail,
+            fullName: liveName || (cleanEmail === officialAgentEmail ? "Official Agent" : `${cleanEmail.split("@")[0].toUpperCase()} Agent`),
+            telegramUsername: (agentProf.telegram || "").trim() || "@OrabitSupport",
+            email: cleanEmail,
           };
         }
       } catch (e) {}
@@ -163,11 +163,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             const found = list.find((u) => u.email.toLowerCase().trim() === assignedEmail);
             if (found && found.email) {
               const cleanEmail = found.email.toLowerCase().trim();
-              const isOfficial = cleanEmail === officialAgentEmail || !!found.isOfficial;
+              const liveName = (found.fullName || (found as any)?.full_name || "").trim();
               matchedAgent = {
-                fullName: isOfficial ? "ORABIT OFFICIAL" : (found.fullName || `${cleanEmail.split("@")[0].toUpperCase()} Agent`),
-                telegramUsername: found.telegram || "@OrabitSupport",
-                email: isOfficial ? officialAgentEmail : cleanEmail,
+                fullName: liveName || (cleanEmail === officialAgentEmail ? "Official Agent" : `${cleanEmail.split("@")[0].toUpperCase()} Agent`),
+                telegramUsername: (found.telegram || "").trim() || "@OrabitSupport",
+                email: cleanEmail,
               };
             }
           }
@@ -177,7 +177,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       // 3. Absolute Fallback: Official Support Agent (Never Owner)
       if (!matchedAgent || matchedAgent.email === "orabitsms@gmail.com") {
         matchedAgent = {
-          fullName: "ORABIT OFFICIAL",
+          fullName: "Official Agent",
           telegramUsername: "@OrabitSupport",
           email: officialAgentEmail,
         };
@@ -385,11 +385,30 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     try {
       const isSaved = await saveUserProfileToSupabase(updatedProfile);
       if (isSaved) {
-        // 2. Database update succeeded! Now update React State & localStorage
-        onUpdateProfile(updatedProfile);
+        // 2. Force authoritative re-fetch from database to guarantee cross-device sync
+        let finalProfile: UserProfile = { ...updatedProfile };
         try {
-          localStorage.setItem("orabit_user_profile", JSON.stringify(updatedProfile));
+          const fresh = await fetchUserProfileFromSupabase(userProfile.email);
+          if (fresh) {
+            finalProfile = { ...updatedProfile, ...fresh, email: userProfile.email };
+          }
+        } catch (reFetchErr) {
+          console.warn("Notice re-fetching profile after save:", reFetchErr);
+        }
+
+        // 3. Update React State & localStorage
+        onUpdateProfile(finalProfile);
+        try {
+          localStorage.setItem("orabit_user_profile", JSON.stringify(finalProfile));
         } catch (err) {}
+
+        if (finalProfile.fullName) setFullName(finalProfile.fullName);
+        if (finalProfile.mobileNumber !== undefined) setMobileNumber(finalProfile.mobileNumber);
+        if (finalProfile.country) setCountry(finalProfile.country);
+        if (finalProfile.city) setCity(finalProfile.city);
+        if (finalProfile.telegram !== undefined) setTelegramUsername(finalProfile.telegram);
+        if (finalProfile.bio !== undefined) setBio(finalProfile.bio);
+
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 4000);
       } else {
@@ -543,11 +562,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               {/* Agent Name */}
               <div className="space-y-1 text-center">
                 <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  {assignedAgent.fullName &&
-                  assignedAgent.fullName.toLowerCase() !== "orabitsms" &&
-                  !assignedAgent.fullName.toLowerCase().includes("orabitsms@")
-                    ? assignedAgent.fullName
-                    : "ORABIT OFFICIAL"}
+                  {assignedAgent.fullName || "Official Agent"}
                 </h4>
 
                 {/* VERIFIED AGENT Badge */}

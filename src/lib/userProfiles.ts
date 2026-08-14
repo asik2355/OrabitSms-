@@ -70,25 +70,37 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
   try {
     // 1. Try Backend Proxy API first (Secure, synchronized across all devices)
     try {
-      const resp = await fetch("/api/users/list");
+      const resp = await fetch(`/api/users/list?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       if (resp.ok) {
         const json = await resp.json();
         if (json && json.success && Array.isArray(json.users) && json.users.length > 0) {
-          const apiUsers: UserProfile[] = json.users.map((u: any) => ({
-            ...u,
-            email: (u.email || "").toLowerCase().trim(),
-            fullName: u.fullName || u.full_name || "",
-            firstName: u.firstName || u.first_name || "",
-            lastName: u.lastName || u.last_name || "",
-            mobileNumber: u.mobileNumber || u.mobile_number || "",
-            role: u.role || (u.email === "orabitsms@gmail.com" ? "Owner" : "Client"),
-            balance: Number(u.balance || 0),
-            customOtpRate: u.customOtpRate !== undefined ? Number(u.customOtpRate) : Number(u.rate || 0.006),
-            rate: u.rate !== undefined ? Number(u.rate) : Number(u.customOtpRate || 0.006),
-            apiEnabled: u.apiEnabled !== undefined ? !!u.apiEnabled : (u.email === "orabitsms@gmail.com" || u.role === "Owner"),
-            accountStatus: u.accountStatus || u.account_status || "Active",
-            assignedAgent: u.assignedAgent || u.assigned_agent || u.referralEmail || "official@orabitsms.xyz",
-          }));
+          const apiUsers: UserProfile[] = json.users.map((u: any) => {
+            const fullN = (u.fullName !== undefined && u.fullName !== null && u.fullName !== "" ? u.fullName : (u.full_name || "")).trim();
+            const cleanE = (u.email || "").toLowerCase().trim();
+            return {
+              ...u,
+              email: cleanE,
+              fullName: fullN || cleanE.split("@")[0] || "User",
+              firstName: u.firstName || u.first_name || (fullN ? fullN.split(" ")[0] : ""),
+              lastName: u.lastName || u.last_name || (fullN ? fullN.split(" ").slice(1).join(" ") : ""),
+              mobileNumber: u.mobileNumber !== undefined ? u.mobileNumber : (u.mobile_number || ""),
+              country: u.country || "Bangladesh",
+              city: u.city || "Dhaka",
+              telegram: u.telegram || "",
+              bio: u.bio || "",
+              role: u.role || (cleanE === "orabitsms@gmail.com" ? "Owner" : "Client"),
+              balance: Number(u.balance || 0),
+              customOtpRate: u.customOtpRate !== undefined ? Number(u.customOtpRate) : Number(u.rate || 0.006),
+              rate: u.rate !== undefined ? Number(u.rate) : Number(u.customOtpRate || 0.006),
+              apiEnabled: u.apiEnabled !== undefined ? !!u.apiEnabled : (cleanE === "orabitsms@gmail.com" || u.role === "Owner"),
+              accountStatus: u.accountStatus || u.account_status || "Active",
+              assignedAgent: u.assignedAgent || u.assigned_agent || u.referralEmail || "official@orabitsms.xyz",
+              isOfficial: u.isOfficial !== undefined ? !!u.isOfficial : (cleanE === "official@orabitsms.xyz"),
+            };
+          });
 
           try {
             localStorage.setItem("orabit_registered_users", JSON.stringify(apiUsers));
@@ -397,7 +409,10 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
   try {
     // 1. Try Backend Proxy API first (Authoritative, prevents unauthorized client balance edits)
     try {
-      const resp = await fetch(`/api/users/profile?email=${encodeURIComponent(cleanEmail)}`);
+      const resp = await fetch(`/api/users/profile?email=${encodeURIComponent(cleanEmail)}&t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       if (resp.ok) {
         const json = await resp.json();
         if (json && json.success && json.profile) {

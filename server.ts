@@ -106,6 +106,7 @@ async function startServer() {
   // 1. Get single user profile
   app.get("/api/users/profile", async (req, res) => {
     try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       const email = ((req.query.email as string) || "").toLowerCase().trim();
       if (!email) {
         return res.status(400).json({ error: "Email query param is required" });
@@ -120,21 +121,31 @@ async function startServer() {
           .maybeSingle();
 
         if (dbData) {
+          const liveFullName = dbData.full_name !== undefined && dbData.full_name !== null
+            ? dbData.full_name
+            : (dbData.fullName !== undefined && dbData.fullName !== null ? dbData.fullName : (serverProfilesCache[email]?.fullName || ""));
+
           const profile = {
+            ...serverProfilesCache[email],
             ...dbData,
-            fullName: dbData.full_name || dbData.fullName,
-            firstName: dbData.first_name || dbData.firstName,
-            lastName: dbData.last_name || dbData.lastName,
-            mobileNumber: dbData.mobile_number || dbData.mobileNumber,
+            email,
+            fullName: liveFullName,
+            firstName: dbData.first_name || dbData.firstName || (liveFullName ? liveFullName.split(" ")[0] : ""),
+            lastName: dbData.last_name || dbData.lastName || (liveFullName ? liveFullName.split(" ").slice(1).join(" ") : ""),
+            mobileNumber: dbData.mobile_number !== undefined && dbData.mobile_number !== null ? dbData.mobile_number : (dbData.mobileNumber || ""),
+            country: dbData.country || "Bangladesh",
+            city: dbData.city || "Dhaka",
+            telegram: dbData.telegram || "",
+            bio: dbData.bio || "",
             customOtpRate: dbData.custom_otp_rate !== undefined ? Number(dbData.custom_otp_rate) : Number(dbData.rate || 0.006),
             rate: dbData.rate !== undefined ? Number(dbData.rate) : Number(dbData.custom_otp_rate || 0.006),
             accountStatus: dbData.account_status || "Active",
             apiEnabled: !!dbData.api_enabled,
             withdrawPin: dbData.withdraw_pin || "",
-            assignedAgent: dbData.assigned_agent || dbData.referral_email,
-            isOfficial: !!dbData.is_official,
+            assignedAgent: dbData.assigned_agent || dbData.referral_email || "official@orabitsms.xyz",
+            isOfficial: dbData.is_official !== undefined ? !!dbData.is_official : (email === "official@orabitsms.xyz"),
           };
-          serverProfilesCache[email] = { ...serverProfilesCache[email], ...profile };
+          serverProfilesCache[email] = profile;
           saveServerProfiles(serverProfilesCache);
           return res.json({ success: true, profile });
         }
@@ -156,6 +167,7 @@ async function startServer() {
   // 2. List all users (For Owner/Agent Dashboard)
   app.get("/api/users/list", async (req, res) => {
     try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       let combined: Record<string, any> = { ...serverProfilesCache };
 
       try {
@@ -164,20 +176,29 @@ async function startServer() {
           dbProfiles.forEach((row: any) => {
             const e = (row.email || "").toLowerCase().trim();
             if (e) {
+              const liveFullName = row.full_name !== undefined && row.full_name !== null
+                ? row.full_name
+                : (row.fullName || combined[e]?.fullName || "");
+
               combined[e] = {
                 ...combined[e],
                 ...row,
-                fullName: row.full_name || row.fullName || combined[e]?.fullName,
-                firstName: row.first_name || row.firstName || combined[e]?.firstName,
-                lastName: row.last_name || row.lastName || combined[e]?.lastName,
-                mobileNumber: row.mobile_number || row.mobileNumber || combined[e]?.mobileNumber,
-                customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : (row.rate !== undefined ? Number(row.rate) : 0.006),
-                rate: row.rate !== undefined ? Number(row.rate) : 0.006,
+                email: e,
+                fullName: liveFullName,
+                firstName: row.first_name || row.firstName || (liveFullName ? liveFullName.split(" ")[0] : ""),
+                lastName: row.last_name || row.lastName || (liveFullName ? liveFullName.split(" ").slice(1).join(" ") : ""),
+                mobileNumber: row.mobile_number !== undefined && row.mobile_number !== null ? row.mobile_number : (row.mobileNumber || combined[e]?.mobileNumber || ""),
+                country: row.country || combined[e]?.country || "Bangladesh",
+                city: row.city || combined[e]?.city || "Dhaka",
+                bio: row.bio || combined[e]?.bio || "",
+                telegram: row.telegram || combined[e]?.telegram || "",
+                customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : (row.rate !== undefined ? Number(row.rate) : (combined[e]?.customOtpRate || 0.006)),
+                rate: row.rate !== undefined ? Number(row.rate) : (combined[e]?.rate || 0.006),
                 accountStatus: row.account_status || combined[e]?.accountStatus || "Active",
                 apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : !!combined[e]?.apiEnabled,
                 withdrawPin: row.withdraw_pin || combined[e]?.withdrawPin || "",
-                assignedAgent: row.assigned_agent || row.referral_email || combined[e]?.assignedAgent,
-                isOfficial: row.is_official !== undefined ? !!row.is_official : !!combined[e]?.isOfficial,
+                assignedAgent: row.assigned_agent || row.referral_email || combined[e]?.assignedAgent || "official@orabitsms.xyz",
+                isOfficial: row.is_official !== undefined ? !!row.is_official : (e === "official@orabitsms.xyz"),
               };
             }
           });
