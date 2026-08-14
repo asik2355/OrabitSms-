@@ -1,0 +1,26 @@
+{
+  "orabitsms@gmail.com": {
+    "email": "orabitsms@gmail.com",
+    "fullName": "Orabit Master Owner",
+    "role": "owner",
+    "balance": 999,
+    "apiEnabled": true,
+    "accountStatus": "Active",
+    "customOtpRate": 0.006,
+    "rate": 0.006,
+    "country": "Bangladesh",
+    "city": "Dhaka"
+  },
+  "test@orabitsms.xyz": {
+    "email": "test@orabitsms.xyz",
+    "balance": 0,
+    "role": "Client",
+    "customOtpRate": 0.006,
+    "rate": 0.006,
+    "accountStatus": "Active",
+    "apiEnabled": false,
+    "isOfficial": false,
+    "fullName": "Test User Updated",
+    "updatedAt": "2026-08-14T08:03:05.161Z"
+  }
+}

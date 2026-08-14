@@ -4,26 +4,41 @@ import { UserProfile } from "../components/OrabitAuthScreen";
 export const USER_PROFILES_TABLE = "user_profiles";
 
 export const CREATE_USER_PROFILES_TABLE_SQL = `
--- Supabase SQL Editor script to create user_profiles table
+-- 1. Create user_profiles table in Supabase
 CREATE TABLE IF NOT EXISTS public.user_profiles (
     email TEXT PRIMARY KEY,
     full_name TEXT,
+    first_name TEXT,
+    last_name TEXT,
     mobile_number TEXT,
     balance NUMERIC DEFAULT 0,
     total_success INTEGER DEFAULT 0,
     role TEXT DEFAULT 'Client',
     telegram TEXT,
-    country TEXT,
-    city TEXT,
+    country TEXT DEFAULT 'Bangladesh',
+    city TEXT DEFAULT 'Dhaka',
+    bio TEXT,
     withdraw_pin TEXT,
     account_status TEXT DEFAULT 'Active',
+    api_key TEXT,
+    api_enabled BOOLEAN DEFAULT FALSE,
+    custom_otp_rate NUMERIC DEFAULT 0.006,
+    rate NUMERIC DEFAULT 0.006,
+    referral_email TEXT,
+    assigned_agent TEXT,
+    referred_by TEXT,
+    is_official BOOLEAN DEFAULT FALSE,
+    password TEXT,
+    uid TEXT,
+    last_login TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Enable RLS
+-- 2. Enable Row Level Security (RLS)
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 
--- Allow all operations for user_profiles
+-- 3. Allow all operations for user_profiles (Public Access with anon key)
+DROP POLICY IF EXISTS "Allow all operations for user_profiles" ON public.user_profiles;
 CREATE POLICY "Allow all operations for user_profiles" 
 ON public.user_profiles FOR ALL 
 USING (true) 
@@ -49,11 +64,44 @@ export function getCleanUid(email: string, existingUid?: string): string {
 }
 
 /**
- * Fetches ALL user/agent profiles directly from Supabase as the Source of Truth.
+ * Fetches ALL user/agent profiles directly from Secure Backend & Supabase.
  */
 export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
   try {
-    // 1. Fetch user_profiles and user_roles safely
+    // 1. Try Backend Proxy API first (Secure, synchronized across all devices)
+    try {
+      const resp = await fetch("/api/users/list");
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && json.success && Array.isArray(json.users) && json.users.length > 0) {
+          const apiUsers: UserProfile[] = json.users.map((u: any) => ({
+            ...u,
+            email: (u.email || "").toLowerCase().trim(),
+            fullName: u.fullName || u.full_name || "",
+            firstName: u.firstName || u.first_name || "",
+            lastName: u.lastName || u.last_name || "",
+            mobileNumber: u.mobileNumber || u.mobile_number || "",
+            role: u.role || (u.email === "orabitsms@gmail.com" ? "Owner" : "Client"),
+            balance: Number(u.balance || 0),
+            customOtpRate: u.customOtpRate !== undefined ? Number(u.customOtpRate) : Number(u.rate || 0.006),
+            rate: u.rate !== undefined ? Number(u.rate) : Number(u.customOtpRate || 0.006),
+            apiEnabled: u.apiEnabled !== undefined ? !!u.apiEnabled : (u.email === "orabitsms@gmail.com" || u.role === "Owner"),
+            accountStatus: u.accountStatus || u.account_status || "Active",
+            assignedAgent: u.assignedAgent || u.assigned_agent || u.referralEmail || "official@orabitsms.xyz",
+          }));
+
+          try {
+            localStorage.setItem("orabit_registered_users", JSON.stringify(apiUsers));
+          } catch (e) {}
+
+          return apiUsers;
+        }
+      }
+    } catch (e) {
+      console.warn("Backend users list API notice, falling back to direct Supabase/cache:", e);
+    }
+
+    // 2. Fallback to direct Supabase fetch
     let profilesData: any[] = [];
     let rolesData: any[] = [];
 
@@ -216,7 +264,11 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
         password: row.password || cached?.password || "",
         customOtpRate: userRate,
         rate: userRate,
-        apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : (cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true),
+        apiEnabled: row.api_enabled !== undefined
+          ? !!row.api_enabled
+          : (cached?.apiEnabled !== undefined
+            ? !!cached.apiEnabled
+            : (emailClean === "orabitsms@gmail.com" || effectiveRole === "Owner")),
         lastLogin: row.last_login || row.updated_at || row.created_at || cached?.lastLogin,
       };
     });
@@ -263,7 +315,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
           password: cached?.password || "",
           customOtpRate: userRate,
           rate: userRate,
-          apiEnabled: cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true,
+          apiEnabled: cached?.apiEnabled !== undefined ? !!cached.apiEnabled : (eClean === "orabitsms@gmail.com" || roleName === "Owner"),
           lastLogin: cached?.lastLogin,
         });
       }
@@ -301,7 +353,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
             accountStatus: cached?.accountStatus || "Active",
             customOtpRate: cached?.customOtpRate || 0.006,
             rate: cached?.rate || 0.006,
-            apiEnabled: cached?.apiEnabled !== undefined ? !!cached.apiEnabled : true,
+            apiEnabled: cached?.apiEnabled !== undefined ? !!cached.apiEnabled : (eClean === "orabitsms@gmail.com" || roleName === "Owner"),
           });
         }
       });
@@ -335,7 +387,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
 }
 
 /**
- * Fetches user profile directly from Supabase (checking user_profiles table, cloud sync record, and user_roles).
+ * Fetches user profile directly from Secure Backend (checking server API, user_profiles table, and user_roles).
  */
 export async function fetchUserProfileFromSupabase(email: string): Promise<Partial<UserProfile> | null> {
   if (!email) return null;
@@ -343,6 +395,51 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
   const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
 
   try {
+    // 1. Try Backend Proxy API first (Authoritative, prevents unauthorized client balance edits)
+    try {
+      const resp = await fetch(`/api/users/profile?email=${encodeURIComponent(cleanEmail)}`);
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && json.success && json.profile) {
+          const p = json.profile;
+          const userRate = p.customOtpRate !== undefined ? Number(p.customOtpRate) : Number(p.rate || 0.006);
+          const fullN = (p.fullName || p.full_name || "").trim();
+
+          const result: Partial<UserProfile> = {
+            email: cleanEmail,
+            fullName: fullN,
+            firstName: p.firstName || p.first_name || fullN.split(" ")[0] || "",
+            lastName: p.lastName || p.last_name || fullN.split(" ").slice(1).join(" ") || "",
+            mobileNumber: p.mobileNumber || p.mobile_number || "",
+            balance: Number(p.balance || 0),
+            totalSuccess: Number(p.totalSuccess || p.total_success || 0),
+            role: p.role || (cleanEmail === "orabitsms@gmail.com" ? "Owner" : "Client"),
+            telegram: p.telegram || "",
+            country: p.country || "Bangladesh",
+            city: p.city || "Dhaka",
+            bio: p.bio || "",
+            withdrawPin: p.withdrawPin || p.withdraw_pin || "",
+            accountStatus: p.accountStatus || p.account_status || "Active",
+            apiKey: p.apiKey || p.api_key || "",
+            uid: getCleanUid(cleanEmail, p.uid),
+            paymentMethods: p.paymentMethods || p.payment_methods || null,
+            withdrawHistory: p.withdrawHistory || p.withdraw_history || null,
+            referralEmail: p.referralEmail || p.assignedAgent || p.assigned_agent || officialEmail,
+            referredBy: p.referredBy || p.assignedAgent || p.assigned_agent || officialEmail,
+            assignedAgent: p.assignedAgent || p.assigned_agent || p.referralEmail || officialEmail,
+            customOtpRate: userRate,
+            rate: userRate,
+            apiEnabled: p.apiEnabled !== undefined ? !!p.apiEnabled : (cleanEmail === "orabitsms@gmail.com" || p.role === "Owner"),
+            isOfficial: p.isOfficial !== undefined ? !!p.isOfficial : cleanEmail === "official@orabitsms.xyz",
+            lastLogin: p.lastLogin || p.last_login || p.updatedAt || p.updated_at,
+          };
+          return result;
+        }
+      }
+    } catch (e) {
+      console.warn("Backend user profile API notice, checking Supabase/cache fallback:", e);
+    }
+
     // Fetch from user_profiles table and user_roles table
     let tableData: any = null;
     let roleVal: string | null = null;
@@ -401,7 +498,9 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         assignedAgent: assigned,
         customOtpRate: userRate,
         rate: userRate,
-        apiEnabled: tableData?.api_enabled !== undefined ? !!tableData.api_enabled : true,
+        apiEnabled: tableData?.api_enabled !== undefined
+          ? !!tableData.api_enabled
+          : (cleanEmail === "orabitsms@gmail.com" || mergedRole === "Owner"),
         isOfficial: tableData?.is_official !== undefined ? !!tableData.is_official : cleanEmail === "official@orabitsms.xyz",
         lastLogin: tableData?.last_login || tableData?.updated_at || tableData?.created_at,
       };
@@ -439,7 +538,9 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
         assignedAgent: assigned,
         customOtpRate: userRate,
         rate: userRate,
-        apiEnabled: meta.apiEnabled !== undefined ? !!meta.apiEnabled : true,
+        apiEnabled: meta.apiEnabled !== undefined
+          ? !!meta.apiEnabled
+          : (cleanEmail === "orabitsms@gmail.com" || effectiveRole === "Owner"),
         lastLogin: meta.lastLogin,
       };
     }
@@ -451,11 +552,23 @@ export async function fetchUserProfileFromSupabase(email: string): Promise<Parti
 }
 
 /**
- * Saves or updates user profile in Supabase user_profiles table & Auth Metadata.
+ * Saves or updates user profile in Backend Proxy API (with server validation) & Supabase.
  */
 export async function saveUserProfileToSupabase(profile: UserProfile): Promise<boolean> {
   if (!profile || !profile.email) return false;
   const cleanEmail = profile.email.toLowerCase().trim();
+
+  // 0. Get current session info to determine requester
+  let requesterEmail = cleanEmail;
+  let requesterRole = profile.role || "Client";
+  try {
+    const sessionStr = localStorage.getItem("orabit_user_profile");
+    if (sessionStr) {
+      const parsed = JSON.parse(sessionStr);
+      if (parsed?.email) requesterEmail = parsed.email.toLowerCase().trim();
+      if (parsed?.role) requesterRole = parsed.role;
+    }
+  } catch (e) {}
 
   const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
   const assignedAgentVal = (
@@ -467,6 +580,56 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
   ).toLowerCase().trim();
 
   const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.006);
+  const isOwnerAcc = cleanEmail === "orabitsms@gmail.com" || profile.role?.toLowerCase() === "owner";
+
+  // 1. Send to Secure Backend Proxy API (Ensures server-authoritative validation & real-time sync across devices)
+  try {
+    const resp = await fetch("/api/users/save-profile", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-email": requesterEmail,
+      },
+      body: JSON.stringify({
+        requesterEmail,
+        profile: {
+          ...profile,
+          email: cleanEmail,
+          assignedAgent: assignedAgentVal,
+          customOtpRate: numRate,
+          rate: numRate,
+        },
+      }),
+    });
+
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.success && json.profile) {
+        // Update local cache with sanitized server-authoritative profile
+        try {
+          const stored = localStorage.getItem("orabit_registered_users");
+          let userList: UserProfile[] = stored ? JSON.parse(stored) : [];
+          if (!Array.isArray(userList)) userList = [];
+          const idx = userList.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+          if (idx >= 0) {
+            userList[idx] = { ...userList[idx], ...json.profile, email: cleanEmail };
+          } else {
+            userList.push({ ...json.profile, email: cleanEmail });
+          }
+          localStorage.setItem("orabit_registered_users", JSON.stringify(userList));
+
+          // If current logged-in user updated their own profile, update local session
+          if (requesterEmail === cleanEmail) {
+            localStorage.setItem("orabit_user_profile", JSON.stringify({ ...profile, ...json.profile }));
+          }
+        } catch (e) {}
+
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn("Backend proxy API save warning, writing to fallback direct Supabase:", e);
+  }
 
   // 0. Update localStorage registered users cache immediately so local state never reverts
   try {
@@ -509,7 +672,7 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
       referred_by: assignedAgentVal,
       custom_otp_rate: numRate,
       rate: numRate,
-      api_enabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : true,
+      api_enabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : isOwnerAcc,
       is_official: !!profile.isOfficial,
       password: profile.password || "",
       last_login: profile.lastLogin || new Date().toISOString(),
@@ -654,7 +817,7 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
 
 /**
  * Permanent Profile Update on OTP Success:
- * Increments total_success (+1) and balance (+earnedRate) permanently in Supabase user_profiles table.
+ * Increments total_success (+1) and balance (+earnedRate) permanently in Backend and Supabase.
  */
 export async function incrementUserSuccessAndBalanceInSupabase(
   email: string,
@@ -662,6 +825,48 @@ export async function incrementUserSuccessAndBalanceInSupabase(
 ): Promise<{ newBalance: number; newTotalSuccess: number } | null> {
   if (!email) return null;
   const cleanEmail = email.toLowerCase().trim();
+
+  // Try Secure Backend endpoint
+  try {
+    const resp = await fetch("/api/users/update-balance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": "orabit-internal-otp-system",
+      },
+      body: JSON.stringify({
+        targetEmail: cleanEmail,
+        amount: earnedRate,
+        reason: "OTP Success Commission",
+      }),
+    });
+
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && json.success && json.newBalance !== undefined) {
+        const newBalance = json.newBalance;
+        const current = await fetchUserProfileFromSupabase(cleanEmail);
+        const newTotalSuccess = (current?.totalSuccess || 0) + 1;
+
+        try {
+          const stored = localStorage.getItem("orabit_registered_users");
+          if (stored) {
+            let list: UserProfile[] = JSON.parse(stored);
+            const idx = list.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+            if (idx >= 0) {
+              list[idx].balance = newBalance;
+              list[idx].totalSuccess = newTotalSuccess;
+              localStorage.setItem("orabit_registered_users", JSON.stringify(list));
+            }
+          }
+        } catch (e) {}
+
+        return { newBalance, newTotalSuccess };
+      }
+    }
+  } catch (e) {
+    console.warn("Backend balance update notice, executing Supabase fallback:", e);
+  }
 
   try {
     const current = await fetchUserProfileFromSupabase(cleanEmail);

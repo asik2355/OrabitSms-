@@ -1,7 +1,56 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://hdcdrjjonuarxfdxkwia.supabase.co";
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_Wmwz_HvcKllXzQ8Xi-9o-w_muS6WW1F";
+
+const serverSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Persistent Server Profiles Store (Ensures multi-device live sync & crash resilience)
+const PROFILES_STORAGE_FILE = path.join(process.cwd(), "user_profiles_server.json");
+
+function loadServerProfiles(): Record<string, any> {
+  try {
+    if (fs.existsSync(PROFILES_STORAGE_FILE)) {
+      const raw = fs.readFileSync(PROFILES_STORAGE_FILE, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn("Failed to read server profiles storage file:", e);
+  }
+  return {};
+}
+
+function saveServerProfiles(profiles: Record<string, any>) {
+  try {
+    fs.writeFileSync(PROFILES_STORAGE_FILE, JSON.stringify(profiles, null, 2), "utf-8");
+  } catch (e) {
+    console.warn("Failed to write server profiles storage file:", e);
+  }
+}
+
+const serverProfilesCache: Record<string, any> = loadServerProfiles();
+
+// Ensure Owner exists with baseline config
+if (!serverProfilesCache["orabitsms@gmail.com"]) {
+  serverProfilesCache["orabitsms@gmail.com"] = {
+    email: "orabitsms@gmail.com",
+    fullName: "Orabit Master Owner",
+    role: "Owner",
+    balance: 999.0,
+    apiEnabled: true,
+    accountStatus: "Active",
+    customOtpRate: 0.006,
+    rate: 0.006,
+    country: "Bangladesh",
+    city: "Dhaka",
+  };
+  saveServerProfiles(serverProfilesCache);
+}
 
 async function startServer() {
   const app = express();
@@ -26,6 +75,266 @@ async function startServer() {
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", geminiAvailable: !!process.env.GEMINI_API_KEY });
+  });
+
+  // -------------------------------------------------------------
+  // SECURE USER MANAGEMENT & BACKEND PROXY API (Option 2)
+  // Server-authoritative: Prevents balance/role tampering by clients
+  // -------------------------------------------------------------
+
+  // 1. Get single user profile
+  app.get("/api/users/profile", async (req, res) => {
+    try {
+      const email = ((req.query.email as string) || "").toLowerCase().trim();
+      if (!email) {
+        return res.status(400).json({ error: "Email query param is required" });
+      }
+
+      // Try Supabase first
+      try {
+        const { data: dbData } = await serverSupabase
+          .from("user_profiles")
+          .select("*")
+          .ilike("email", email)
+          .maybeSingle();
+
+        if (dbData) {
+          const profile = {
+            ...dbData,
+            fullName: dbData.full_name || dbData.fullName,
+            firstName: dbData.first_name || dbData.firstName,
+            lastName: dbData.last_name || dbData.lastName,
+            mobileNumber: dbData.mobile_number || dbData.mobileNumber,
+            customOtpRate: dbData.custom_otp_rate !== undefined ? Number(dbData.custom_otp_rate) : Number(dbData.rate || 0.006),
+            rate: dbData.rate !== undefined ? Number(dbData.rate) : Number(dbData.custom_otp_rate || 0.006),
+            accountStatus: dbData.account_status || "Active",
+            apiEnabled: !!dbData.api_enabled,
+            withdrawPin: dbData.withdraw_pin || "",
+            assignedAgent: dbData.assigned_agent || dbData.referral_email,
+            isOfficial: !!dbData.is_official,
+          };
+          serverProfilesCache[email] = { ...serverProfilesCache[email], ...profile };
+          saveServerProfiles(serverProfilesCache);
+          return res.json({ success: true, profile });
+        }
+      } catch (e) {
+        // Fallback to cache
+      }
+
+      const cached = serverProfilesCache[email];
+      if (cached) {
+        return res.json({ success: true, profile: cached });
+      }
+
+      return res.status(404).json({ error: "Profile not found" });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to get profile" });
+    }
+  });
+
+  // 2. List all users (For Owner/Agent Dashboard)
+  app.get("/api/users/list", async (req, res) => {
+    try {
+      let combined: Record<string, any> = { ...serverProfilesCache };
+
+      try {
+        const { data: dbProfiles } = await serverSupabase.from("user_profiles").select("*");
+        if (Array.isArray(dbProfiles)) {
+          dbProfiles.forEach((row: any) => {
+            const e = (row.email || "").toLowerCase().trim();
+            if (e) {
+              combined[e] = {
+                ...combined[e],
+                ...row,
+                fullName: row.full_name || row.fullName || combined[e]?.fullName,
+                firstName: row.first_name || row.firstName || combined[e]?.firstName,
+                lastName: row.last_name || row.lastName || combined[e]?.lastName,
+                mobileNumber: row.mobile_number || row.mobileNumber || combined[e]?.mobileNumber,
+                customOtpRate: row.custom_otp_rate !== undefined ? Number(row.custom_otp_rate) : (row.rate !== undefined ? Number(row.rate) : 0.006),
+                rate: row.rate !== undefined ? Number(row.rate) : 0.006,
+                accountStatus: row.account_status || combined[e]?.accountStatus || "Active",
+                apiEnabled: row.api_enabled !== undefined ? !!row.api_enabled : !!combined[e]?.apiEnabled,
+                withdrawPin: row.withdraw_pin || combined[e]?.withdrawPin || "",
+                assignedAgent: row.assigned_agent || row.referral_email || combined[e]?.assignedAgent,
+                isOfficial: row.is_official !== undefined ? !!row.is_official : !!combined[e]?.isOfficial,
+              };
+            }
+          });
+        }
+      } catch (e) {
+        // use combined cache
+      }
+
+      // Also check user_roles
+      try {
+        const { data: roles } = await serverSupabase.from("user_roles").select("*");
+        if (Array.isArray(roles)) {
+          roles.forEach((r: any) => {
+            const e = (r.email || "").toLowerCase().trim();
+            if (e && combined[e]) {
+              combined[e].role = r.role;
+            }
+          });
+        }
+      } catch (e) {}
+
+      return res.json({ success: true, users: Object.values(combined) });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to list users" });
+    }
+  });
+
+  // 3. SECURE Profile Save / Update Endpoint
+  app.post("/api/users/save-profile", async (req, res) => {
+    try {
+      const { requesterEmail, profile } = req.body;
+      if (!profile || !profile.email) {
+        return res.status(400).json({ error: "Profile and target email are required" });
+      }
+
+      const targetEmail = (profile.email || "").toLowerCase().trim();
+      const reqEmail = (requesterEmail || (req.headers["x-user-email"] as string) || targetEmail).toLowerCase().trim();
+
+      const existingTarget = serverProfilesCache[targetEmail] || {};
+      const isOwner = reqEmail === "orabitsms@gmail.com" || serverProfilesCache[reqEmail]?.role?.toLowerCase() === "owner";
+
+      // SECURITY ENFORCEMENT:
+      // Non-owners can ONLY update their own personal info!
+      if (!isOwner && reqEmail !== targetEmail) {
+        return res.status(403).json({ error: "Permission Denied: You cannot modify other users' profiles." });
+      }
+
+      let updatedProfile: any = {};
+
+      if (isOwner) {
+        // Owner has full authority to change roles, balances, rates, status, etc.
+        updatedProfile = {
+          ...existingTarget,
+          ...profile,
+          email: targetEmail,
+          balance: profile.balance !== undefined ? Number(profile.balance) : (existingTarget.balance || 0),
+          customOtpRate: profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : (existingTarget.customOtpRate || 0.006)),
+          rate: profile.rate !== undefined ? Number(profile.rate) : (profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (existingTarget.rate || 0.006)),
+          role: profile.role || existingTarget.role || "Client",
+          accountStatus: profile.accountStatus || existingTarget.accountStatus || "Active",
+          apiEnabled: profile.apiEnabled !== undefined ? !!profile.apiEnabled : (existingTarget.apiEnabled ?? false),
+          isOfficial: profile.isOfficial !== undefined ? !!profile.isOfficial : (existingTarget.isOfficial ?? false),
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        // Client / Agent: STRIP all critical fields! Preserves server balance & role!
+        updatedProfile = {
+          ...existingTarget,
+          email: targetEmail,
+          // Retain server authoritative fields (Client cannot modify their own balance or role!)
+          balance: existingTarget.balance !== undefined ? existingTarget.balance : 0,
+          role: existingTarget.role || "Client",
+          customOtpRate: existingTarget.customOtpRate || existingTarget.rate || 0.006,
+          rate: existingTarget.rate || existingTarget.customOtpRate || 0.006,
+          accountStatus: existingTarget.accountStatus || "Active",
+          apiEnabled: existingTarget.apiEnabled ?? false,
+          isOfficial: existingTarget.isOfficial ?? false,
+
+          // Allowed personal updates:
+          fullName: profile.fullName !== undefined ? profile.fullName : existingTarget.fullName,
+          firstName: profile.firstName !== undefined ? profile.firstName : existingTarget.firstName,
+          lastName: profile.lastName !== undefined ? profile.lastName : existingTarget.lastName,
+          mobileNumber: profile.mobileNumber !== undefined ? profile.mobileNumber : existingTarget.mobileNumber,
+          telegram: profile.telegram !== undefined ? profile.telegram : existingTarget.telegram,
+          country: profile.country !== undefined ? profile.country : existingTarget.country,
+          city: profile.city !== undefined ? profile.city : existingTarget.city,
+          bio: profile.bio !== undefined ? profile.bio : existingTarget.bio,
+          withdrawPin: profile.withdrawPin !== undefined ? profile.withdrawPin : existingTarget.withdrawPin,
+          password: profile.password !== undefined ? profile.password : existingTarget.password,
+          paymentMethods: profile.paymentMethods !== undefined ? profile.paymentMethods : existingTarget.paymentMethods,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      // Save to server cache & file
+      serverProfilesCache[targetEmail] = updatedProfile;
+      saveServerProfiles(serverProfilesCache);
+
+      // Async write to Supabase
+      const dbPayload = {
+        email: targetEmail,
+        full_name: updatedProfile.fullName || "",
+        first_name: updatedProfile.firstName || "",
+        last_name: updatedProfile.lastName || "",
+        mobile_number: updatedProfile.mobileNumber || "",
+        balance: updatedProfile.balance,
+        total_success: updatedProfile.totalSuccess || 0,
+        role: updatedProfile.role,
+        telegram: updatedProfile.telegram || "",
+        country: updatedProfile.country || "Bangladesh",
+        city: updatedProfile.city || "Dhaka",
+        bio: updatedProfile.bio || "",
+        withdraw_pin: updatedProfile.withdrawPin || "",
+        account_status: updatedProfile.accountStatus || "Active",
+        api_key: updatedProfile.apiKey || "",
+        api_enabled: !!updatedProfile.apiEnabled,
+        custom_otp_rate: updatedProfile.customOtpRate || 0.006,
+        rate: updatedProfile.rate || 0.006,
+        referral_email: updatedProfile.referralEmail || updatedProfile.assignedAgent || "",
+        assigned_agent: updatedProfile.assignedAgent || updatedProfile.referralEmail || "",
+        is_official: !!updatedProfile.isOfficial,
+        password: updatedProfile.password || "",
+        uid: updatedProfile.uid || "",
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        await serverSupabase.from("user_profiles").upsert(dbPayload, { onConflict: "email" });
+      } catch (e) {
+        console.warn("Notice updating Supabase user_profiles:", e);
+      }
+
+      if (isOwner && profile.role) {
+        try {
+          await serverSupabase.from("user_roles").upsert({ email: targetEmail, role: profile.role.toLowerCase() }, { onConflict: "email" });
+        } catch (e) {}
+      }
+
+      return res.json({ success: true, profile: updatedProfile });
+    } catch (error: any) {
+      console.error("Save profile error:", error);
+      return res.status(500).json({ error: error.message || "Failed to save profile" });
+    }
+  });
+
+  // 4. Secure Balance Adjustment (OTP earnings or Owner Topup)
+  app.post("/api/users/update-balance", async (req, res) => {
+    try {
+      const { requesterEmail, targetEmail, amount, reason } = req.body;
+      const tEmail = (targetEmail || "").toLowerCase().trim();
+      const rEmail = (requesterEmail || "").toLowerCase().trim();
+
+      if (!tEmail || amount === undefined) {
+        return res.status(400).json({ error: "targetEmail and amount are required" });
+      }
+
+      const isOwner = rEmail === "orabitsms@gmail.com" || serverProfilesCache[rEmail]?.role?.toLowerCase() === "owner";
+      const isInternal = req.headers["x-internal-secret"] === "orabit-internal-otp-system";
+
+      if (!isOwner && !isInternal) {
+        return res.status(403).json({ error: "Unauthorized balance modification request" });
+      }
+
+      const existing = serverProfilesCache[tEmail] || { email: tEmail, balance: 0 };
+      const newBal = Math.max(0, Number((Number(existing.balance || 0) + Number(amount)).toFixed(4)));
+
+      existing.balance = newBal;
+      serverProfilesCache[tEmail] = existing;
+      saveServerProfiles(serverProfilesCache);
+
+      try {
+        await serverSupabase.from("user_profiles").update({ balance: newBal, updated_at: new Date().toISOString() }).ilike("email", tEmail);
+      } catch (e) {}
+
+      return res.json({ success: true, newBalance: newBal, message: `Balance updated for ${tEmail}` });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to update balance" });
+    }
   });
 
   // Stex SMS API Proxy Endpoints

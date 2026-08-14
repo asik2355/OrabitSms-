@@ -370,7 +370,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
           balance: foundAcc?.balance !== undefined ? foundAcc.balance : (isOwnerEmail ? 999.0 : 0.0),
           password: loginPassword,
           role: isOwnerEmail ? "Owner" : (foundAcc?.role || meta.role || "Client"),
-          apiEnabled: foundAcc?.apiEnabled ?? false,
+          apiEnabled: foundAcc?.apiEnabled !== undefined ? foundAcc.apiEnabled : (isOwnerEmail ? true : false),
         };
 
         // Ensure user is stored in registered users
