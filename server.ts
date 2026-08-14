@@ -52,6 +52,27 @@ if (!serverProfilesCache["orabitsms@gmail.com"]) {
   saveServerProfiles(serverProfilesCache);
 }
 
+// Ensure Official Agent exists with baseline config
+if (!serverProfilesCache["official@orabitsms.xyz"]) {
+  serverProfilesCache["official@orabitsms.xyz"] = {
+    email: "official@orabitsms.xyz",
+    fullName: "ORABIT OFFICIAL SUPPORT",
+    firstName: "Orabit",
+    lastName: "Official",
+    role: "Agent",
+    isOfficial: true,
+    telegram: "@OrabitSupport",
+    balance: 0.0,
+    apiEnabled: false,
+    accountStatus: "Active",
+    customOtpRate: 0.006,
+    rate: 0.006,
+    country: "Bangladesh",
+    city: "Dhaka",
+  };
+  saveServerProfiles(serverProfilesCache);
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;

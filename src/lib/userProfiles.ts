@@ -172,7 +172,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
       }
     } catch (e) {}
 
-    const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+    const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "official@orabitsms.xyz").toLowerCase().trim();
 
     // Map profiles from user_profiles table if it has rows
     const mapped: UserProfile[] = (Array.isArray(data) ? data : []).map((row: any) => {
@@ -392,7 +392,7 @@ export async function fetchAllProfilesFromSupabase(): Promise<UserProfile[]> {
 export async function fetchUserProfileFromSupabase(email: string): Promise<Partial<UserProfile> | null> {
   if (!email) return null;
   const cleanEmail = email.toLowerCase().trim();
-  const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+  const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "official@orabitsms.xyz").toLowerCase().trim();
 
   try {
     // 1. Try Backend Proxy API first (Authoritative, prevents unauthorized client balance edits)
@@ -570,14 +570,18 @@ export async function saveUserProfileToSupabase(profile: UserProfile): Promise<b
     }
   } catch (e) {}
 
-  const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
-  const assignedAgentVal = (
+  const officialEmail = (localStorage.getItem("orabit_official_agent_email") || "official@orabitsms.xyz").toLowerCase().trim();
+  let assignedAgentVal = (
     profile.assignedAgent ||
     (profile as any).assigned_agent ||
     profile.referralEmail ||
     profile.referredBy ||
     officialEmail
   ).toLowerCase().trim();
+
+  if (assignedAgentVal === "orabitsms@gmail.com" || !assignedAgentVal) {
+    assignedAgentVal = officialEmail;
+  }
 
   const numRate = profile.customOtpRate !== undefined ? Number(profile.customOtpRate) : (profile.rate !== undefined ? Number(profile.rate) : 0.006);
   const isOwnerAcc = cleanEmail === "orabitsms@gmail.com" || profile.role?.toLowerCase() === "owner";

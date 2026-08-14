@@ -223,7 +223,7 @@ export const OrabitAuthScreen: React.FC<OrabitAuthScreenProps> = ({
       return;
     }
 
-    const officialFallbackEmail = (localStorage.getItem("orabit_official_agent_email") || "orabitsms@gmail.com").toLowerCase().trim();
+    const officialFallbackEmail = (localStorage.getItem("orabit_official_agent_email") || "official@orabitsms.xyz").toLowerCase().trim();
     let finalReferralEmail = agentReferralEmail.trim();
 
     if (!finalReferralEmail || !emailRegex.test(finalReferralEmail)) {

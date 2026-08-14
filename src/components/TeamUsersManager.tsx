@@ -84,8 +84,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
 
   // Modal edit state
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
-  const [editFirstName, setEditFirstName] = useState("");
-  const [editLastName, setEditLastName] = useState("");
+  const [editFullName, setEditFullName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editCountry, setEditCountry] = useState("");
   const [editCity, setEditCity] = useState("");
@@ -105,8 +104,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   const [invitePhone, setInvitePhone] = useState("");
   const [inviteCountry, setInviteCountry] = useState("Bangladesh");
   const [inviteCity, setInviteCity] = useState("Pirojpur");
-  const [inviteFirstName, setInviteFirstName] = useState("");
-  const [inviteLastName, setInviteLastName] = useState("");
+  const [inviteFullName, setInviteFullName] = useState("");
   const [inviteRate, setInviteRate] = useState<string>("0.006");
   const [inviteSuccessMsg, setInviteSuccessMsg] = useState<string | null>(null);
 
@@ -195,9 +193,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
   // Open Edit Modal
   const handleOpenEditModal = (user: UserProfile) => {
     setEditingUser(user);
-    const nameParts = (user.fullName || "").trim().split(" ");
-    setEditFirstName(user.firstName || nameParts[0] || "");
-    setEditLastName(user.lastName || nameParts.slice(1).join(" ") || "");
+    setEditFullName(user.fullName || "");
     setEditPhone(user.mobileNumber || "");
     setEditCountry(user.country || "");
     setEditCity(user.city || "");
@@ -236,13 +232,11 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       setEditRate(agentOwnRate.toString());
     }
 
-    const fullN = `${editFirstName.trim()} ${editLastName.trim()}`.trim() || editingUser.fullName;
+    const fullN = editFullName.trim() || editingUser.fullName;
     const cleanAgentEmail = editAssignedAgent.trim().toLowerCase() || editingUser.assignedAgent || agentEmail;
 
     const updated: UserProfile = {
       ...editingUser,
-      firstName: editFirstName.trim(),
-      lastName: editLastName.trim(),
       fullName: fullN,
       mobileNumber: editPhone.trim(),
       country: editCountry.trim(),
@@ -286,18 +280,15 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
     e.preventDefault();
     if (!inviteEmail.trim()) return;
 
-    const first = inviteFirstName.trim() || inviteEmail.split("@")[0];
-    const last = inviteLastName.trim() || "User";
+    const fullN = inviteFullName.trim() || inviteEmail.split("@")[0];
     let numRate = parseFloat(inviteRate);
     if (isNaN(numRate)) numRate = 0.006;
 
     const newUser: UserProfile = {
-      firstName: first,
-      lastName: last,
-      fullName: `${first} ${last}`.trim(),
+      fullName: fullN,
       email: inviteEmail.trim().toLowerCase(),
       mobileNumber: invitePhone.trim() || "+8801700000000",
-      telegram: "@" + first.toLowerCase(),
+      telegram: "@" + (fullN.split(" ")[0] || "user").toLowerCase(),
       withdrawPin: "1234",
       country: inviteCountry.trim() || "Bangladesh",
       city: inviteCity.trim() || "Pirojpur",
@@ -328,8 +319,7 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
       setShowInviteModal(false);
       setInviteEmail("");
       setInvitePhone("");
-      setInviteFirstName("");
-      setInviteLastName("");
+      setInviteFullName("");
     }, 1200);
   };
 
@@ -720,28 +710,16 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                 </div>
               )}
 
-              {/* FIRST NAME */}
+              {/* FULL NAME */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  FIRST NAME
+                  FULL NAME
                 </label>
                 <input
                   type="text"
-                  value={editFirstName}
-                  onChange={(e) => setEditFirstName(e.target.value)}
-                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              {/* LAST NAME */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  LAST NAME
-                </label>
-                <input
-                  type="text"
-                  value={editLastName}
-                  onChange={(e) => setEditLastName(e.target.value)}
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  placeholder="Full Name"
                   className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -1001,31 +979,17 @@ export const TeamUsersManager: React.FC<TeamUsersManagerProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    FIRST NAME
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteFirstName}
-                    onChange={(e) => setInviteFirstName(e.target.value)}
-                    placeholder="Crypto"
-                    className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    LAST NAME
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteLastName}
-                    onChange={(e) => setInviteLastName(e.target.value)}
-                    placeholder="Comrade"
-                    className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  FULL NAME
+                </label>
+                <input
+                  type="text"
+                  value={inviteFullName}
+                  onChange={(e) => setInviteFullName(e.target.value)}
+                  placeholder="Crypto Comrade"
+                  className="w-full bg-[#0a0d14] border border-[#232838] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                />
               </div>
 
               <div className="space-y-1">
